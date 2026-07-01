@@ -18,13 +18,10 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 const provider = new GoogleAuthProvider()
 
-// Use redirect instead of popup — GitHub Pages sets COOP headers that
-// block popup-based auth (window.closed is not accessible cross-origin).
 export function signInWithGoogle() {
   return signInWithRedirect(auth, provider)
 }
 
-// Call this once on app load to pick up the result after the redirect returns.
 export function handleRedirectResult() {
   return getRedirectResult(auth)
 }
