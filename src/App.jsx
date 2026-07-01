@@ -26,27 +26,49 @@ export default function App() {
   }, [light])
 
   useEffect(() => {
-    // Handle the result when Google redirects back to the app
-    handleRedirectResult().catch((err) => {
-      console.error('Redirect result error:', err)
-      setAuthError('Sign-in failed: ' + err.message)
-    })
+    let unsubscribed = false
 
-    const unsub = watchAuthState((u) => {
-      if (u && !isAllowedUser(u)) {
-        setAuthError('This Google account is not authorized for PeopleOS.')
-        signOut()
-        setUser(null)
-        return
+    async function init() {
+      // First, try to resolve any pending redirect from Google login.
+      // This must complete BEFORE we attach the auth state listener,
+      // otherwise we can see a transient null state and flash the login page.
+      try {
+        await handleRedirectResult()
+      } catch (err) {
+        console.error('Redirect auth error:', err)
+        if (!unsubscribed) setAuthError('Sign-in failed: ' + (err.message || 'unknown error'))
       }
-      setAuthError('')
-      setUser(u)
-    })
-    return unsub
+
+      // Now watch the resolved auth state
+      const unsub = watchAuthState((u) => {
+        if (unsubscribed) return
+        if (u && !isAllowedUser(u)) {
+          setAuthError('This Google account is not authorized for PeopleOS.')
+          signOut()
+          setUser(null)
+          return
+        }
+        setAuthError('')
+        setUser(u ?? null)
+      })
+
+      return unsub
+    }
+
+    const unsubPromise = init()
+    return () => {
+      unsubscribed = true
+      unsubPromise.then((unsub) => unsub?.())
+    }
   }, [])
 
-  if (user === undefined) return <div className="loading-screen">Loading PeopleOS…</div>
-  if (!user) return <LoginScreen error={authError} />
+  if (user === undefined) {
+    return <div className="loading-screen">Loading PeopleOS…</div>
+  }
+
+  if (!user) {
+    return <LoginScreen error={authError} />
+  }
 
   return (
     <div className="app-shell">
@@ -133,9 +155,10 @@ function LoginScreen({ error }) {
     setBusy(true)
     setErr('')
     try {
-      await signInWithGoogle() // triggers redirect — page will reload
+      await signInWithGoogle()
+      // Page will redirect to Google — nothing to do here
     } catch (e) {
-      setErr('Sign-in failed. Please try again.')
+      setErr('Sign-in failed: ' + e.message)
       setBusy(false)
     }
   }
