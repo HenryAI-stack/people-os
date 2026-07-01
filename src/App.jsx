@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { watchAuthState, signInWithGoogle, signOut, isAllowedUser } from './lib/firebase'
+import { watchAuthState, signInWithGoogle, signOut, isAllowedUser, handleRedirectResult } from './lib/firebase'
 
 import Dashboard from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
 import Interviews from './pages/Interviews.jsx'
 import Notes from './pages/Notes.jsx'
 
-// Persist theme + sidebar state across page loads
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
     try { const s = localStorage.getItem(key); return s !== null ? JSON.parse(s) : def } catch { return def }
@@ -22,12 +21,17 @@ export default function App() {
   const [light, setLight] = usePref('peopleos-theme-light', false)
   const [collapsed, setCollapsed] = usePref('peopleos-sidebar-collapsed', false)
 
-  // Apply theme class to <body>
   useEffect(() => {
     document.body.classList.toggle('light', light)
   }, [light])
 
   useEffect(() => {
+    // Handle the result when Google redirects back to the app
+    handleRedirectResult().catch((err) => {
+      console.error('Redirect result error:', err)
+      setAuthError('Sign-in failed: ' + err.message)
+    })
+
     const unsub = watchAuthState((u) => {
       if (u && !isAllowedUser(u)) {
         setAuthError('This Google account is not authorized for PeopleOS.')
@@ -69,13 +73,10 @@ export default function App() {
 function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
-      {/* Brand */}
       <div className="brand">
         <span className="dot">●</span>
         <span className="brand-text">PeopleOS</span>
       </div>
-
-      {/* Nav */}
       <nav className="nav">
         <NavLink to="/" end title="Dashboard">
           <span className="nav-icon">📊</span>
@@ -94,10 +95,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <span className="nav-label">Notes</span>
         </NavLink>
       </nav>
-
-      {/* Controls: theme toggle + collapse */}
       <div className="sidebar-controls">
-        {/* Theme toggle */}
         <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
           <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
           <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
@@ -107,15 +105,11 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
             <span className="toggle-thumb" />
           </label>
         </div>
-
-        {/* Collapse button */}
         <button className="collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <span className="collapse-btn-icon">◀</span>
           <span className="collapse-btn-label">Collapse</span>
         </button>
       </div>
-
-      {/* User footer */}
       <div className="sidebar-footer">
         {user.photoURL
           ? <img className="avatar" src={user.photoURL} alt="" />
@@ -136,10 +130,14 @@ function LoginScreen({ error }) {
   const [err, setErr] = useState(error || '')
 
   async function handleSignIn() {
-    setBusy(true); setErr('')
-    try { await signInWithGoogle() }
-    catch { setErr('Sign-in failed. Please try again.') }
-    finally { setBusy(false) }
+    setBusy(true)
+    setErr('')
+    try {
+      await signInWithGoogle() // triggers redirect — page will reload
+    } catch (e) {
+      setErr('Sign-in failed. Please try again.')
+      setBusy(false)
+    }
   }
 
   return (
@@ -151,7 +149,7 @@ function LoginScreen({ error }) {
         </div>
         <p>Your leadership hub — direct reports, 1:1s, and notes, all in one place.</p>
         <button className="google-btn" onClick={handleSignIn} disabled={busy}>
-          <GoogleIcon /> {busy ? 'Signing in…' : 'Continue with Google'}
+          <GoogleIcon /> {busy ? 'Redirecting to Google…' : 'Continue with Google'}
         </button>
         {err && <div className="login-error">{err}</div>}
       </div>
