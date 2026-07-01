@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { watchAuthState, signInWithGoogle, signOut, isAllowedUser, handleRedirectResult } from './lib/firebase'
+import { onAuth, loginWithGoogle, logout } from './lib/auth.js'
 
-import Dashboard from './pages/Dashboard.jsx'
+import Dashboard    from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
-import Interviews from './pages/Interviews.jsx'
-import Notes from './pages/Notes.jsx'
+import Interviews   from './pages/Interviews.jsx'
+import Notes        from './pages/Notes.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -16,59 +16,31 @@ function usePref(key, def) {
 }
 
 export default function App() {
-  const [user, setUser] = useState(undefined)
-  const [authError, setAuthError] = useState('')
-  const [light, setLight] = usePref('peopleos-theme-light', false)
-  const [collapsed, setCollapsed] = usePref('peopleos-sidebar-collapsed', false)
+  const [user,        setUser]        = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authError,   setAuthError]   = useState(null)
+  const [light,       setLight]       = usePref('peopleos-theme-light', false)
+  const [collapsed,   setCollapsed]   = usePref('peopleos-sidebar-collapsed', false)
 
   useEffect(() => {
     document.body.classList.toggle('light', light)
   }, [light])
 
   useEffect(() => {
-    let unsubscribed = false
-
-    async function init() {
-      // First, try to resolve any pending redirect from Google login.
-      // This must complete BEFORE we attach the auth state listener,
-      // otherwise we can see a transient null state and flash the login page.
-      try {
-        await handleRedirectResult()
-      } catch (err) {
-        console.error('Redirect auth error:', err)
-        if (!unsubscribed) setAuthError('Sign-in failed: ' + (err.message || 'unknown error'))
-      }
-
-      // Now watch the resolved auth state
-      const unsub = watchAuthState((u) => {
-        if (unsubscribed) return
-        if (u && !isAllowedUser(u)) {
-          setAuthError('This Google account is not authorized for PeopleOS.')
-          signOut()
-          setUser(null)
-          return
-        }
-        setAuthError('')
-        setUser(u ?? null)
-      })
-
-      return unsub
-    }
-
-    const unsubPromise = init()
-    return () => {
-      unsubscribed = true
-      unsubPromise.then((unsub) => unsub?.())
-    }
+    return onAuth(u => { setUser(u); setAuthLoading(false) })
   }, [])
 
-  if (user === undefined) {
-    return <div className="loading-screen">Loading PeopleOS…</div>
+  async function handleLogin() {
+    try {
+      setAuthError(null)
+      await loginWithGoogle()
+    } catch (e) {
+      if (e.message === 'ACCESS_DENIED') setAuthError('access_denied')
+    }
   }
 
-  if (!user) {
-    return <LoginScreen error={authError} />
-  }
+  if (authLoading) return <Centered>Loading PeopleOS…</Centered>
+  if (!user)       return <LoginPage onLogin={handleLogin} authError={authError} />
 
   return (
     <div className="app-shell">
@@ -78,21 +50,51 @@ export default function App() {
         onToggleTheme={() => setLight(!light)}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
+        onLogout={logout}
       />
       <main className="main">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/direct-reports" element={<DirectReports />} />
-          <Route path="/interviews" element={<Interviews />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/"                element={<Dashboard />} />
+          <Route path="/direct-reports"  element={<DirectReports />} />
+          <Route path="/interviews"      element={<Interviews />} />
+          <Route path="/notes"           element={<Notes />} />
+          <Route path="*"               element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
   )
 }
 
-function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
+function LoginPage({ onLogin, authError }) {
+  const [busy, setBusy] = useState(false)
+
+  async function handle() {
+    setBusy(true)
+    await onLogin()
+    setBusy(false)
+  }
+
+  return (
+    <div className="login-screen">
+      <div className="login-card">
+        <div className="brand">
+          <span className="dot">●</span>
+          <span className="brand-text">PeopleOS</span>
+        </div>
+        <p>Your leadership hub — direct reports, 1:1s, and notes.</p>
+        <button className="google-btn" onClick={handle} disabled={busy}>
+          <GoogleIcon />
+          {busy ? 'Signing in…' : 'Continue with Google'}
+        </button>
+        {authError === 'access_denied' && (
+          <div className="login-error">This Google account is not authorized for PeopleOS.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onLogout }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
       <div className="brand">
@@ -127,7 +129,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
             <span className="toggle-thumb" />
           </label>
         </div>
-        <button className="collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+        <button className="collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand' : 'Collapse'}>
           <span className="collapse-btn-icon">◀</span>
           <span className="collapse-btn-label">Collapse</span>
         </button>
@@ -135,49 +137,19 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
       <div className="sidebar-footer">
         {user.photoURL
           ? <img className="avatar" src={user.photoURL} alt="" />
-          : <div className="avatar" />
-        }
+          : <div className="avatar" />}
         <div className="user-mini">
           <div className="name">{user.displayName || 'You'}</div>
           <div className="email">{user.email}</div>
-          <button className="signout-btn" onClick={signOut}>Sign out</button>
+          <button className="signout-btn" onClick={onLogout}>Sign out</button>
         </div>
       </div>
     </aside>
   )
 }
 
-function LoginScreen({ error }) {
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(error || '')
-
-  async function handleSignIn() {
-    setBusy(true)
-    setErr('')
-    try {
-      await signInWithGoogle()
-      // Page will redirect to Google — nothing to do here
-    } catch (e) {
-      setErr('Sign-in failed: ' + e.message)
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="login-screen">
-      <div className="login-card">
-        <div className="brand">
-          <span className="dot">●</span>
-          <span className="brand-text">PeopleOS</span>
-        </div>
-        <p>Your leadership hub — direct reports, 1:1s, and notes, all in one place.</p>
-        <button className="google-btn" onClick={handleSignIn} disabled={busy}>
-          <GoogleIcon /> {busy ? 'Redirecting to Google…' : 'Continue with Google'}
-        </button>
-        {err && <div className="login-error">{err}</div>}
-      </div>
-    </div>
-  )
+function Centered({ children }) {
+  return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontSize:14, color:'#888' }}>{children}</div>
 }
 
 function GoogleIcon() {
