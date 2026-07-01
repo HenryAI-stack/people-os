@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { onAuth, loginWithGoogle, logout } from './lib/auth.js'
 
-import Dashboard    from './pages/Dashboard.jsx'
+import Dashboard     from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
-import Interviews   from './pages/Interviews.jsx'
-import Notes        from './pages/Notes.jsx'
+import Interviews    from './pages/Interviews.jsx'
+import Notes         from './pages/Notes.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -50,18 +50,87 @@ export default function App() {
         onToggleTheme={() => setLight(!light)}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
-        onLogout={logout}
       />
       <main className="main">
         <Routes>
-          <Route path="/"                element={<Dashboard />} />
-          <Route path="/direct-reports"  element={<DirectReports />} />
-          <Route path="/interviews"      element={<Interviews />} />
-          <Route path="/notes"           element={<Notes />} />
-          <Route path="*"               element={<Navigate to="/" replace />} />
+          <Route path="/"               element={<Dashboard />} />
+          <Route path="/direct-reports" element={<DirectReports />} />
+          <Route path="/interviews"     element={<Interviews />} />
+          <Route path="/notes"          element={<Notes />} />
+          <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
+  )
+}
+
+function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
+  return (
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+
+      {/* Brand — always visible */}
+      <div className="brand">
+        <span className="dot">●</span>
+        <span className="brand-text">PeopleOS</span>
+      </div>
+
+      {/* Scrollable middle: nav + theme toggle */}
+      <div className="sidebar-scroll">
+        <nav className="nav">
+          <NavLink to="/" end title="Dashboard">
+            <span className="nav-icon">📊</span>
+            <span className="nav-label">Dashboard</span>
+          </NavLink>
+          <NavLink to="/direct-reports" title="Direct Reports">
+            <span className="nav-icon">👥</span>
+            <span className="nav-label">Direct Reports</span>
+          </NavLink>
+          <NavLink to="/interviews" title="Interviews">
+            <span className="nav-icon">🗣️</span>
+            <span className="nav-label">Interviews</span>
+          </NavLink>
+          <NavLink to="/notes" title="Notes">
+            <span className="nav-icon">📝</span>
+            <span className="nav-label">Notes</span>
+          </NavLink>
+        </nav>
+
+        {/* Theme toggle */}
+        <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+          <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
+          <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
+          <label className="toggle-pill">
+            <input type="checkbox" checked={light} onChange={onToggleTheme} />
+            <span className="toggle-track" />
+            <span className="toggle-thumb" />
+          </label>
+        </div>
+      </div>
+
+      {/* Fixed bottom: collapse button + user footer */}
+      <div className="sidebar-bottom">
+        <button
+          className="collapse-btn"
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <span className="collapse-btn-icon">◀</span>
+          <span className="collapse-btn-label">Collapse</span>
+        </button>
+
+        <div className="sidebar-footer">
+          {user.photoURL
+            ? <img className="avatar" src={user.photoURL} alt="" />
+            : <div className="avatar" />}
+          <div className="user-mini">
+            <div className="name">{user.displayName || 'You'}</div>
+            <div className="email">{user.email}</div>
+            <button className="signout-btn" onClick={logout}>Sign out</button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
   )
 }
 
@@ -94,62 +163,12 @@ function LoginPage({ onLogin, authError }) {
   )
 }
 
-function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onLogout }) {
-  return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
-      <div className="brand">
-        <span className="dot">●</span>
-        <span className="brand-text">PeopleOS</span>
-      </div>
-      <nav className="nav">
-        <NavLink to="/" end title="Dashboard">
-          <span className="nav-icon">📊</span>
-          <span className="nav-label">Dashboard</span>
-        </NavLink>
-        <NavLink to="/direct-reports" title="Direct Reports">
-          <span className="nav-icon">👥</span>
-          <span className="nav-label">Direct Reports</span>
-        </NavLink>
-        <NavLink to="/interviews" title="Interviews">
-          <span className="nav-icon">🗣️</span>
-          <span className="nav-label">Interviews</span>
-        </NavLink>
-        <NavLink to="/notes" title="Notes">
-          <span className="nav-icon">📝</span>
-          <span className="nav-label">Notes</span>
-        </NavLink>
-      </nav>
-      <div className="sidebar-controls">
-        <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
-          <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
-          <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
-          <label className="toggle-pill" style={{ marginLeft: 'auto' }}>
-            <input type="checkbox" checked={light} onChange={onToggleTheme} />
-            <span className="toggle-track" />
-            <span className="toggle-thumb" />
-          </label>
-        </div>
-        <button className="collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand' : 'Collapse'}>
-          <span className="collapse-btn-icon">◀</span>
-          <span className="collapse-btn-label">Collapse</span>
-        </button>
-      </div>
-      <div className="sidebar-footer">
-        {user.photoURL
-          ? <img className="avatar" src={user.photoURL} alt="" />
-          : <div className="avatar" />}
-        <div className="user-mini">
-          <div className="name">{user.displayName || 'You'}</div>
-          <div className="email">{user.email}</div>
-          <button className="signout-btn" onClick={onLogout}>Sign out</button>
-        </div>
-      </div>
-    </aside>
-  )
-}
-
 function Centered({ children }) {
-  return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontSize:14, color:'#888' }}>{children}</div>
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontSize:14, color:'#888' }}>
+      {children}
+    </div>
+  )
 }
 
 function GoogleIcon() {
