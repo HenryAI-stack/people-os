@@ -2,13 +2,12 @@ import { initializeApp } from 'firebase/app'
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from 'firebase/auth'
 
-// All values are injected at build time from GitHub Actions secrets.
-// See INSTALLATION.md, Step 2 + 5.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -19,8 +18,15 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 const provider = new GoogleAuthProvider()
 
+// Use redirect instead of popup — GitHub Pages sets COOP headers that
+// block popup-based auth (window.closed is not accessible cross-origin).
 export function signInWithGoogle() {
-  return signInWithPopup(auth, provider)
+  return signInWithRedirect(auth, provider)
+}
+
+// Call this once on app load to pick up the result after the redirect returns.
+export function handleRedirectResult() {
+  return getRedirectResult(auth)
 }
 
 export function signOut() {
@@ -31,8 +37,6 @@ export function watchAuthState(callback) {
   return onAuthStateChanged(auth, callback)
 }
 
-// Optional: restrict logins to your company's Google Workspace domain.
-// Set VITE_ALLOWED_DOMAIN (e.g. "yourcompany.com") to enforce this.
 export function isAllowedUser(user) {
   const allowedDomain = import.meta.env.VITE_ALLOWED_DOMAIN
   if (!allowedDomain) return true
