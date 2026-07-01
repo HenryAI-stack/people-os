@@ -68,13 +68,13 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
 
-      {/* Brand — always visible */}
+      {/* Brand — fixed top */}
       <div className="brand">
         <span className="dot">●</span>
         <span className="brand-text">PeopleOS</span>
       </div>
 
-      {/* Scrollable middle: nav + theme toggle */}
+      {/* Nav — grows to fill space, pushes bottom section down */}
       <div className="sidebar-scroll">
         <nav className="nav">
           <NavLink to="/" end title="Dashboard">
@@ -94,6 +94,10 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
             <span className="nav-label">Notes</span>
           </NavLink>
         </nav>
+      </div>
+
+      {/* Bottom section — always pinned to the bottom */}
+      <div className="sidebar-bottom">
 
         {/* Theme toggle */}
         <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
@@ -105,10 +109,8 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
             <span className="toggle-thumb" />
           </label>
         </div>
-      </div>
 
-      {/* Fixed bottom: collapse button + user footer */}
-      <div className="sidebar-bottom">
+        {/* Collapse button */}
         <button
           className="collapse-btn"
           onClick={onToggleCollapse}
@@ -118,6 +120,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <span className="collapse-btn-label">Collapse</span>
         </button>
 
+        {/* User / sign out */}
         <div className="sidebar-footer">
           {user.photoURL
             ? <img className="avatar" src={user.photoURL} alt="" />
@@ -128,21 +131,15 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
             <button className="signout-btn" onClick={logout}>Sign out</button>
           </div>
         </div>
-      </div>
 
+      </div>
     </aside>
   )
 }
 
 function LoginPage({ onLogin, authError }) {
   const [busy, setBusy] = useState(false)
-
-  async function handle() {
-    setBusy(true)
-    await onLogin()
-    setBusy(false)
-  }
-
+  async function handle() { setBusy(true); await onLogin(); setBusy(false) }
   return (
     <div className="login-screen">
       <div className="login-card">
@@ -164,11 +161,7 @@ function LoginPage({ onLogin, authError }) {
 }
 
 function Centered({ children }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontSize:14, color:'#888' }}>
-      {children}
-    </div>
-  )
+  return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontSize:14, color:'#888' }}>{children}</div>
 }
 
 function GoogleIcon() {
