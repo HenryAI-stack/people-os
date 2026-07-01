@@ -7,9 +7,25 @@ import DirectReports from './pages/DirectReports.jsx'
 import Interviews from './pages/Interviews.jsx'
 import Notes from './pages/Notes.jsx'
 
+// Persist theme + sidebar state across page loads
+function usePref(key, def) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s !== null ? JSON.parse(s) : def } catch { return def }
+  })
+  function save(v) { setVal(v); try { localStorage.setItem(key, JSON.stringify(v)) } catch {} }
+  return [val, save]
+}
+
 export default function App() {
-  const [user, setUser] = useState(undefined) // undefined = loading, null = signed out
+  const [user, setUser] = useState(undefined)
   const [authError, setAuthError] = useState('')
+  const [light, setLight] = usePref('peopleos-theme-light', false)
+  const [collapsed, setCollapsed] = usePref('peopleos-sidebar-collapsed', false)
+
+  // Apply theme class to <body>
+  useEffect(() => {
+    document.body.classList.toggle('light', light)
+  }, [light])
 
   useEffect(() => {
     const unsub = watchAuthState((u) => {
@@ -25,17 +41,18 @@ export default function App() {
     return unsub
   }, [])
 
-  if (user === undefined) {
-    return <div className="loading-screen">Loading PeopleOS…</div>
-  }
-
-  if (!user) {
-    return <LoginScreen error={authError} />
-  }
+  if (user === undefined) return <div className="loading-screen">Loading PeopleOS…</div>
+  if (!user) return <LoginScreen error={authError} />
 
   return (
     <div className="app-shell">
-      <Sidebar user={user} />
+      <Sidebar
+        user={user}
+        light={light}
+        onToggleTheme={() => setLight(!light)}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(!collapsed)}
+      />
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -49,27 +66,88 @@ export default function App() {
   )
 }
 
+function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
+  return (
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+      {/* Brand */}
+      <div className="brand">
+        <span className="dot">●</span>
+        <span className="brand-text">PeopleOS</span>
+      </div>
+
+      {/* Nav */}
+      <nav className="nav">
+        <NavLink to="/" end title="Dashboard">
+          <span className="nav-icon">📊</span>
+          <span className="nav-label">Dashboard</span>
+        </NavLink>
+        <NavLink to="/direct-reports" title="Direct Reports">
+          <span className="nav-icon">👥</span>
+          <span className="nav-label">Direct Reports</span>
+        </NavLink>
+        <NavLink to="/interviews" title="Interviews">
+          <span className="nav-icon">🗣️</span>
+          <span className="nav-label">Interviews</span>
+        </NavLink>
+        <NavLink to="/notes" title="Notes">
+          <span className="nav-icon">📝</span>
+          <span className="nav-label">Notes</span>
+        </NavLink>
+      </nav>
+
+      {/* Controls: theme toggle + collapse */}
+      <div className="sidebar-controls">
+        {/* Theme toggle */}
+        <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+          <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
+          <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
+          <label className="toggle-pill" style={{ marginLeft: 'auto' }}>
+            <input type="checkbox" checked={light} onChange={onToggleTheme} />
+            <span className="toggle-track" />
+            <span className="toggle-thumb" />
+          </label>
+        </div>
+
+        {/* Collapse button */}
+        <button className="collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          <span className="collapse-btn-icon">◀</span>
+          <span className="collapse-btn-label">Collapse</span>
+        </button>
+      </div>
+
+      {/* User footer */}
+      <div className="sidebar-footer">
+        {user.photoURL
+          ? <img className="avatar" src={user.photoURL} alt="" />
+          : <div className="avatar" />
+        }
+        <div className="user-mini">
+          <div className="name">{user.displayName || 'You'}</div>
+          <div className="email">{user.email}</div>
+          <button className="signout-btn" onClick={signOut}>Sign out</button>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
 function LoginScreen({ error }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(error || '')
 
   async function handleSignIn() {
-    setBusy(true)
-    setErr('')
-    try {
-      await signInWithGoogle()
-    } catch (e) {
-      setErr('Sign-in failed. Please try again.')
-    } finally {
-      setBusy(false)
-    }
+    setBusy(true); setErr('')
+    try { await signInWithGoogle() }
+    catch { setErr('Sign-in failed. Please try again.') }
+    finally { setBusy(false) }
   }
 
   return (
     <div className="login-screen">
       <div className="login-card">
         <div className="brand">
-          <span className="dot">●</span> PeopleOS
+          <span className="dot">●</span>
+          <span className="brand-text">PeopleOS</span>
         </div>
         <p>Your leadership hub — direct reports, 1:1s, and notes, all in one place.</p>
         <button className="google-btn" onClick={handleSignIn} disabled={busy}>
@@ -78,34 +156,6 @@ function LoginScreen({ error }) {
         {err && <div className="login-error">{err}</div>}
       </div>
     </div>
-  )
-}
-
-function Sidebar({ user }) {
-  return (
-    <aside className="sidebar">
-      <div className="brand">
-        <span className="dot">●</span> PeopleOS
-      </div>
-      <nav className="nav">
-        <NavLink to="/" end>📊 Dashboard</NavLink>
-        <NavLink to="/direct-reports">👥 Direct Reports</NavLink>
-        <NavLink to="/interviews">🗣️ Interviews</NavLink>
-        <NavLink to="/notes">📝 Notes</NavLink>
-      </nav>
-      <div className="sidebar-footer">
-        {user.photoURL ? (
-          <img className="avatar" src={user.photoURL} alt="" />
-        ) : (
-          <div className="avatar" />
-        )}
-        <div className="user-mini">
-          <div className="name">{user.displayName || 'You'}</div>
-          <div className="email">{user.email}</div>
-          <button className="signout-btn" onClick={signOut}>Sign out</button>
-        </div>
-      </div>
-    </aside>
   )
 }
 
