@@ -7,11 +7,11 @@ const EMPTY = {
 }
 
 export default function DirectReports() {
-  const [items, setItems] = useState([])
+  const [items,   setItems]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [query, setQuery] = useState('')
-  const [editing, setEditing] = useState(null) // null = closed, {} = new, {...} = edit
+  const [error,   setError]   = useState('')
+  const [query,   setQuery]   = useState('')
+  const [editing, setEditing] = useState(null)
 
   async function load() {
     setLoading(true)
@@ -35,6 +35,7 @@ export default function DirectReports() {
   }, [items, query])
 
   async function handleSave(record) {
+    // throws on failure — ReportForm catches and displays the error
     await directReportsStore.upsert(record)
     setEditing(null)
     load()
@@ -42,8 +43,13 @@ export default function DirectReports() {
 
   async function handleDelete(id) {
     if (!confirm('Remove this direct report? This cannot be undone.')) return
-    await directReportsStore.remove(id)
-    load()
+    setError('')
+    try {
+      await directReportsStore.remove(id)
+      load()
+    } catch (e) {
+      setError('Delete failed: ' + e.message)
+    }
   }
 
   return (
@@ -60,13 +66,19 @@ export default function DirectReports() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ Add direct report</button>
+        <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>
+          + Add direct report
+        </button>
       </div>
 
-      {error && <div className="login-error">Error loading data: {error}</div>}
+      {error && (
+        <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 16, padding: '10px 14px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
+          ⚠️ {error}
+        </div>
+      )}
       {loading && <div className="empty-state">Loading…</div>}
 
-      {!loading && filtered.length === 0 && (
+      {!loading && filtered.length === 0 && !error && (
         <div className="empty-state">
           <div className="icon">👥</div>
           No direct reports yet. Add your first team member to get started.
@@ -80,20 +92,23 @@ export default function DirectReports() {
               <div className="avatar" />
               <div>
                 <div className="row-title">{p.name}</div>
-                <div className="row-sub">{p.role}{p.team ? ` · ${p.team}` : ''}{p.location ? ` · ${p.location}` : ''}</div>
+                <div className="row-sub">
+                  {p.role}{p.team ? ` · ${p.team}` : ''}{p.location ? ` · ${p.location}` : ''}
+                </div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
-              <button className="btn ghost" onClick={() => setEditing(p)}>Edit</button>
+              <button className="btn ghost" onClick={() => setEditing({ ...p })}>Edit</button>
               <button className="btn ghost danger" onClick={() => handleDelete(p.id)}>Remove</button>
             </div>
           </div>
         ))}
       </div>
 
-      {editing && (
+      {editing !== null && (
         <ReportForm
+          key={editing.id || 'new'}
           initial={editing}
           onCancel={() => setEditing(null)}
           onSave={handleSave}
@@ -104,8 +119,9 @@ export default function DirectReports() {
 }
 
 function ReportForm({ initial, onCancel, onSave }) {
-  const [form, setForm] = useState(initial)
+  const [form,   setForm]   = useState({ ...initial })
   const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
   const isNew = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
@@ -113,13 +129,25 @@ function ReportForm({ initial, onCancel, onSave }) {
   async function submit(e) {
     e.preventDefault()
     setSaving(true)
-    try { await onSave(form) } finally { setSaving(false) }
+    setError('')
+    try {
+      await onSave(form)
+    } catch (err) {
+      setError(err.message || 'Save failed — check your GitHub token and try again.')
+      setSaving(false)
+    }
   }
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <form className="modal" onSubmit={submit}>
         <h2>{isNew ? 'Add direct report' : 'Edit direct report'}</h2>
+
+        {error && (
+          <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
+            ⚠️ {error}
+          </div>
+        )}
 
         <div className="field">
           <label>Full name</label>
@@ -163,8 +191,10 @@ function ReportForm({ initial, onCancel, onSave }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </form>
     </div>
