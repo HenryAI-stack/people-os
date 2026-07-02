@@ -135,7 +135,7 @@ export default function Dashboard() {
           {upcomingAnniversaries.map((r) => (
             <div className="row-card" key={r.id}>
               <div className="row-main">
-                <Avatar photo={p.photo} name={p.name} size={34} />
+                <Avatar photo={r.photo} name={r.name} size={34} />
                 <div>
                   <div className="row-title">{r.name}</div>
                   <div className="row-sub">
