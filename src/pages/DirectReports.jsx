@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { directReportsStore } from '../lib/dataStore'
 import { resizeImage } from '../lib/imageUtils'
 
@@ -13,6 +14,7 @@ export default function DirectReports() {
   const [error,   setError]   = useState('')
   const [query,   setQuery]   = useState('')
   const [editing, setEditing] = useState(null)
+  const navigate = useNavigate()
 
   async function load() {
     setLoading(true)
