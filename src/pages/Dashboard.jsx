@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Avatar } from './DirectReports.jsx'
 import { directReportsStore, interviewsStore, notesStore } from '../lib/dataStore'
 
 // Given a startDate string, returns the next upcoming anniversary date
@@ -134,7 +135,7 @@ export default function Dashboard() {
           {upcomingAnniversaries.map((r) => (
             <div className="row-card" key={r.id}>
               <div className="row-main">
-                <div className="avatar" />
+                <Avatar photo={p.photo} name={p.name} size={34} />
                 <div>
                   <div className="row-title">{r.name}</div>
                   <div className="row-sub">
@@ -190,7 +191,7 @@ export default function Dashboard() {
         {reports.slice(0, 6).map((p) => (
           <div className="row-card" key={p.id}>
             <div className="row-main">
-              <div className="avatar" />
+              <Avatar photo={p.photo} name={p.name} size={34} />
               <div>
                 <div className="row-title">{p.name}</div>
                 <div className="row-sub">{p.role}</div>
