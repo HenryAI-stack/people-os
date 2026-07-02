@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore } from '../lib/dataStore'
+import { resizeImage } from '../lib/imageUtils'
 
 const EMPTY = {
   name: '', role: '', team: '', startDate: '', level: '',
-  location: '', status: 'active', email: '', notes: '',
+  location: '', status: 'active', email: '', notes: '', photo: '',
 }
 
 export default function DirectReports() {
@@ -35,7 +36,6 @@ export default function DirectReports() {
   }, [items, query])
 
   async function handleSave(record) {
-    // throws on failure — ReportForm catches and displays the error
     await directReportsStore.upsert(record)
     setEditing(null)
     load()
@@ -71,11 +71,7 @@ export default function DirectReports() {
         </button>
       </div>
 
-      {error && (
-        <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 16, padding: '10px 14px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
       {loading && <div className="empty-state">Loading…</div>}
 
       {!loading && filtered.length === 0 && !error && (
@@ -89,7 +85,7 @@ export default function DirectReports() {
         {filtered.map((p) => (
           <div className="row-card" key={p.id}>
             <div className="row-main">
-              <div className="avatar" />
+              <Avatar photo={p.photo} name={p.name} size={38} />
               <div>
                 <div className="row-title">{p.name}</div>
                 <div className="row-sub">
@@ -118,6 +114,128 @@ export default function DirectReports() {
   )
 }
 
+/* ── Avatar component ─────────────────────────────────── */
+export function Avatar({ photo, name, size = 30 }) {
+  const initials = (name || '?')
+    .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={name}
+        style={{
+          width: size, height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          border: '1px solid var(--border)',
+        }}
+      />
+    )
+  }
+
+  return (
+    <div style={{
+      width: size, height: size,
+      borderRadius: '50%',
+      background: 'var(--accent-soft)',
+      color: 'var(--accent)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.36,
+      fontWeight: 700,
+      flexShrink: 0,
+      border: '1px solid var(--border)',
+      userSelect: 'none',
+    }}>
+      {initials}
+    </div>
+  )
+}
+
+/* ── Photo picker inside the form ─────────────────────── */
+function PhotoPicker({ value, onChange }) {
+  const inputRef = useRef(null)
+  const [processing, setProcessing] = useState(false)
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProcessing(true)
+    try {
+      const dataUrl = await resizeImage(file, 200, 0.82)
+      onChange(dataUrl)
+    } catch {
+      alert('Could not process image. Please try a different file.')
+    } finally {
+      setProcessing(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+      {/* Preview */}
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{
+          width: 72, height: 72,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          border: '2px dashed var(--border)',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--bg)',
+          flexShrink: 0,
+          transition: 'border-color 0.15s',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+        onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+      >
+        {value
+          ? <img src={value} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: 26, opacity: 0.4 }}>📷</span>
+        }
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ fontSize: 12.5, padding: '6px 12px' }}
+          onClick={() => inputRef.current?.click()}
+          disabled={processing}
+        >
+          {processing ? 'Processing…' : value ? 'Change photo' : 'Upload photo'}
+        </button>
+        {value && (
+          <button
+            type="button"
+            className="btn ghost danger"
+            style={{ fontSize: 12.5, padding: '6px 12px' }}
+            onClick={() => onChange('')}
+          >
+            Remove
+          </button>
+        )}
+        <span style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
+          JPG, PNG, WebP — auto-cropped square
+        </span>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={handleFile}
+      />
+    </div>
+  )
+}
+
+/* ── Form ─────────────────────────────────────────────── */
 function ReportForm({ initial, onCancel, onSave }) {
   const [form,   setForm]   = useState({ ...initial })
   const [saving, setSaving] = useState(false)
@@ -143,11 +261,9 @@ function ReportForm({ initial, onCancel, onSave }) {
       <form className="modal" onSubmit={submit}>
         <h2>{isNew ? 'Add direct report' : 'Edit direct report'}</h2>
 
-        {error && (
-          <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+
+        <PhotoPicker value={form.photo} onChange={(v) => set('photo', v)} />
 
         <div className="field">
           <label>Full name</label>
@@ -197,6 +313,14 @@ function ReportForm({ initial, onCancel, onSave }) {
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+function ErrorBanner({ children }) {
+  return (
+    <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
+      ⚠️ {children}
     </div>
   )
 }
