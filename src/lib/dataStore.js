@@ -32,11 +32,10 @@ function fromBase64(b64) {
  * array if the file doesn't exist yet.
  */
 export async function readCollection(filename) {
-  // Cache-buster prevents the browser returning a stale SHA on repeated reads,
+  // Timestamp cache-buster prevents the browser returning a stale SHA,
   // which would cause a 409 conflict on the next write.
-  const bust = Date.now()
-  const res = await fetch(`${API_BASE}/${filename}?ref=${BRANCH}&_=${bust}`, {
-    headers: { ...headers(), 'Cache-Control': 'no-cache' },
+  const res = await fetch(`${API_BASE}/${filename}?ref=${BRANCH}&_=${Date.now()}`, {
+    headers: headers(),
   })
 
   if (res.status === 404) {
