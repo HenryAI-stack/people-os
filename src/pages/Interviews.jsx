@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
 
 const EMPTY = {
-  title: '', type: '1:1', person: '', date: '', summary: '', takeaways: '', tags: '',
+  title: '', type: '1:1', personId: '', person: '', date: '', summary: '', takeaways: '', tags: '',
 }
 
 const TYPE_LABEL = {
@@ -14,19 +14,22 @@ const TYPE_LABEL = {
 }
 
 export default function Interviews() {
-  const [items, setItems] = useState([])
-  const [reports, setReports] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items,      setItems]      = useState([])
+  const [reports,    setReports]    = useState([])
+  const [loading,    setLoading]    = useState(true)
   const [filterType, setFilterType] = useState('all')
-  const [editing, setEditing] = useState(null)
-  const [expanded, setExpanded] = useState(null)
+  const [editing,    setEditing]    = useState(null)
+  const [expanded,   setExpanded]   = useState(null)
 
   async function load() {
     setLoading(true)
-    const [i, r] = await Promise.all([interviewsStore.list(), directReportsStore.list()])
-    setItems(i)
-    setReports(r)
-    setLoading(false)
+    try {
+      const [i, r] = await Promise.all([interviewsStore.list(), directReportsStore.list()])
+      setItems(i)
+      setReports(r)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -74,20 +77,19 @@ export default function Interviews() {
 
       <div className="list">
         {filtered.map((it) => (
-          <div className="row-card" key={it.id} style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer' }}
-               onClick={() => setExpanded(expanded === it.id ? null : it.id)}>
+          <div className="row-card" key={it.id}
+            style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer' }}
+            onClick={() => setExpanded(expanded === it.id ? null : it.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <div className="row-main">
                 <div>
                   <div className="row-title">{it.title || '(untitled)'}</div>
-                  <div className="row-sub">
-                    {it.person ? `${it.person} · ` : ''}{it.date || 'no date'}
-                  </div>
+                  <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date || 'no date'}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="badge">{TYPE_LABEL[it.type] || it.type}</span>
-                <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing(it) }}>Edit</button>
+                <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...it }) }}>Edit</button>
                 <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(it.id) }}>Delete</button>
               </div>
             </div>
@@ -115,6 +117,7 @@ export default function Interviews() {
 
       {editing && (
         <InterviewForm
+          key={editing.id || 'new'}
           initial={editing}
           reports={reports}
           onCancel={() => setEditing(null)}
@@ -126,64 +129,114 @@ export default function Interviews() {
 }
 
 function InterviewForm({ initial, reports, onCancel, onSave }) {
-  const [form, setForm] = useState(initial)
-  const [saving, setSaving] = useState(false)
-  const isNew = !initial.id
+  const [form,    setForm]    = useState({ ...initial })
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+  // 'other' mode: person not in the direct reports list
+  const isOther = form.personId === '__other__'
+  const isNew   = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
+
+  function handlePersonSelect(e) {
+    const val = e.target.value
+    if (val === '__other__') {
+      setForm((f) => ({ ...f, personId: '__other__', person: '' }))
+    } else if (val === '') {
+      setForm((f) => ({ ...f, personId: '', person: '' }))
+    } else {
+      const found = reports.find((r) => r.id === val)
+      setForm((f) => ({ ...f, personId: val, person: found?.name || '' }))
+    }
+  }
 
   async function submit(e) {
     e.preventDefault()
     setSaving(true)
-    try { await onSave(form) } finally { setSaving(false) }
+    setError('')
+    try {
+      await onSave(form)
+    } catch (err) {
+      setError(err.message || 'Save failed — check your GitHub token and try again.')
+      setSaving(false)
+    }
   }
+
+  // Determine current select value from existing data (handles old records without personId)
+  const selectValue = form.personId ||
+    (form.person && reports.find((r) => r.name.trim().toLowerCase() === form.person.trim().toLowerCase())?.id) ||
+    (form.person ? '__other__' : '')
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <form className="modal" onSubmit={submit}>
         <h2>{isNew ? 'Log new entry' : 'Edit entry'}</h2>
 
+        {error && (
+          <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
+            ⚠️ {error}
+          </div>
+        )}
+
         <div className="field">
           <label>Title</label>
           <input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" />
         </div>
+
         <div className="field">
           <label>Type</label>
           <select value={form.type} onChange={(e) => set('type', e.target.value)}>
             {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
+
         <div className="field">
           <label>Person</label>
-          <input
-            list="reports-list"
-            value={form.person}
-            onChange={(e) => set('person', e.target.value)}
-            placeholder="Direct report or candidate name"
-          />
-          <datalist id="reports-list">
-            {reports.map((r) => <option key={r.id} value={r.name} />)}
-          </datalist>
+          <select value={selectValue} onChange={handlePersonSelect}>
+            <option value="">— Select direct report —</option>
+            {reports.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}{r.role ? ` (${r.role})` : ''}</option>
+            ))}
+            <option value="__other__">Other / external person…</option>
+          </select>
         </div>
+
+        {/* Free-text name field — shown only when "Other" is selected */}
+        {isOther && (
+          <div className="field">
+            <label>Name</label>
+            <input
+              required
+              value={form.person}
+              onChange={(e) => set('person', e.target.value)}
+              placeholder="Enter name"
+              autoFocus
+            />
+          </div>
+        )}
+
         <div className="field">
           <label>Date</label>
           <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
         </div>
+
         <div className="field">
           <label>Summary</label>
           <textarea value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="What was discussed?" />
         </div>
+
         <div className="field">
           <label>Key takeaways</label>
           <textarea value={form.takeaways} onChange={(e) => set('takeaways', e.target.value)} placeholder="Action items, follow-ups, decisions…" />
         </div>
+
         <div className="field">
           <label>Tags (comma-separated)</label>
           <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="growth, promotion, blockers" />
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
           <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
         </div>
       </form>
