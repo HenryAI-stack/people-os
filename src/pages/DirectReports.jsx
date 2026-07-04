@@ -85,7 +85,12 @@ export default function DirectReports() {
 
       <div className="list">
         {filtered.map((p) => (
-          <div className="row-card" key={p.id}>
+          <div
+            className="row-card"
+            key={p.id}
+            onClick={() => navigate(`/direct-reports/${p.id}`)}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="row-main">
               <Avatar photo={p.photo} name={p.name} size={38} />
               <div>
@@ -97,8 +102,8 @@ export default function DirectReports() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
-              <button className="btn ghost" onClick={() => setEditing({ ...p })}>Edit</button>
-              <button className="btn ghost danger" onClick={() => handleDelete(p.id)}>Remove</button>
+              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...p }) }}>Edit</button>
+              <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}>Remove</button>
             </div>
           </div>
         ))}
