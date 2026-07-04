@@ -6,6 +6,7 @@ import Dashboard     from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
 import Interviews    from './pages/Interviews.jsx'
 import Notes         from './pages/Notes.jsx'
+import PersonDetail  from './pages/PersonDetail.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/direct-reports" element={<DirectReports />} />
           <Route path="/interviews"     element={<Interviews />} />
           <Route path="/notes"          element={<Notes />} />
+          <Route path="/direct-reports/:id" element={<PersonDetail />} />
           <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
       </main>
