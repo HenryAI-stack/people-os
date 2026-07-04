@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Avatar } from './DirectReports.jsx'
 import { directReportsStore, interviewsStore, notesStore } from '../lib/dataStore'
 
@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [notes,      setNotes]      = useState([])
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     ;(async () => {
@@ -133,7 +134,9 @@ export default function Dashboard() {
       {!loading && upcomingAnniversaries.length > 0 && (
         <div className="list">
           {upcomingAnniversaries.map((r) => (
-            <div className="row-card" key={r.id}>
+            <div className="row-card" key={r.id}
+              onClick={() => navigate(`/direct-reports/${r.id}`)}
+              style={{ cursor: 'pointer' }}>
               <div className="row-main">
                 <Avatar photo={r.photo} name={r.name} size={34} />
                 <div>
@@ -189,7 +192,9 @@ export default function Dashboard() {
       )}
       <div className="list">
         {reports.slice(0, 6).map((p) => (
-          <div className="row-card" key={p.id}>
+          <div className="row-card" key={p.id}
+            onClick={() => navigate(`/direct-reports/${p.id}`)}
+            style={{ cursor: 'pointer' }}>
             <div className="row-main">
               <Avatar photo={p.photo} name={p.name} size={34} />
               <div>
