@@ -75,7 +75,11 @@ export default function PersonDetail() {
       const found = people.find((p) => p.id === id)
       if (!found) { setError('Person not found.'); setLoading(false); return }
       setPerson(found)
-      setInterviews(allIvs.filter((iv) => iv.person === found.name))
+      setInterviews(allIvs.filter((iv) => {
+        const nameMatch = iv.person?.trim().toLowerCase() === found.name?.trim().toLowerCase()
+        const idMatch   = iv.personId === found.id
+        return nameMatch || idMatch
+      }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -86,7 +90,7 @@ export default function PersonDetail() {
   useEffect(() => { load() }, [id])
 
   async function handleSaveInterview(record) {
-    await interviewsStore.upsert({ ...record, person: person.name })
+    await interviewsStore.upsert({ ...record, person: person.name, personId: person.id })
     setAddingIv(false)
     load()
   }
