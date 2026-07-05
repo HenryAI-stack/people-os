@@ -7,6 +7,7 @@ import DirectReports from './pages/DirectReports.jsx'
 import Interviews    from './pages/Interviews.jsx'
 import Notes         from './pages/Notes.jsx'
 import PersonDetail  from './pages/PersonDetail.jsx'
+import FollowUps     from './pages/FollowUps.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/interviews"     element={<Interviews />} />
           <Route path="/notes"          element={<Notes />} />
           <Route path="/direct-reports/:id" element={<PersonDetail />} />
+          <Route path="/follow-ups"          element={<FollowUps />} />
           <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -94,6 +96,10 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/notes" title="Notes">
             <span className="nav-icon">📝</span>
             <span className="nav-label">Notes</span>
+          </NavLink>
+          <NavLink to="/follow-ups" title="Follow-ups">
+            <span className="nav-icon">📋</span>
+            <span className="nav-label">Follow-ups</span>
           </NavLink>
         </nav>
       </div>
