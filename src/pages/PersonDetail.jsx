@@ -88,6 +88,24 @@ async function generateAISummary(person, interviews) {
   return data.choices?.[0]?.message?.content || ''
 }
 
+
+// ── Anniversary helper ─────────────────────────────────────────────────────
+function getNextAnniversary(startDateStr) {
+  if (!startDateStr) return null
+  const start = new Date(startDateStr)
+  if (isNaN(start.getTime())) return null
+  const today = new Date(); today.setHours(0,0,0,0)
+  let next = new Date(today.getFullYear(), start.getMonth(), start.getDate())
+  if (next < today) next = new Date(today.getFullYear() + 1, start.getMonth(), start.getDate())
+  const years = next.getFullYear() - start.getFullYear()
+  const days  = Math.round((next - today) / 86400000)
+  const ordinals = ['th','st','nd','rd']
+  const v = years % 100
+  const ord = ordinals[(v - 20) % 10] || ordinals[v] || ordinals[0]
+  const label = days === 0 ? '🎉 Today!' : days === 1 ? 'Tomorrow' : `In ${days} days`
+  return { years, ord, days, label }
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function PersonDetail() {
   const { id }   = useParams()
@@ -205,7 +223,24 @@ export default function PersonDetail() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {person.level    && <Chip label="Level"  value={person.level} />}
             {person.email    && <Chip label="Email"  value={person.email} />}
-            {person.startDate && <Chip label="Since" value={person.startDate} />}
+            {person.startDate && (() => {
+                const ann = getNextAnniversary(person.startDate)
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Chip label="Since" value={person.startDate} />
+                    {ann && (
+                      <div style={{
+                        fontSize: 12, color: ann.days <= 30 ? 'var(--warn)' : 'var(--text-faint)',
+                        background: ann.days <= 30 ? 'rgba(217,178,94,0.12)' : 'var(--bg)',
+                        border: '1px solid var(--border)', borderRadius: 6,
+                        padding: '3px 8px', whiteSpace: 'nowrap',
+                      }}>
+                        🎂 {ann.years}{ann.ord} ann. · {ann.label}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             <span className={`badge ${person.status === 'active' ? 'good' : 'warn'}`} style={{ alignSelf: 'center' }}>
               {person.status}
             </span>
