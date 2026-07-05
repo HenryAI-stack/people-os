@@ -49,7 +49,9 @@ async function generateAISummary(person, interviews) {
       'X-Title': 'PeopleOS',
     },
     body: JSON.stringify({
-      model: 'mistralai/mistral-7b-instruct:free',
+      // openrouter/free auto-selects from all currently available free models
+      // so this never needs updating when individual model slugs change.
+      model: 'openrouter/free',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
