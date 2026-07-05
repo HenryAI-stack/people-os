@@ -41,6 +41,7 @@ jobs:
           VITE_GITHUB_TOKEN:         ${{ secrets.VITE_GITHUB_TOKEN }}
           VITE_GITHUB_BRANCH:        ${{ secrets.VITE_GITHUB_BRANCH }}
           VITE_ENCRYPTION_SECRET:    ${{ secrets.VITE_ENCRYPTION_SECRET }}
+          VITE_OPENROUTER_API_KEY:   ${{ secrets.VITE_OPENROUTER_API_KEY }}
         run: npm run build
 
       - uses: actions/configure-pages@v5
