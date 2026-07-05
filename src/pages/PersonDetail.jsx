@@ -17,24 +17,45 @@ const EMPTY_INTERVIEW = {
 async function generateAISummary(person, interviews) {
   if (interviews.length === 0) throw new Error('No interviews to summarise yet.')
 
-  const interviewText = interviews.map((iv, i) =>
-    `--- Interview ${i + 1}: ${iv.title} (${iv.type}, ${iv.date || 'no date'}) ---\n` +
-    (iv.summary   ? `Summary: ${iv.summary}\n`   : '') +
-    (iv.takeaways ? `Takeaways: ${iv.takeaways}\n` : '') +
-    (iv.tags      ? `Tags: ${iv.tags}\n`           : '')
-  ).join('\n')
+  // Build person profile block
+  const tenure = person.startDate
+    ? `Started ${person.startDate} (${Math.floor((Date.now() - new Date(person.startDate)) / (365.25*24*3600*1000) * 10) / 10} years)`
+    : null
+
+  const profileLines = [
+    `Name: ${person.name}`,
+    person.role      ? `Role: ${person.role}`            : null,
+    person.team      ? `Team: ${person.team}`            : null,
+    person.level     ? `Level: ${person.level}`          : null,
+    person.location  ? `Location: ${person.location}`   : null,
+    tenure           ? `Tenure: ${tenure}`               : null,
+    person.status    ? `Status: ${person.status}`        : null,
+    person.notes     ? `Manager notes: ${person.notes}` : null,
+  ].filter(Boolean).join('\n')
+
+  const interviewText = interviews.length > 0
+    ? interviews.map((iv, i) =>
+        `[${i + 1}] ${iv.title} | Type: ${iv.type} | Date: ${iv.date || 'no date'}\n` +
+        (iv.summary   ? `Summary: ${iv.summary}\n`     : '') +
+        (iv.takeaways ? `Takeaways: ${iv.takeaways}\n` : '') +
+        (iv.tags      ? `Tags: ${iv.tags}\n`           : '')
+      ).join('\n')
+    : 'No interviews logged yet.'
 
   const prompt =
-    `You are a People Leader's assistant. Below are all logged interviews and 1:1 notes for ${person.name} ` +
-    `(${person.role || 'team member'}${person.team ? ', ' + person.team : ''}).\n\n` +
-    `${interviewText}\n\n` +
-    `Write a concise professional summary (4–6 short paragraphs) covering:\n` +
-    `1. Key recurring themes across all conversations\n` +
-    `2. Strengths and achievements observed\n` +
-    `3. Growth areas and development opportunities\n` +
-    `4. Outstanding action items or follow-ups\n` +
-    `5. Overall assessment and recommended next steps for the leader\n\n` +
-    `Be specific, reference actual content from the notes, and keep it actionable.`
+    `You are a Chief of Staff preparing an executive summary for a senior leader.` +
+    ` Write a concise, polished executive summary for the following direct report.\n\n` +
+    `=== DIRECT REPORT PROFILE ===\n${profileLines}\n\n` +
+    `=== INTERVIEW & 1:1 NOTES (${interviews.length} entries) ===\n${interviewText}\n\n` +
+    `Structure your response with these clearly labelled sections:\n` +
+    `**Executive Overview** — 2–3 sentence snapshot suitable for a leadership briefing.\n` +
+    `**Key Strengths** — bullet list of 3–5 observed strengths with evidence from notes.\n` +
+    `**Development Areas** — bullet list of 2–4 growth opportunities, specific and constructive.\n` +
+    `**Recurring Themes** — patterns or topics that appear across multiple conversations.\n` +
+    `**Open Actions & Risks** — any unresolved commitments, blockers, or concerns that need attention.\n` +
+    `**Recommended Next Steps** — 2–3 concrete actions for the people leader.\n\n` +
+    `Tone: professional, direct, and evidence-based. Avoid vague generalities. ` +
+    `Where notes are sparse, say so rather than inventing detail.`
 
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
   if (!apiKey) throw new Error('VITE_OPENROUTER_API_KEY secret is not set. Add it in GitHub → Settings → Secrets.')
