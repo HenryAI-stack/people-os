@@ -35,19 +35,32 @@ async function generateAISummary(person, interviews) {
     `5. Overall assessment and recommended next steps for the leader\n\n` +
     `Be specific, reference actual content from the notes, and keep it actionable.`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
+  if (!apiKey) throw new Error('VITE_OPENROUTER_API_KEY secret is not set. Add it in GitHub → Settings → Secrets.')
+
+  // Uses OpenRouter free tier — no billing required.
+  // Free model: meta-llama/llama-3.1-8b-instruct:free
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://henryai-stack.github.io/people-os/',
+      'X-Title': 'PeopleOS',
+    },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'meta-llama/llama-3.1-8b-instruct:free',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
 
-  if (!res.ok) throw new Error(`AI request failed (${res.status})`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `AI request failed (${res.status})`)
+  }
   const data = await res.json()
-  return data.content?.find((b) => b.type === 'text')?.text || ''
+  return data.choices?.[0]?.message?.content || ''
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
