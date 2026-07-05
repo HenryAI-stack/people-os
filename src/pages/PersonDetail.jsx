@@ -76,6 +76,8 @@ export default function PersonDetail() {
   const [error,       setError]       = useState('')
   const [expanded,    setExpanded]    = useState(null)
   const [addingIv,    setAddingIv]    = useState(false)
+  const [editingIv,   setEditingIv]   = useState(null)  // interview being edited
+  const [confirmDel,  setConfirmDel]  = useState(null)  // interview id awaiting confirm
   const [genSummary,  setGenSummary]  = useState(false)
   const [summaryErr,  setSummaryErr]  = useState('')
 
@@ -107,12 +109,18 @@ export default function PersonDetail() {
   async function handleSaveInterview(record) {
     await interviewsStore.upsert({ ...record, person: person.name, personId: person.id })
     setAddingIv(false)
+    setEditingIv(null)
     load()
   }
 
   async function handleDeleteInterview(ivId) {
-    if (!confirm('Delete this interview entry?')) return
-    await interviewsStore.remove(ivId)
+    setConfirmDel(ivId)
+  }
+
+  async function confirmDelete() {
+    if (!confirmDel) return
+    await interviewsStore.remove(confirmDel)
+    setConfirmDel(null)
     load()
   }
 
@@ -252,6 +260,10 @@ export default function PersonDetail() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="badge">{INTERVIEW_TYPES[iv.type] || iv.type}</span>
                 <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{expanded === iv.id ? '▲' : '▼'}</span>
+                <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }}
+                  onClick={(e) => { e.stopPropagation(); setEditingIv({ ...iv }) }}>
+                  Edit
+                </button>
                 <button className="btn ghost danger" style={{ fontSize: 12, padding: '4px 8px' }}
                   onClick={(e) => { e.stopPropagation(); handleDeleteInterview(iv.id) }}>
                   Delete
@@ -288,10 +300,43 @@ export default function PersonDetail() {
       {/* ── Add Interview Modal ── */}
       {addingIv && (
         <InterviewForm
+          key="new"
           initial={{ ...EMPTY_INTERVIEW, person: person.name }}
+          title="Log interview"
           onCancel={() => setAddingIv(false)}
           onSave={handleSaveInterview}
         />
+      )}
+
+      {/* ── Edit Interview Modal ── */}
+      {editingIv && (
+        <InterviewForm
+          key={editingIv.id}
+          initial={editingIv}
+          title="Edit interview"
+          onCancel={() => setEditingIv(null)}
+          onSave={handleSaveInterview}
+        />
+      )}
+
+      {/* ── Delete Confirm Modal ── */}
+      {confirmDel && (
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDel(null)}>
+          <div className="modal" style={{ maxWidth: 380, textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗑️</div>
+            <h2 style={{ marginBottom: 8 }}>Delete interview?</h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: 14, margin: '0 0 24px' }}>
+              This entry will be permanently removed. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="btn ghost" onClick={() => setConfirmDel(null)}>Cancel</button>
+              <button className="btn primary" style={{ background: 'var(--bad)', borderColor: 'var(--bad)' }}
+                onClick={confirmDelete}>
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
@@ -305,7 +350,7 @@ function Chip({ label, value }) {
   )
 }
 
-function InterviewForm({ initial, onCancel, onSave }) {
+function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
   const [form,   setForm]   = useState({ ...initial })
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
@@ -322,7 +367,7 @@ function InterviewForm({ initial, onCancel, onSave }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <form className="modal" onSubmit={submit}>
-        <h2>Log interview</h2>
+        <h2>{title}</h2>
         {error && (
           <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>⚠️ {error}</div>
         )}
