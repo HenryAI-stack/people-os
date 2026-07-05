@@ -1,28 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Avatar } from './DirectReports.jsx'
 import { directReportsStore, interviewsStore, notesStore } from '../lib/dataStore'
+import { Avatar } from './DirectReports.jsx'
 
-// Given a startDate string, returns the next upcoming anniversary date
-// and how many years it will be.
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
   const start = new Date(startDateStr)
   if (isNaN(start.getTime())) return null
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  // Try this calendar year's anniversary first
+  const today = new Date(); today.setHours(0,0,0,0)
   let candidate = new Date(today.getFullYear(), start.getMonth(), start.getDate())
-  // If it already passed this year, use next year
-  if (candidate < today) {
-    candidate = new Date(today.getFullYear() + 1, start.getMonth(), start.getDate())
-  }
-
+  if (candidate < today) candidate = new Date(today.getFullYear() + 1, start.getMonth(), start.getDate())
   const years = candidate.getFullYear() - start.getFullYear()
   const daysUntil = Math.round((candidate - today) / 86400000)
-
   return { date: candidate, years, daysUntil }
 }
 
@@ -31,17 +20,16 @@ function formatDate(date) {
 }
 
 function ordinal(n) {
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = n % 100
-  return n + (s[(v - 20) % 10] || s[v] || s[0])
+  const s = ['th','st','nd','rd'], v = n % 100
+  return n + (s[(v-20)%10] || s[v] || s[0])
 }
 
 function daysLabel(d) {
   if (d === 0) return 'Today 🎉'
   if (d === 1) return 'Tomorrow'
   if (d <= 14) return `In ${d} days`
-  if (d <= 60) return `In ${Math.round(d / 7)} weeks`
-  return `In ${Math.round(d / 30)} months`
+  if (d <= 60) return `In ${Math.round(d/7)} weeks`
+  return `In ${Math.round(d/30)} months`
 }
 
 function urgencyClass(days) {
@@ -66,9 +54,7 @@ export default function Dashboard() {
           interviewsStore.list(),
           notesStore.list(),
         ])
-        setReports(r)
-        setInterviews(i)
-        setNotes(n)
+        setReports(r); setInterviews(i); setNotes(n)
       } catch (e) {
         setError(e.message)
       } finally {
@@ -81,7 +67,6 @@ export default function Dashboard() {
   const last30           = interviews.filter((i) => isWithinDays(i.date, 30)).length
   const recentInterviews = interviews.slice(0, 5)
 
-  // Next 3 upcoming anniversaries
   const upcomingAnniversaries = reports
     .filter((r) => r.startDate)
     .map((r) => ({ ...r, ann: nextAnniversary(r.startDate) }))
@@ -97,7 +82,7 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 20, padding: '10px 14px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
+        <div style={{ color:'var(--bad)', fontSize:13, marginBottom:20, padding:'10px 14px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>
           Couldn't load data — check your GitHub token and repo settings. ({error})
         </div>
       )}
@@ -121,47 +106,35 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Upcoming anniversaries */}
+      {/* Anniversaries */}
       <div className="section-title">🎂 Upcoming anniversaries</div>
       {!loading && upcomingAnniversaries.length === 0 && (
-        <div className="empty-state" style={{ padding: '24px 20px' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-faint)' }}>
-            No anniversaries to show — add start dates to your{' '}
-            <Link to="/direct-reports">direct reports</Link>.
-          </div>
+        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
+          No anniversaries to show — add start dates to your <Link to="/direct-reports">direct reports</Link>.
         </div>
       )}
-      {!loading && upcomingAnniversaries.length > 0 && (
-        <div className="list">
-          {upcomingAnniversaries.map((r) => (
-            <div className="row-card" key={r.id}
-              onClick={() => navigate(`/direct-reports/${r.id}`)}
-              style={{ cursor: 'pointer' }}>
-              <div className="row-main">
-                <Avatar photo={r.photo} name={r.name} size={34} />
-                <div>
-                  <div className="row-title">{r.name}</div>
-                  <div className="row-sub">
-                    {ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}
-                  </div>
-                </div>
+      <div className="list">
+        {upcomingAnniversaries.map((r) => (
+          <div className="row-card" key={r.id}
+            onClick={() => navigate(`/direct-reports/${r.id}`)}
+            style={{ cursor:'pointer' }}>
+            <div className="row-main">
+              <Avatar photo={r.photo} name={r.name} size={34} />
+              <div>
+                <div className="row-title">{r.name}</div>
+                <div className="row-sub">{ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}</div>
               </div>
-              <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>
-                {daysLabel(r.ann.daysUntil)}
-              </span>
             </div>
-          ))}
-        </div>
-      )}
+            <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>{daysLabel(r.ann.daysUntil)}</span>
+          </div>
+        ))}
+      </div>
 
       {/* Recent conversations */}
       <div className="section-title">Recent conversations</div>
       {!loading && recentInterviews.length === 0 && (
-        <div className="empty-state" style={{ padding: '24px 20px' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-faint)' }}>
-            No conversations logged yet.{' '}
-            <Link to="/interviews">Log your first one →</Link>
-          </div>
+        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
+          No conversations logged yet. <Link to="/interviews">Log your first one →</Link>
         </div>
       )}
       <div className="list">
@@ -170,9 +143,7 @@ export default function Dashboard() {
             <div className="row-main">
               <div>
                 <div className="row-title">{it.title}</div>
-                <div className="row-sub">
-                  {it.person ? `${it.person} · ` : ''}{it.date}
-                </div>
+                <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div>
               </div>
             </div>
             <span className="badge">{it.type}</span>
@@ -180,21 +151,18 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Team list */}
+      {/* Team */}
       <div className="section-title">Your team</div>
       {!loading && reports.length === 0 && (
-        <div className="empty-state" style={{ padding: '24px 20px' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-faint)' }}>
-            No direct reports added yet.{' '}
-            <Link to="/direct-reports">Add your first one →</Link>
-          </div>
+        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
+          No direct reports added yet. <Link to="/direct-reports">Add your first one →</Link>
         </div>
       )}
       <div className="list">
         {reports.slice(0, 6).map((p) => (
           <div className="row-card" key={p.id}
             onClick={() => navigate(`/direct-reports/${p.id}`)}
-            style={{ cursor: 'pointer' }}>
+            style={{ cursor:'pointer' }}>
             <div className="row-main">
               <Avatar photo={p.photo} name={p.name} size={34} />
               <div>
@@ -202,9 +170,7 @@ export default function Dashboard() {
                 <div className="row-sub">{p.role}</div>
               </div>
             </div>
-            <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>
-              {p.status}
-            </span>
+            <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
           </div>
         ))}
       </div>
