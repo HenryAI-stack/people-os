@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { directReportsStore, interviewsStore } from '../lib/dataStore'
+import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
+import { urgencyLabel } from './FollowUps.jsx'
 
 const INTERVIEW_TYPES = {
   '1:1': '1:1', skip_level: 'Skip-level', hiring: 'Hiring interview',
@@ -78,6 +79,8 @@ export default function PersonDetail() {
   const [addingIv,    setAddingIv]    = useState(false)
   const [editingIv,   setEditingIv]   = useState(null)  // interview being edited
   const [confirmDel,  setConfirmDel]  = useState(null)  // interview id awaiting confirm
+  const [followUps,   setFollowUps]   = useState([])
+  const [addingFU,    setAddingFU]    = useState(null)  // interview to create follow-up from
   const [genSummary,  setGenSummary]  = useState(false)
   const [summaryErr,  setSummaryErr]  = useState('')
 
@@ -85,13 +88,15 @@ export default function PersonDetail() {
     setLoading(true)
     setError('')
     try {
-      const [people, allIvs] = await Promise.all([
+      const [people, allIvs, allFUs] = await Promise.all([
         directReportsStore.list(),
         interviewsStore.list(),
+        followUpsStore.list(),
       ])
       const found = people.find((p) => p.id === id)
       if (!found) { setError('Person not found.'); setLoading(false); return }
       setPerson(found)
+      setFollowUps(allFUs.filter((f) => f.personId === id || f.personId === found?.id))
       setInterviews(allIvs.filter((iv) => {
         const nameMatch = iv.person?.trim().toLowerCase() === found.name?.trim().toLowerCase()
         const idMatch   = iv.personId === found.id
@@ -231,6 +236,33 @@ export default function PersonDetail() {
         )}
       </div>
 
+
+      {/* ── Open Follow-ups for this person ── */}
+      {followUps.filter((f) => !f.done).length > 0 && (
+        <>
+          <div className="section-title" style={{ marginBottom: 10 }}>📋 Open follow-ups ({followUps.filter(f => !f.done).length})</div>
+          <div className="list" style={{ marginBottom: 24 }}>
+            {followUps.filter((f) => !f.done)
+              .sort((a, b) => !a.dueDate ? 1 : !b.dueDate ? -1 : new Date(a.dueDate) - new Date(b.dueDate))
+              .map((f) => {
+                const urg = urgencyLabel(f.dueDate, f.done)
+                return (
+                  <div className="row-card" key={f.id} style={{ gap: 12 }}>
+                    <input type="checkbox" checked={false}
+                      onChange={async () => { await followUpsStore.upsert({ ...f, done: true }); load() }}
+                      style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer', accentColor: 'var(--accent)' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="row-title" style={{ fontSize: 13.5 }}>{f.text}</div>
+                      {f.sourceTitle && <div className="row-sub">↳ {f.sourceTitle}</div>}
+                    </div>
+                    {urg.label && <span className={`badge ${urg.cls}`}>{urg.label}</span>}
+                  </div>
+                )
+              })}
+          </div>
+        </>
+      )}
+
       {/* ── Interviews ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="section-title" style={{ margin: 0 }}>🗣️ Interviews & 1:1s ({interviews.length})</div>
@@ -260,6 +292,10 @@ export default function PersonDetail() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="badge">{INTERVIEW_TYPES[iv.type] || iv.type}</span>
                 <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{expanded === iv.id ? '▲' : '▼'}</span>
+                <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }}
+                  onClick={(e) => { e.stopPropagation(); setAddingFU(iv) }}>
+                  + Follow-up
+                </button>
                 <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }}
                   onClick={(e) => { e.stopPropagation(); setEditingIv({ ...iv }) }}>
                   Edit
@@ -316,6 +352,20 @@ export default function PersonDetail() {
           title="Edit interview"
           onCancel={() => setEditingIv(null)}
           onSave={handleSaveInterview}
+        />
+      )}
+
+      {/* ── Quick add follow-up from interview ── */}
+      {addingFU && (
+        <QuickFollowUpForm
+          interview={addingFU}
+          person={person}
+          onCancel={() => setAddingFU(null)}
+          onSave={async (record) => {
+            await followUpsStore.upsert(record)
+            setAddingFU(null)
+            load()
+          }}
         />
       )}
 
@@ -394,6 +444,55 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
           <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+
+function QuickFollowUpForm({ interview, person, onCancel, onSave }) {
+  const [text,    setText]    = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+
+  async function submit(e) {
+    e.preventDefault(); setSaving(true); setError('')
+    try {
+      await onSave({
+        text,
+        dueDate,
+        personId:    person.id,
+        personName:  person.name,
+        sourceType:  'interview',
+        sourceId:    interview.id,
+        sourceTitle: interview.title || '(untitled)',
+        done:        false,
+      })
+    } catch (err) { setError(err.message || 'Save failed.'); setSaving(false) }
+  }
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+      <form className="modal" style={{ maxWidth: 440 }} onSubmit={submit}>
+        <h2>Add follow-up</h2>
+        <div style={{ fontSize: 13, color: 'var(--text-faint)', marginBottom: 16 }}>
+          From: <strong style={{ color: 'var(--text-dim)' }}>{interview.title || '(untitled)'}</strong>
+        </div>
+        {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:14, padding:'10px 12px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>⚠️ {error}</div>}
+        <div className="field">
+          <label>What needs to happen?</label>
+          <textarea required value={text} onChange={(e) => setText(e.target.value)}
+            placeholder="e.g. Share updated growth plan by end of month" style={{ minHeight: 80 }} autoFocus />
+        </div>
+        <div className="field">
+          <label>Due date</label>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save follow-up'}</button>
         </div>
       </form>
     </div>
