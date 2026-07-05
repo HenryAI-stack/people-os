@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
+import { generateTags } from '../lib/autoTags.js'
 import { Avatar } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 
@@ -422,11 +423,33 @@ function Chip({ label, value }) {
 }
 
 function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
-  const [form,   setForm]   = useState({ ...initial })
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState('')
+  const [form,    setForm]    = useState({ ...initial })
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+  const [genTags, setGenTags] = useState(false)
+  const debounceRef = useRef(null)
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+
+  // Auto-generate tags once summary + takeaways are filled and tags is still empty
+  useEffect(() => {
+    if (form.tags) return
+    if (!form.summary || !form.takeaways) return
+    if (form.summary.length < 20 || form.takeaways.length < 10) return
+
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setGenTags(true)
+      try {
+        const tags = await generateTags(form.summary, form.takeaways)
+        if (tags) setForm((f) => f.tags ? f : { ...f, tags })
+      } finally {
+        setGenTags(false)
+      }
+    }, 1200)
+
+    return () => clearTimeout(debounceRef.current)
+  }, [form.summary, form.takeaways])
 
   async function submit(e) {
     e.preventDefault()
@@ -459,8 +482,12 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
         <div className="field"><label>Key takeaways</label>
           <textarea value={form.takeaways} onChange={(e) => set('takeaways', e.target.value)} placeholder="Action items, follow-ups, decisions…" />
         </div>
-        <div className="field"><label>Tags (comma-separated)</label>
-          <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="growth, promotion, blockers" />
+        <div className="field">
+          <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+            Tags (comma-separated)
+            {genTags && <span style={{ color: 'var(--accent)', fontSize: 11.5, fontWeight: 400 }}>✦ Generating…</span>}
+          </label>
+          <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="Auto-generated once summary & takeaways are filled" />
         </div>
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
