@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { directReportsStore, interviewsStore, notesStore } from '../lib/dataStore'
+import { directReportsStore, interviewsStore, notesStore, followUpsStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
+import { urgencyLabel } from './FollowUps.jsx'
 
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
@@ -44,17 +45,19 @@ export default function Dashboard() {
   const [notes,      setNotes]      = useState([])
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
+  const [followUps,  setFollowUps]  = useState([])
   const navigate = useNavigate()
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [r, i, n] = await Promise.all([
+        const [r, i, n, f] = await Promise.all([
           directReportsStore.list(),
           interviewsStore.list(),
           notesStore.list(),
+          followUpsStore.list(),
         ])
-        setReports(r); setInterviews(i); setNotes(n)
+        setReports(r); setInterviews(i); setNotes(n); setFollowUps(f)
       } catch (e) {
         setError(e.message)
       } finally {
@@ -105,6 +108,39 @@ export default function Dashboard() {
           <div className="sub">{loading ? '' : `${notes.filter((n) => n.pinned).length} pinned`}</div>
         </div>
       </div>
+
+      {/* Follow-ups alert strip */}
+      {(() => {
+        const today = new Date().setHours(0,0,0,0)
+        const overdue = followUps.filter(f => !f.done && f.dueDate && new Date(f.dueDate) < today)
+        const dueThisWeek = followUps.filter(f => !f.done && f.dueDate && new Date(f.dueDate) >= today && new Date(f.dueDate) <= today + 7*86400000)
+        const urgent = [...overdue, ...dueThisWeek].sort((a,b) => new Date(a.dueDate)-new Date(b.dueDate)).slice(0,4)
+        if (urgent.length === 0) return null
+        return (
+          <>
+            <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
+              📋 Follow-ups due soon
+              <Link to="/follow-ups" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>View all →</Link>
+            </div>
+            <div className="list" style={{ marginBottom: 28 }}>
+              {urgent.map((f) => {
+                const urg = urgencyLabel(f.dueDate, false)
+                return (
+                  <div className="row-card" key={f.id} onClick={() => navigate('/follow-ups')} style={{ cursor:'pointer' }}>
+                    <div className="row-main">
+                      <div>
+                        <div className="row-title">{f.text}</div>
+                        <div className="row-sub">{f.personName && `👤 ${f.personName}`}</div>
+                      </div>
+                    </div>
+                    <span className={`badge ${urg.cls}`}>{urg.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )
+      })()}
 
       {/* Anniversaries */}
       <div className="section-title">🎂 Upcoming anniversaries</div>
