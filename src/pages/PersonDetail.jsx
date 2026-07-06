@@ -8,6 +8,7 @@ import { urgencyLabel } from './FollowUps.jsx'
 const INTERVIEW_TYPES = {
   '1:1': '1:1', skip_level: 'Skip-level', hiring: 'Hiring interview',
   exit: 'Exit interview', performance: 'Performance review',
+  team_meeting: 'Team meeting',
 }
 
 const EMPTY_INTERVIEW = {
