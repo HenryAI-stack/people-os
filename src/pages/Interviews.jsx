@@ -12,6 +12,7 @@ const TYPE_LABEL = {
   hiring: 'Hiring interview',
   exit: 'Exit interview',
   performance: 'Performance review',
+  team_meeting: 'Team meeting',
 }
 
 export default function Interviews() {
