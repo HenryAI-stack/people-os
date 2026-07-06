@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
 import { generateTags } from '../lib/autoTags.js'
 
@@ -135,27 +135,7 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
   const [genTags,    setGenTags]    = useState(false)
-  const debounceRef = useRef(null)
 
-  // Auto-generate tags once summary + takeaways are filled and tags is still empty
-  useEffect(() => {
-    if (form.tags) return                          // already has tags — don't overwrite
-    if (!form.summary || !form.takeaways) return   // need both fields
-    if (form.summary.length < 20 || form.takeaways.length < 10) return  // too short
-
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      setGenTags(true)
-      try {
-        const tags = await generateTags(form.summary, form.takeaways)
-        if (tags) setForm((f) => f.tags ? f : { ...f, tags }) // only set if still empty
-      } finally {
-        setGenTags(false)
-      }
-    }, 1200) // wait 1.2s after user stops typing
-
-    return () => clearTimeout(debounceRef.current)
-  }, [form.summary, form.takeaways])
   // 'other' mode: person not in the direct reports list
   const isOther = form.personId === '__other__'
   const isNew   = !initial.id
@@ -255,11 +235,14 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
         </div>
 
         <div className="field">
-          <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Tags (comma-separated)
-            {genTags && <span style={{ color: 'var(--accent)', fontSize: 11.5, fontWeight: 400 }}>✦ Generating…</span>}
+            <button type="button" onClick={handleGenerateTags} disabled={genTags || (!form.summary && !form.takeaways)}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'pointer', opacity: (!form.summary && !form.takeaways) ? 0.45 : 1 }}>
+              {genTags ? '⏳ Generating…' : '✦ Generate tags'}
+            </button>
           </label>
-          <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="Auto-generated once summary & takeaways are filled" />
+          <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="Click ✦ Generate tags or type manually" />
         </div>
 
         <div className="modal-actions">
