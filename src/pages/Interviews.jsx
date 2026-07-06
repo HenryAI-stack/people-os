@@ -142,6 +142,17 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
 
+  async function handleGenerateTags() {
+    if (!form.summary && !form.takeaways) return
+    setGenTags(true)
+    try {
+      const tags = await generateTags(form.summary, form.takeaways)
+      if (tags) setForm((f) => ({ ...f, tags }))
+    } finally {
+      setGenTags(false)
+    }
+  }
+
   function handlePersonSelect(e) {
     const val = e.target.value
     if (val === '__other__') {
