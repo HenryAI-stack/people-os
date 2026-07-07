@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { directReportsStore } from '../lib/dataStore'
 import { resizeImage } from '../lib/imageUtils'
+import { getLocationFlag } from '../lib/locationFlag.js'
 
 const EMPTY = {
   name: '', role: '', team: '', startDate: '', level: '',
@@ -30,12 +31,29 @@ export default function DirectReports() {
 
   useEffect(() => { load() }, [])
 
+  // Flat filtered list
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     return items.filter((i) =>
       [i.name, i.role, i.team, i.location].join(' ').toLowerCase().includes(q)
     )
   }, [items, query])
+
+  // Grouped by team, sorted alphabetically; no-team group goes last
+  const grouped = useMemo(() => {
+    const map = {}
+    filtered.forEach((p) => {
+      const key = p.team?.trim() || ''
+      if (!map[key]) map[key] = []
+      map[key].push(p)
+    })
+    const teams = Object.keys(map).sort((a, b) => {
+      if (!a) return 1   // no-team always last
+      if (!b) return -1
+      return a.localeCompare(b)
+    })
+    return teams.map((team) => ({ team, members: map[team] }))
+  }, [filtered])
 
   async function handleSave(record) {
     await directReportsStore.upsert(record)
@@ -83,31 +101,41 @@ export default function DirectReports() {
         </div>
       )}
 
-      <div className="list">
-        {filtered.map((p) => (
-          <div
-            className="row-card"
-            key={p.id}
-            onClick={() => navigate(`/direct-reports/${p.id}`)}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="row-main">
-              <Avatar photo={p.photo} name={p.name} size={38} />
-              <div>
-                <div className="row-title">{p.name}</div>
-                <div className="row-sub">
-                  {p.role}{p.team ? ` · ${p.team}` : ''}{p.location ? ` · ${p.location}` : ''}
+      {grouped.map(({ team, members }) => (
+        <div key={team || '__none__'} style={{ marginBottom: 28 }}>
+          <div className="section-title" style={{ marginTop: 0 }}>
+            {team || 'No team assigned'}
+            <span style={{ marginLeft: 8, fontWeight: 400, color: 'var(--text-faint)', textTransform: 'none', fontSize: 12, letterSpacing: 0 }}>
+              {members.length} {members.length === 1 ? 'person' : 'people'}
+            </span>
+          </div>
+          <div className="list">
+            {members.map((p) => (
+              <div
+                className="row-card"
+                key={p.id}
+                onClick={() => navigate(`/direct-reports/${p.id}`)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="row-main">
+                  <Avatar photo={p.photo} name={p.name} size={38} />
+                  <div>
+                    <div className="row-title">{p.name}</div>
+                    <div className="row-sub">
+                      {p.role}{p.location ? ` · ${p.location}` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
+                  <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...p }) }}>Edit</button>
+                  <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}>Remove</button>
                 </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
-              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...p }) }}>Edit</button>
-              <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}>Remove</button>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
 
       {editing !== null && (
         <ReportForm
