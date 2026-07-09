@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
-import { generateTags } from '../lib/autoTags.js'
+import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 import { Avatar } from './DirectReports.jsx'
 import { getLocationFlag } from '../lib/locationFlag.js'
 import { urgencyLabel } from './FollowUps.jsx'
@@ -467,6 +467,17 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
 
+  async function handleGenerateTakeaways() {
+    if (!form.summary) return
+    setGenTakeaways(true)
+    try {
+      const takeaways = await generateTakeaways(form.summary)
+      if (takeaways) setForm((f) => ({ ...f, takeaways }))
+    } finally {
+      setGenTakeaways(false)
+    }
+  }
+
   async function handleGenerateTags() {
     if (!form.summary && !form.takeaways) return
     setGenTags(true)
@@ -506,7 +517,14 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
         <div className="field"><label>Summary</label>
           <textarea value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="What was discussed?" />
         </div>
-        <div className="field"><label>Key takeaways</label>
+        <div className="field">
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Key takeaways
+            <button type="button" onClick={handleGenerateTakeaways} disabled={genTakeaways || !form.summary}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'pointer', opacity: !form.summary ? 0.45 : 1 }}>
+              {genTakeaways ? '⏳ Generating…' : '✦ Generate'}
+            </button>
+          </label>
           <textarea value={form.takeaways} onChange={(e) => set('takeaways', e.target.value)} placeholder="Action items, follow-ups, decisions…" />
         </div>
         <div className="field">
