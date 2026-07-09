@@ -122,7 +122,7 @@ export default function DirectReports() {
                   <div>
                     <div className="row-title">{p.name}</div>
                     <div className="row-sub">
-                      {p.role}{p.location ? ` · ${p.location}` : ''}
+                      {p.role}{p.location ? ` · ${getLocationFlag(p.location)} ${p.location}` : ''}
                     </div>
                   </div>
                 </div>
