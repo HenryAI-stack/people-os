@@ -271,7 +271,7 @@ function PhotoPicker({ value, onChange }) {
 }
 
 /* ── Form ─────────────────────────────────────────────── */
-function ReportForm({ initial, onCancel, onSave }) {
+export function ReportForm({ initial, onCancel, onSave }) {
   const [form,   setForm]   = useState({ ...initial })
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
