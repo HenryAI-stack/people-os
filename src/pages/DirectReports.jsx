@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { directReportsStore } from '../lib/dataStore'
 import { resizeImage } from '../lib/imageUtils'
-import { getLocationFlag } from '../lib/locationFlag.js'
+import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 
 const EMPTY = {
   name: '', role: '', team: '', startDate: '', level: '',
@@ -122,7 +122,7 @@ export default function DirectReports() {
                   <div>
                     <div className="row-title">{p.name}</div>
                     <div className="row-sub">
-                      {p.role}{p.location ? ` · ${getLocationFlag(p.location)} ${p.location}` : ''}
+                      {p.role}{p.location ? <> · {(() => { const c = getCountryCode(p.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginRight:4 }} /> : null })()} {p.location}</> : ''}
                     </div>
                   </div>
                 </div>
