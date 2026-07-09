@@ -122,7 +122,7 @@ export default function DirectReports() {
                   <div>
                     <div className="row-title">{p.name}</div>
                     <div className="row-sub">
-                      {p.role}{p.location ? <> · {(() => { const c = getCountryCode(p.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginRight:4 }} /> : null })()} {p.location}</> : ''}
+                      {p.role}{p.location ? <> · {p.location}{(() => { const c = getCountryCode(p.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} /> : null })()} </> : ''}
                     </div>
                   </div>
                 </div>
