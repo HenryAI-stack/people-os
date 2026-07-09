@@ -1,119 +1,167 @@
 /**
  * Returns a country flag emoji for a given location string.
- * Matches country names, major cities, and 2-letter ISO codes.
+ * Handles "City, Country" format by checking the country part first.
  */
 
-// Convert ISO 3166-1 alpha-2 code → flag emoji
 function isoToFlag(code) {
   return code.toUpperCase().split('').map(
     (c) => String.fromCodePoint(0x1F1E6 - 65 + c.charCodeAt(0))
   ).join('')
 }
 
-// city / region / country name  →  ISO code
+// Maps lowercase country/city names → ISO 3166-1 alpha-2 code
 const LOOKUP = {
+  // United States
+  'usa': 'US', 'united states': 'US', 'united states of america': 'US',
+  'america': 'US', 'u.s.a.': 'US', 'u.s.': 'US',
+  'new york': 'US', 'nyc': 'US', 'new york city': 'US',
+  'san francisco': 'US', 'los angeles': 'US', 'chicago': 'US',
+  'boston': 'US', 'seattle': 'US', 'austin': 'US', 'miami': 'US',
+  'denver': 'US', 'atlanta': 'US', 'dallas': 'US', 'houston': 'US',
+  'washington': 'US', 'washington dc': 'US', 'dc': 'US',
+  'portland': 'US', 'nashville': 'US', 'minneapolis': 'US',
+  'phoenix': 'US', 'las vegas': 'US', 'detroit': 'US',
   // Austria
-  'austria': 'AT', 'wien': 'AT', 'vienna': 'AT', 'graz': 'AT',
-  'salzburg': 'AT', 'linz': 'AT', 'innsbruck': 'AT',
+  'austria': 'AT', 'österreich': 'AT',
+  'vienna': 'AT', 'wien': 'AT', 'graz': 'AT',
+  'salzburg': 'AT', 'linz': 'AT', 'innsbruck': 'AT', 'klagenfurt': 'AT',
   // Germany
-  'germany': 'DE', 'deutschland': 'DE', 'berlin': 'DE', 'munich': 'DE',
-  'münchen': 'DE', 'hamburg': 'DE', 'frankfurt': 'DE', 'cologne': 'DE',
-  'köln': 'DE', 'düsseldorf': 'DE', 'stuttgart': 'DE', 'leipzig': 'DE',
+  'germany': 'DE', 'deutschland': 'DE',
+  'berlin': 'DE', 'munich': 'DE', 'münchen': 'DE', 'hamburg': 'DE',
+  'frankfurt': 'DE', 'cologne': 'DE', 'köln': 'DE', 'düsseldorf': 'DE',
+  'stuttgart': 'DE', 'leipzig': 'DE', 'dortmund': 'DE', 'essen': 'DE',
   // UK
-  'uk': 'GB', 'united kingdom': 'GB', 'england': 'GB', 'britain': 'GB',
+  'uk': 'GB', 'united kingdom': 'GB', 'great britain': 'GB',
+  'england': 'GB', 'britain': 'GB', 'scotland': 'GB', 'wales': 'GB',
   'london': 'GB', 'manchester': 'GB', 'birmingham': 'GB', 'edinburgh': 'GB',
   'glasgow': 'GB', 'bristol': 'GB', 'leeds': 'GB', 'liverpool': 'GB',
-  // USA
-  'usa': 'US', 'us': 'US', 'united states': 'US', 'america': 'US',
-  'new york': 'US', 'nyc': 'US', 'san francisco': 'US', 'sf': 'US',
-  'los angeles': 'US', 'la': 'US', 'chicago': 'US', 'boston': 'US',
-  'seattle': 'US', 'austin': 'US', 'miami': 'US', 'denver': 'US',
-  'atlanta': 'US', 'dallas': 'US', 'houston': 'US', 'washington': 'US',
+  'sheffield': 'GB', 'cambridge': 'GB', 'oxford': 'GB',
   // France
-  'france': 'FR', 'paris': 'FR', 'lyon': 'FR', 'marseille': 'FR', 'toulouse': 'FR',
+  'france': 'FR', 'paris': 'FR', 'lyon': 'FR', 'marseille': 'FR',
+  'toulouse': 'FR', 'nice': 'FR', 'bordeaux': 'FR', 'lille': 'FR',
   // Switzerland
-  'switzerland': 'CH', 'swiss': 'CH', 'zurich': 'CH', 'zürich': 'CH',
-  'geneva': 'CH', 'genf': 'CH', 'bern': 'CH', 'basel': 'CH',
+  'switzerland': 'CH', 'schweiz': 'CH', 'suisse': 'CH',
+  'zurich': 'CH', 'zürich': 'CH', 'geneva': 'CH', 'genf': 'CH',
+  'bern': 'CH', 'basel': 'CH', 'lausanne': 'CH',
   // Netherlands
-  'netherlands': 'NL', 'holland': 'NL', 'amsterdam': 'NL',
-  'rotterdam': 'NL', 'the hague': 'NL', 'utrecht': 'NL',
+  'netherlands': 'NL', 'holland': 'NL', 'the netherlands': 'NL',
+  'amsterdam': 'NL', 'rotterdam': 'NL', 'the hague': 'NL',
+  'utrecht': 'NL', 'eindhoven': 'NL',
   // Spain
-  'spain': 'ES', 'madrid': 'ES', 'barcelona': 'ES', 'seville': 'ES', 'valencia': 'ES',
+  'spain': 'ES', 'españa': 'ES',
+  'madrid': 'ES', 'barcelona': 'ES', 'seville': 'ES',
+  'valencia': 'ES', 'bilbao': 'ES',
   // Italy
-  'italy': 'IT', 'rome': 'IT', 'milan': 'IT', 'milano': 'IT', 'rome': 'IT',
-  'florence': 'IT', 'naples': 'IT', 'turin': 'IT', 'torino': 'IT',
+  'italy': 'IT', 'italia': 'IT',
+  'rome': 'IT', 'milan': 'IT', 'milano': 'IT', 'florence': 'IT',
+  'naples': 'IT', 'turin': 'IT', 'torino': 'IT', 'bologna': 'IT',
   // Poland
-  'poland': 'PL', 'warsaw': 'PL', 'warszawa': 'PL', 'krakow': 'PL', 'wroclaw': 'PL',
+  'poland': 'PL', 'polska': 'PL',
+  'warsaw': 'PL', 'warszawa': 'PL', 'krakow': 'PL', 'kraków': 'PL',
+  'wroclaw': 'PL', 'wrocław': 'PL', 'gdansk': 'PL', 'gdańsk': 'PL',
   // Sweden
-  'sweden': 'SE', 'stockholm': 'SE', 'gothenburg': 'SE', 'malmö': 'SE',
+  'sweden': 'SE', 'sverige': 'SE',
+  'stockholm': 'SE', 'gothenburg': 'SE', 'göteborg': 'SE', 'malmö': 'SE',
   // Norway
-  'norway': 'NO', 'oslo': 'NO', 'bergen': 'NO',
+  'norway': 'NO', 'norge': 'NO', 'oslo': 'NO', 'bergen': 'NO',
   // Denmark
-  'denmark': 'DK', 'copenhagen': 'DK', 'københavn': 'DK',
+  'denmark': 'DK', 'danmark': 'DK',
+  'copenhagen': 'DK', 'københavn': 'DK', 'aarhus': 'DK',
   // Finland
-  'finland': 'FI', 'helsinki': 'FI',
+  'finland': 'FI', 'suomi': 'FI', 'helsinki': 'FI', 'tampere': 'FI',
   // Belgium
-  'belgium': 'BE', 'brussels': 'BE', 'bruxelles': 'BE', 'antwerp': 'BE',
+  'belgium': 'BE', 'belgique': 'BE',
+  'brussels': 'BE', 'bruxelles': 'BE', 'antwerp': 'BE', 'ghent': 'BE',
   // Portugal
   'portugal': 'PT', 'lisbon': 'PT', 'lisboa': 'PT', 'porto': 'PT',
   // Czech Republic
-  'czech': 'CZ', 'czechia': 'CZ', 'prague': 'CZ', 'praha': 'CZ',
+  'czech republic': 'CZ', 'czechia': 'CZ', 'česká republika': 'CZ',
+  'prague': 'CZ', 'praha': 'CZ', 'brno': 'CZ',
   // Hungary
-  'hungary': 'HU', 'budapest': 'HU',
+  'hungary': 'HU', 'magyarország': 'HU', 'budapest': 'HU',
   // Romania
-  'romania': 'RO', 'bucharest': 'RO', 'bucurești': 'RO',
+  'romania': 'RO', 'bucharest': 'RO', 'bucurești': 'RO', 'cluj': 'RO',
   // Greece
-  'greece': 'GR', 'athens': 'GR', 'thessaloniki': 'GR',
+  'greece': 'GR', 'hellas': 'GR', 'athens': 'GR', 'thessaloniki': 'GR',
   // Turkey
-  'turkey': 'TR', 'istanbul': 'TR', 'ankara': 'TR',
+  'turkey': 'TR', 'türkiye': 'TR', 'istanbul': 'TR', 'ankara': 'TR',
   // India
-  'india': 'IN', 'mumbai': 'IN', 'bangalore': 'IN', 'delhi': 'IN',
-  'new delhi': 'IN', 'hyderabad': 'IN', 'chennai': 'IN', 'pune': 'IN',
+  'india': 'IN', 'mumbai': 'IN', 'bangalore': 'IN', 'bengaluru': 'IN',
+  'delhi': 'IN', 'new delhi': 'IN', 'hyderabad': 'IN',
+  'chennai': 'IN', 'pune': 'IN', 'kolkata': 'IN',
   // China
-  'china': 'CN', 'beijing': 'CN', 'shanghai': 'CN', 'shenzhen': 'CN',
+  'china': 'CN', 'beijing': 'CN', 'shanghai': 'CN',
+  'shenzhen': 'CN', 'guangzhou': 'CN', 'hangzhou': 'CN',
   // Japan
-  'japan': 'JP', 'tokyo': 'JP', 'osaka': 'JP', 'kyoto': 'JP',
+  'japan': 'JP', 'tokyo': 'JP', 'osaka': 'JP', 'kyoto': 'JP', 'yokohama': 'JP',
   // South Korea
-  'south korea': 'KR', 'korea': 'KR', 'seoul': 'KR',
+  'south korea': 'KR', 'korea': 'KR', 'seoul': 'KR', 'busan': 'KR',
   // Singapore
   'singapore': 'SG',
   // Australia
-  'australia': 'AU', 'sydney': 'AU', 'melbourne': 'AU', 'brisbane': 'AU',
+  'australia': 'AU', 'sydney': 'AU', 'melbourne': 'AU',
+  'brisbane': 'AU', 'perth': 'AU', 'adelaide': 'AU',
   // Canada
-  'canada': 'CA', 'toronto': 'CA', 'vancouver': 'CA', 'montreal': 'CA',
+  'canada': 'CA', 'toronto': 'CA', 'vancouver': 'CA',
+  'montreal': 'CA', 'calgary': 'CA', 'ottawa': 'CA',
   // Brazil
-  'brazil': 'BR', 'são paulo': 'BR', 'sao paulo': 'BR', 'rio': 'BR',
+  'brazil': 'BR', 'brasil': 'BR',
+  'são paulo': 'BR', 'sao paulo': 'BR', 'rio de janeiro': 'BR', 'rio': 'BR',
   // UAE
-  'uae': 'AE', 'dubai': 'AE', 'abu dhabi': 'AE',
+  'uae': 'AE', 'united arab emirates': 'AE', 'dubai': 'AE', 'abu dhabi': 'AE',
   // Israel
   'israel': 'IL', 'tel aviv': 'IL',
   // Ireland
-  'ireland': 'IE', 'dublin': 'IE',
+  'ireland': 'IE', 'éire': 'IE', 'dublin': 'IE',
+  // New Zealand
+  'new zealand': 'NZ', 'auckland': 'NZ', 'wellington': 'NZ',
+  // Mexico
+  'mexico': 'MX', 'méxico': 'MX', 'mexico city': 'MX', 'guadalajara': 'MX',
   // Remote / global
-  'remote': '🌐', 'global': '🌐', 'worldwide': '🌐',
+  'remote': '🌐', 'global': '🌐', 'worldwide': '🌐', 'distributed': '🌐',
 }
 
-export function getLocationFlag(location) {
-  if (!location) return ''
-  const lower = location.trim().toLowerCase()
+function lookup(str) {
+  const s = str.trim().toLowerCase()
+  if (!s) return ''
 
-  // Direct lookup
-  if (LOOKUP[lower]) {
-    const code = LOOKUP[lower]
-    return code.length === 2 ? isoToFlag(code) : code  // '🌐' passthrough
+  // 1. Exact match
+  if (LOOKUP[s]) {
+    const v = LOOKUP[s]
+    return v.length === 2 ? isoToFlag(v) : v
   }
 
-  // Try 2-letter ISO code entered directly (e.g. "AT", "DE")
-  if (/^[a-z]{2}$/i.test(lower)) {
-    return isoToFlag(lower)
+  // 2. 2-letter ISO code entered directly (e.g. "US", "AT", "DE")
+  if (/^[a-z]{2}$/i.test(s)) {
+    return isoToFlag(s)
   }
 
-  // Try matching any key as a substring of the location string
-  for (const [key, code] of Object.entries(LOOKUP)) {
-    if (lower.includes(key)) {
-      return code.length === 2 ? isoToFlag(code) : code
+  // 3. Substring match — longer keys first to avoid "us" matching before "usa"
+  const sortedKeys = Object.keys(LOOKUP).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    // Use word-boundary-aware check: key must appear as whole word(s)
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`(^|[\\s,./])${escaped}([\\s,./]|$)`, 'i')
+    if (re.test(s)) {
+      const v = LOOKUP[key]
+      return v.length === 2 ? isoToFlag(v) : v
     }
   }
 
   return ''
+}
+
+export function getLocationFlag(location) {
+  if (!location) return ''
+
+  // For "City, Country" format — check the country part (after last comma) first
+  const parts = location.split(',').map((p) => p.trim())
+  if (parts.length > 1) {
+    const countryPart = parts[parts.length - 1]
+    const flag = lookup(countryPart)
+    if (flag) return flag
+  }
+
+  // Fall back to checking the full string
+  return lookup(location)
 }
