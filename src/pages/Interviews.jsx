@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
-import { generateTags } from '../lib/autoTags.js'
+import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 
 const EMPTY = {
   title: '', type: '1:1', personId: '', person: '', date: '', summary: '', takeaways: '', tags: '',
@@ -241,7 +241,13 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
         </div>
 
         <div className="field">
-          <label>Key takeaways</label>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Key takeaways
+            <button type="button" onClick={handleGenerateTakeaways} disabled={genTakeaways || !form.summary}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'pointer', opacity: !form.summary ? 0.45 : 1 }}>
+              {genTakeaways ? '⏳ Generating…' : '✦ Generate'}
+            </button>
+          </label>
           <textarea value={form.takeaways} onChange={(e) => set('takeaways', e.target.value)} placeholder="Action items, follow-ups, decisions…" />
         </div>
 
