@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 import { Avatar } from './DirectReports.jsx'
-import { getLocationFlag } from '../lib/locationFlag.js'
+import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { urgencyLabel } from './FollowUps.jsx'
 
 const INTERVIEW_TYPES = {
@@ -220,7 +220,7 @@ export default function PersonDetail() {
             {person.name}
           </div>
           <div style={{ color: 'var(--text-dim)', fontSize: 14, marginBottom: 10 }}>
-            {[person.role, person.team, person.location ? `${getLocationFlag(person.location)} ${person.location}` : ''].filter(Boolean).join(' · ')}
+            {[person.role, person.team].filter(Boolean).join(' · ')}{person.location && <> · {(() => { const c = getCountryCode(person.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginRight:4 }} /> : null })()} {person.location}</>}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {person.level    && <Chip label="Level"  value={person.level} />}
