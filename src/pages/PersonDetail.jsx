@@ -478,7 +478,8 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
   const [form,    setForm]    = useState({ ...initial })
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
-  const [genTags, setGenTags] = useState(false)
+  const [genTags,     setGenTags]     = useState(false)
+  const [genTakeaways, setGenTakeaways] = useState(false)
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
 
