@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { followUpsStore, directReportsStore } from '../lib/dataStore'
 
 const EMPTY = {
@@ -23,6 +24,8 @@ export default function FollowUps() {
   const [filter,  setFilter]  = useState('open') // open | overdue | done | all
   const [editing, setEditing] = useState(null)
   const [error,   setError]   = useState('')
+
+  const navigate = useNavigate()
 
   async function load() {
     setLoading(true); setError('')
@@ -122,7 +125,17 @@ export default function FollowUps() {
                   {f.text}
                 </div>
                 <div className="row-sub">
-                  {f.personName && <span style={{ marginRight: 8 }}>👤 {f.personName}</span>}
+                  {f.personName && (
+                    <span style={{ marginRight: 8 }}>
+                      👤 {f.personId
+                        ? <span onClick={(e) => { e.stopPropagation(); navigate(`/direct-reports/${f.personId}`) }}
+                            style={{ cursor: 'pointer', color: 'var(--accent)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}>
+                            {f.personName}
+                          </span>
+                        : f.personName
+                      }
+                    </span>
+                  )}
                   {f.sourceTitle && <span style={{ color: 'var(--text-faint)' }}>↳ {f.sourceTitle}</span>}
                 </div>
               </div>
