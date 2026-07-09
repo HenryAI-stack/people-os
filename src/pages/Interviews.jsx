@@ -134,13 +134,25 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
   const [form,       setForm]       = useState({ ...initial })
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
-  const [genTags,    setGenTags]    = useState(false)
+  const [genTags,      setGenTags]      = useState(false)
+  const [genTakeaways, setGenTakeaways] = useState(false)
 
   // 'other' mode: person not in the direct reports list
   const isOther = form.personId === '__other__'
   const isNew   = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
+
+  async function handleGenerateTakeaways() {
+    if (!form.summary) return
+    setGenTakeaways(true)
+    try {
+      const takeaways = await generateTakeaways(form.summary)
+      if (takeaways) setForm((f) => ({ ...f, takeaways }))
+    } finally {
+      setGenTakeaways(false)
+    }
+  }
 
   async function handleGenerateTags() {
     if (!form.summary && !form.takeaways) return
