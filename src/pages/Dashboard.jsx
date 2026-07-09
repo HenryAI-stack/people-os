@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, notesStore, followUpsStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
+import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { urgencyLabel } from './FollowUps.jsx'
 
 function nextAnniversary(startDateStr) {
@@ -158,7 +159,13 @@ export default function Dashboard() {
               <Avatar photo={r.photo} name={r.name} size={34} />
               <div>
                 <div className="row-title">{r.name}</div>
-                <div className="row-sub">{ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}</div>
+                <div className="row-sub">
+                  {ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}
+                  {r.location && <>
+                    {' · '}{r.location}
+                    {(() => { const c = getCountryCode(r.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} /> : null })()}
+                  </>}
+                </div>
               </div>
             </div>
             <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>{daysLabel(r.ann.daysUntil)}</span>
@@ -203,7 +210,13 @@ export default function Dashboard() {
               <Avatar photo={p.photo} name={p.name} size={34} />
               <div>
                 <div className="row-title">{p.name}</div>
-                <div className="row-sub">{p.role}</div>
+                <div className="row-sub">
+                  {p.role}
+                  {p.location && <>
+                    {' · '}{p.location}
+                    {(() => { const c = getCountryCode(p.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} /> : null })()}
+                  </>}
+                </div>
               </div>
             </div>
             <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
