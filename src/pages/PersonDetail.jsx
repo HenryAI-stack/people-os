@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
-import { Avatar } from './DirectReports.jsx'
+import { Avatar, ReportForm } from './DirectReports.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { urgencyLabel } from './FollowUps.jsx'
 
@@ -118,7 +118,8 @@ export default function PersonDetail() {
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState('')
   const [expanded,    setExpanded]    = useState(null)
-  const [addingIv,    setAddingIv]    = useState(false)
+  const [addingIv,      setAddingIv]      = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
   const [editingIv,   setEditingIv]   = useState(null)  // interview being edited
   const [confirmDel,  setConfirmDel]  = useState(null)  // interview id awaiting confirm
   const [followUps,   setFollowUps]   = useState([])
@@ -248,7 +249,7 @@ export default function PersonDetail() {
             </span>
           </div>
         </div>
-        <button className="btn ghost" onClick={() => navigate('/direct-reports', { state: { editId: person.id } })}
+        <button className="btn ghost" onClick={() => setEditingProfile(true)}
           style={{ alignSelf: 'flex-start' }}>
           Edit profile
         </button>
@@ -411,6 +412,20 @@ export default function PersonDetail() {
           title="Edit interview"
           onCancel={() => setEditingIv(null)}
           onSave={handleSaveInterview}
+        />
+      )}
+
+      {/* ── Edit profile modal ── */}
+      {editingProfile && (
+        <ReportForm
+          key={person.id}
+          initial={person}
+          onCancel={() => setEditingProfile(false)}
+          onSave={async (record) => {
+            await directReportsStore.upsert(record)
+            setEditingProfile(false)
+            load()
+          }}
         />
       )}
 
