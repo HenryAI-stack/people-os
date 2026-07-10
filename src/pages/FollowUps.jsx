@@ -26,6 +26,12 @@ export default function FollowUps() {
   const [error,   setError]   = useState('')
 
   const navigate = useNavigate()
+  const [toast, setToast] = useState('')
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -69,7 +75,10 @@ export default function FollowUps() {
   }
 
   async function toggleDone(item) {
-    await followUpsStore.upsert({ ...item, done: !item.done }); load()
+    const nowDone = !item.done
+    await followUpsStore.upsert({ ...item, done: nowDone })
+    if (nowDone) showToast(`✅ "${item.text.length > 45 ? item.text.slice(0, 45) + '…' : item.text}" marked as done`)
+    load()
   }
 
   return (
@@ -152,6 +161,21 @@ export default function FollowUps() {
           )
         })}
       </div>
+
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-card)', border: '1px solid var(--good)',
+          color: 'var(--good)', borderRadius: 10, padding: '11px 20px',
+          fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          zIndex: 100, whiteSpace: 'nowrap', maxWidth: '90vw', overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          animation: 'fadeInUp 0.2s ease',
+        }}>
+          {toast}
+        </div>
+      )}
 
       {editing && (
         <FollowUpForm
