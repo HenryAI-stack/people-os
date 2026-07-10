@@ -313,3 +313,9 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
   .main { height: auto; padding: 20px; }
   .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
 }
+
+/* ── Toast notification animation ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
