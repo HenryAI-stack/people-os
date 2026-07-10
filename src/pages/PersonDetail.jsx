@@ -486,9 +486,12 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
   async function handleGenerateTakeaways() {
     if (!form.summary) return
     setGenTakeaways(true)
+    setError('')
     try {
       const takeaways = await generateTakeaways(form.summary)
       if (takeaways) setForm((f) => ({ ...f, takeaways }))
+    } catch (err) {
+      setError('Takeaways: ' + (err.message || 'Generation failed.'))
     } finally {
       setGenTakeaways(false)
     }
@@ -497,9 +500,12 @@ function InterviewForm({ initial, onCancel, onSave, title = 'Log interview' }) {
   async function handleGenerateTags() {
     if (!form.summary && !form.takeaways) return
     setGenTags(true)
+    setError('')
     try {
       const tags = await generateTags(form.summary, form.takeaways)
       if (tags) setForm((f) => ({ ...f, tags }))
+    } catch (err) {
+      setError('Tags: ' + (err.message || 'Generation failed.'))
     } finally {
       setGenTags(false)
     }
