@@ -87,10 +87,23 @@ export async function generateTakeaways(summary) {
     `Summary:\n${summary}`
 
   const raw = await callOpenRouter(prompt, 200)
-  return raw
+
+  // Strip any model preamble/reasoning — only keep lines that are actual bullets.
+  // Some free models leak "thinking" text before the bullet points.
+  const lines = raw
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0)
+
+  // Find where the bullets actually start
+  const bulletStart = lines.findIndex((l) => /^[-*•]/.test(l))
+  const bulletLines = bulletStart >= 0 ? lines.slice(bulletStart) : lines
+
+  // Keep only bullet lines (drop any trailing prose the model may add)
+  const bullets = bulletLines
+    .filter((l) => /^[-*•]/.test(l))
     .map((l) => l.replace(/^[-*•]\s*/, '• '))
-    .join('\n')
+
+  if (bullets.length === 0) throw new Error('No bullet points found in response — try again.')
+  return bullets.join('\n')
 }
