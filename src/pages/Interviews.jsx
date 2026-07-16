@@ -3,7 +3,8 @@ import { interviewsStore, directReportsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 
 const EMPTY = {
-  title: '', type: '1:1', personId: '', person: '', date: '', summary: '', takeaways: '', tags: '',
+  title: '', type: '1:1', personId: '', person: '', date: '',
+  summary: '', takeaways: '', tags: '',
 }
 
 const TYPE_LABEL = {
@@ -20,6 +21,7 @@ export default function Interviews() {
   const [reports,    setReports]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filterType, setFilterType] = useState('all')
+  const [query,      setQuery]      = useState('')
   const [editing,    setEditing]    = useState(null)
   const [expanded,   setExpanded]   = useState(null)
 
@@ -27,8 +29,7 @@ export default function Interviews() {
     setLoading(true)
     try {
       const [i, r] = await Promise.all([interviewsStore.list(), directReportsStore.list()])
-      setItems(i)
-      setReports(r)
+      setItems(i); setReports(r)
     } finally {
       setLoading(false)
     }
@@ -37,20 +38,21 @@ export default function Interviews() {
   useEffect(() => { load() }, [])
 
   const filtered = useMemo(() => {
-    if (filterType === 'all') return items
-    return items.filter((i) => i.type === filterType)
-  }, [items, filterType])
+    const q = query.toLowerCase()
+    return items
+      .filter((i) => filterType === 'all' || i.type === filterType)
+      .filter((i) => !q || [i.title, i.person, i.summary, i.takeaways, i.tags]
+        .join(' ').toLowerCase().includes(q))
+  }, [items, filterType, query])
 
   async function handleSave(record) {
     await interviewsStore.upsert(record)
-    setEditing(null)
-    load()
+    setEditing(null); load()
   }
 
   async function handleDelete(id) {
     if (!confirm('Delete this entry?')) return
-    await interviewsStore.remove(id)
-    load()
+    await interviewsStore.remove(id); load()
   }
 
   return (
@@ -60,8 +62,15 @@ export default function Interviews() {
         <p>1:1s, skip-levels, and hiring conversations — captured so the knowledge isn't lost.</p>
       </div>
 
-      <div className="toolbar">
-        <select className="search-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+      <div className="toolbar" style={{ flexWrap: 'wrap', gap: 10 }}>
+        <input
+          className="search-input"
+          placeholder="Search title, person, summary…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ flex: 1, minWidth: 180 }}
+        />
+        <select className="search-input" style={{ width: 'auto' }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
           <option value="all">All types</option>
           {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
@@ -73,7 +82,7 @@ export default function Interviews() {
       {!loading && filtered.length === 0 && (
         <div className="empty-state">
           <div className="icon">🗣️</div>
-          No entries yet. Log your first 1:1 or interview to build a knowledge base.
+          {query ? `No interviews matching "${query}".` : 'No entries yet. Log your first 1:1 or interview.'}
         </div>
       )}
 
@@ -131,44 +140,35 @@ export default function Interviews() {
 }
 
 function InterviewForm({ initial, reports, onCancel, onSave }) {
-  const [form,       setForm]       = useState({ ...initial })
-  const [saving,     setSaving]     = useState(false)
-  const [error,      setError]      = useState('')
-  const [genTags,      setGenTags]      = useState(false)
+  const [form,        setForm]        = useState({ ...initial })
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+  const [genTags,     setGenTags]     = useState(false)
   const [genTakeaways, setGenTakeaways] = useState(false)
-
-  // 'other' mode: person not in the direct reports list
-  const isOther = form.personId === '__other__'
-  const isNew   = !initial.id
+  const isNew = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
 
   async function handleGenerateTakeaways() {
     if (!form.summary) return
-    setGenTakeaways(true)
-    setError('')
+    setGenTakeaways(true); setError('')
     try {
       const takeaways = await generateTakeaways(form.summary)
       if (takeaways) setForm((f) => ({ ...f, takeaways }))
     } catch (err) {
       setError('Takeaways: ' + (err.message || 'Generation failed.'))
-    } finally {
-      setGenTakeaways(false)
-    }
+    } finally { setGenTakeaways(false) }
   }
 
   async function handleGenerateTags() {
     if (!form.summary && !form.takeaways) return
-    setGenTags(true)
-    setError('')
+    setGenTags(true); setError('')
     try {
       const tags = await generateTags(form.summary, form.takeaways)
       if (tags) setForm((f) => ({ ...f, tags }))
     } catch (err) {
       setError('Tags: ' + (err.message || 'Generation failed.'))
-    } finally {
-      setGenTags(false)
-    }
+    } finally { setGenTags(false) }
   }
 
   function handlePersonSelect(e) {
@@ -184,18 +184,12 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
   }
 
   async function submit(e) {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    try {
-      await onSave(form)
-    } catch (err) {
-      setError(err.message || 'Save failed — check your GitHub token and try again.')
-      setSaving(false)
-    }
+    e.preventDefault(); setSaving(true); setError('')
+    try { await onSave(form) }
+    catch (err) { setError(err.message || 'Save failed.'); setSaving(false) }
   }
 
-  // Determine current select value from existing data (handles old records without personId)
+  const isOther = form.personId === '__other__'
   const selectValue = form.personId ||
     (form.person && reports.find((r) => r.name.trim().toLowerCase() === form.person.trim().toLowerCase())?.id) ||
     (form.person ? '__other__' : '')
@@ -215,49 +209,34 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
           <label>Title</label>
           <input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" />
         </div>
-
         <div className="field">
           <label>Type</label>
           <select value={form.type} onChange={(e) => set('type', e.target.value)}>
             {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
-
         <div className="field">
           <label>Person</label>
           <select value={selectValue} onChange={handlePersonSelect}>
             <option value="">— Select direct report —</option>
-            {reports.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}{r.role ? ` (${r.role})` : ''}</option>
-            ))}
+            {reports.map((r) => <option key={r.id} value={r.id}>{r.name}{r.role ? ` (${r.role})` : ''}</option>)}
             <option value="__other__">Other / external person…</option>
           </select>
         </div>
-
-        {/* Free-text name field — shown only when "Other" is selected */}
         {isOther && (
           <div className="field">
             <label>Name</label>
-            <input
-              required
-              value={form.person}
-              onChange={(e) => set('person', e.target.value)}
-              placeholder="Enter name"
-              autoFocus
-            />
+            <input required value={form.person} onChange={(e) => set('person', e.target.value)} placeholder="Enter name" autoFocus />
           </div>
         )}
-
         <div className="field">
           <label>Date</label>
           <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
         </div>
-
         <div className="field">
           <label>Summary</label>
           <textarea value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="What was discussed?" />
         </div>
-
         <div className="field">
           <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Key takeaways
@@ -268,7 +247,6 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
           </label>
           <textarea value={form.takeaways} onChange={(e) => set('takeaways', e.target.value)} placeholder="Action items, follow-ups, decisions…" />
         </div>
-
         <div className="field">
           <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Tags (comma-separated)
