@@ -1,4 +1,3 @@
-// src/lib/auth.js  — identical pattern to recruit-os
 import { initializeApp }          from 'firebase/app'
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 
@@ -12,7 +11,6 @@ const app      = initializeApp(firebaseConfig)
 export const auth     = getAuth(app)
 const provider = new GoogleAuthProvider()
 
-// Only this email is allowed to access PeopleOS
 export const ALLOWED_EMAIL = import.meta.env.VITE_ALLOWED_EMAIL
 
 export async function loginWithGoogle() {

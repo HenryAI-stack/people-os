@@ -4,7 +4,7 @@ async function callOpenRouter(prompt, maxTokens = 80) {
   if (!API_KEY) throw new Error('VITE_OPENROUTER_API_KEY is not set.')
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+  const timeout = setTimeout(() => controller.abort(), 30000)
 
   let res
   try {
@@ -32,10 +32,7 @@ async function callOpenRouter(prompt, maxTokens = 80) {
 
   if (!res.ok) {
     let msg = `API error (${res.status})`
-    try {
-      const body = await res.json()
-      msg = body?.error?.message || msg
-    } catch {}
+    try { const body = await res.json(); msg = body?.error?.message || msg } catch {}
     throw new Error(msg)
   }
 
@@ -71,7 +68,7 @@ export async function generateTags(summary, takeaways) {
     `Do NOT include any explanation or extra text.\n\n` +
     `Interview note:\n${text}`
 
-  const raw = await callOpenRouter(prompt, 60)
+  const raw  = await callOpenRouter(prompt, 60)
   const tags = sanitiseTags(raw)
   if (!tags) throw new Error('Could not extract tags — try again.')
   return tags
@@ -86,20 +83,10 @@ export async function generateTakeaways(summary) {
     `Reply with ONLY the bullet points, no intro text.\n\n` +
     `Summary:\n${summary}`
 
-  const raw = await callOpenRouter(prompt, 200)
-
-  // Strip any model preamble/reasoning — only keep lines that are actual bullets.
-  // Some free models leak "thinking" text before the bullet points.
-  const lines = raw
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-
-  // Find where the bullets actually start
+  const raw   = await callOpenRouter(prompt, 200)
+  const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
   const bulletStart = lines.findIndex((l) => /^[-*•]/.test(l))
   const bulletLines = bulletStart >= 0 ? lines.slice(bulletStart) : lines
-
-  // Keep only bullet lines (drop any trailing prose the model may add)
   const bullets = bulletLines
     .filter((l) => /^[-*•]/.test(l))
     .map((l) => l.replace(/^[-*•]\s*/, '• '))
