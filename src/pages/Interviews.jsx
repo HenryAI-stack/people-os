@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useDraggable } from '../lib/useDraggable.js'
+import { DraggableModal } from '../components/DraggableModal.jsx'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 
@@ -146,7 +146,6 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
   const [error,       setError]       = useState('')
   const [genTags,     setGenTags]     = useState(false)
   const [genTakeaways, setGenTakeaways] = useState(false)
-  const { modalStyle, dragHandleProps } = useDraggable()
   const isNew = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
@@ -197,9 +196,8 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
     (form.person ? '__other__' : '')
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <form className="modal" onSubmit={submit} style={modalStyle}>
-        <h2 {...dragHandleProps}>{isNew ? 'Log new entry' : 'Edit entry'}</h2>
+    <DraggableModal title={isNew ? 'Log new entry' : 'Edit entry'} onClose={onCancel}>
+      <form onSubmit={submit}>
 
         {error && (
           <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>
@@ -265,6 +263,6 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
           <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
         </div>
       </form>
-    </div>
+    </DraggableModal>
   )
 }

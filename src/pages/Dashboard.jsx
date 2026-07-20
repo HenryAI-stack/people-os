@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, notesStore, followUpsStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
-import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { urgencyLabel } from './FollowUps.jsx'
+import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
@@ -40,30 +40,31 @@ function urgencyClass(days) {
   return ''
 }
 
+function FlagImg({ location }) {
+  const c = getCountryCode(location)
+  if (!c) return null
+  return <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} />
+}
+
 export default function Dashboard() {
   const [reports,    setReports]    = useState([])
   const [interviews, setInterviews] = useState([])
   const [notes,      setNotes]      = useState([])
+  const [followUps,  setFollowUps]  = useState([])
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
-  const [followUps,  setFollowUps]  = useState([])
   const navigate = useNavigate()
 
   useEffect(() => {
     ;(async () => {
       try {
         const [r, i, n, f] = await Promise.all([
-          directReportsStore.list(),
-          interviewsStore.list(),
-          notesStore.list(),
-          followUpsStore.list(),
+          directReportsStore.list(), interviewsStore.list(),
+          notesStore.list(), followUpsStore.list(),
         ])
         setReports(r); setInterviews(i); setNotes(n); setFollowUps(f)
-      } catch (e) {
-        setError(e.message)
-      } finally {
-        setLoading(false)
-      }
+      } catch (e) { setError(e.message) }
+      finally { setLoading(false) }
     })()
   }, [])
 
@@ -80,37 +81,17 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <p>Your team, at a glance.</p>
-      </div>
+      <div className="page-header"><h1>Dashboard</h1><p>Your team, at a glance.</p></div>
 
-      {error && (
-        <div style={{ color:'var(--bad)', fontSize:13, marginBottom:20, padding:'10px 14px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>
-          Couldn't load data — check your GitHub token and repo settings. ({error})
-        </div>
-      )}
+      {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:20, padding:'10px 14px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>Couldn't load data — {error}</div>}
 
-      {/* Stats */}
       <div className="grid cols-3">
-        <div className="card stat-card">
-          <div className="label">Direct reports</div>
-          <div className="value">{loading ? '–' : reports.length}</div>
-          <div className="sub">{loading ? '' : `${activeCount} active`}</div>
-        </div>
-        <div className="card stat-card">
-          <div className="label">Logged conversations</div>
-          <div className="value">{loading ? '–' : interviews.length}</div>
-          <div className="sub">{loading ? '' : `${last30} in the last 30 days`}</div>
-        </div>
-        <div className="card stat-card">
-          <div className="label">Notes saved</div>
-          <div className="value">{loading ? '–' : notes.length}</div>
-          <div className="sub">{loading ? '' : `${notes.filter((n) => n.pinned).length} pinned`}</div>
-        </div>
+        <div className="card stat-card"><div className="label">Direct reports</div><div className="value">{loading ? '–' : reports.length}</div><div className="sub">{loading ? '' : `${activeCount} active`}</div></div>
+        <div className="card stat-card"><div className="label">Logged conversations</div><div className="value">{loading ? '–' : interviews.length}</div><div className="sub">{loading ? '' : `${last30} in the last 30 days`}</div></div>
+        <div className="card stat-card"><div className="label">Notes saved</div><div className="value">{loading ? '–' : notes.length}</div><div className="sub">{loading ? '' : `${notes.filter((n) => n.pinned).length} pinned`}</div></div>
       </div>
 
-      {/* Follow-ups alert strip */}
+      {/* Follow-ups alert */}
       {(() => {
         const today = new Date().setHours(0,0,0,0)
         const overdue = followUps.filter(f => !f.done && f.dueDate && new Date(f.dueDate) < today)
@@ -123,17 +104,12 @@ export default function Dashboard() {
               📋 Follow-ups due soon
               <Link to="/follow-ups" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>View all →</Link>
             </div>
-            <div className="list" style={{ marginBottom: 28 }}>
+            <div className="list" style={{ marginBottom:28 }}>
               {urgent.map((f) => {
                 const urg = urgencyLabel(f.dueDate, false)
                 return (
                   <div className="row-card" key={f.id} onClick={() => navigate('/follow-ups')} style={{ cursor:'pointer' }}>
-                    <div className="row-main">
-                      <div>
-                        <div className="row-title">{f.text}</div>
-                        <div className="row-sub">{f.personName && `👤 ${f.personName}`}</div>
-                      </div>
-                    </div>
+                    <div className="row-main"><div><div className="row-title">{f.text}</div><div className="row-sub">{f.personName && `👤 ${f.personName}`}</div></div></div>
                     <span className={`badge ${urg.cls}`}>{urg.label}</span>
                   </div>
                 )
@@ -143,29 +119,16 @@ export default function Dashboard() {
         )
       })()}
 
-      {/* Anniversaries */}
       <div className="section-title">🎂 Upcoming anniversaries</div>
-      {!loading && upcomingAnniversaries.length === 0 && (
-        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
-          No anniversaries to show — add start dates to your <Link to="/direct-reports">direct reports</Link>.
-        </div>
-      )}
+      {!loading && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
       <div className="list">
         {upcomingAnniversaries.map((r) => (
-          <div className="row-card" key={r.id}
-            onClick={() => navigate(`/direct-reports/${r.id}`)}
-            style={{ cursor:'pointer' }}>
+          <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
             <div className="row-main">
               <Avatar photo={r.photo} name={r.name} size={34} />
               <div>
                 <div className="row-title">{r.name}</div>
-                <div className="row-sub">
-                  {ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}
-                  {r.location && <>
-                    {' · '}{r.location}
-                    {(() => { const c = getCountryCode(r.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} /> : null })()}
-                  </>}
-                </div>
+                <div className="row-sub">{ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}{r.location && <> · {r.location}<FlagImg location={r.location} /></>}</div>
               </div>
             </div>
             <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>{daysLabel(r.ann.daysUntil)}</span>
@@ -173,50 +136,27 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Recent conversations */}
       <div className="section-title">Recent conversations</div>
-      {!loading && recentInterviews.length === 0 && (
-        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
-          No conversations logged yet. <Link to="/interviews">Log your first one →</Link>
-        </div>
-      )}
+      {!loading && recentInterviews.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No conversations yet. <Link to="/interviews">Log your first one →</Link></div>}
       <div className="list">
         {recentInterviews.map((it) => (
           <div className="row-card" key={it.id}>
-            <div className="row-main">
-              <div>
-                <div className="row-title">{it.title}</div>
-                <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div>
-              </div>
-            </div>
+            <div className="row-main"><div><div className="row-title">{it.title}</div><div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div></div></div>
             <span className="badge">{it.type}</span>
           </div>
         ))}
       </div>
 
-      {/* Team */}
       <div className="section-title">Your team</div>
-      {!loading && reports.length === 0 && (
-        <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
-          No direct reports added yet. <Link to="/direct-reports">Add your first one →</Link>
-        </div>
-      )}
+      {!loading && reports.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No direct reports yet. <Link to="/direct-reports">Add your first one →</Link></div>}
       <div className="list">
         {reports.slice(0, 6).map((p) => (
-          <div className="row-card" key={p.id}
-            onClick={() => navigate(`/direct-reports/${p.id}`)}
-            style={{ cursor:'pointer' }}>
+          <div className="row-card" key={p.id} onClick={() => navigate(`/direct-reports/${p.id}`)} style={{ cursor:'pointer' }}>
             <div className="row-main">
               <Avatar photo={p.photo} name={p.name} size={34} />
               <div>
                 <div className="row-title">{p.name}</div>
-                <div className="row-sub">
-                  {p.role}
-                  {p.location && <>
-                    {' · '}{p.location}
-                    {(() => { const c = getCountryCode(p.location); return c ? <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} /> : null })()}
-                  </>}
-                </div>
+                <div className="row-sub">{p.role}{p.location && <> · {p.location}<FlagImg location={p.location} /></>}</div>
               </div>
             </div>
             <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
