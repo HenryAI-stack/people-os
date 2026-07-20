@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { onAuth, loginWithGoogle, logout } from './lib/auth.js'
 
-import Dashboard     from './pages/Dashboard.jsx'
+import Dashboard    from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
-import Interviews    from './pages/Interviews.jsx'
-import Notes         from './pages/Notes.jsx'
-import PersonDetail  from './pages/PersonDetail.jsx'
-import FollowUps     from './pages/FollowUps.jsx'
+import Interviews   from './pages/Interviews.jsx'
+import Notes        from './pages/Notes.jsx'
+import FollowUps    from './pages/FollowUps.jsx'
+import PersonDetail from './pages/PersonDetail.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -24,21 +24,12 @@ export default function App() {
   const [light,       setLight]       = usePref('peopleos-theme-light', false)
   const [collapsed,   setCollapsed]   = usePref('peopleos-sidebar-collapsed', false)
 
-  useEffect(() => {
-    document.body.classList.toggle('light', light)
-  }, [light])
-
-  useEffect(() => {
-    return onAuth(u => { setUser(u); setAuthLoading(false) })
-  }, [])
+  useEffect(() => { document.body.classList.toggle('light', light) }, [light])
+  useEffect(() => { return onAuth(u => { setUser(u); setAuthLoading(false) }) }, [])
 
   async function handleLogin() {
-    try {
-      setAuthError(null)
-      await loginWithGoogle()
-    } catch (e) {
-      if (e.message === 'ACCESS_DENIED') setAuthError('access_denied')
-    }
+    try { setAuthError(null); await loginWithGoogle() }
+    catch (e) { if (e.message === 'ACCESS_DENIED') setAuthError('access_denied') }
   }
 
   if (authLoading) return <Centered>Loading PeopleOS…</Centered>
@@ -46,22 +37,17 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar
-        user={user}
-        light={light}
-        onToggleTheme={() => setLight(!light)}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed(!collapsed)}
-      />
+      <Sidebar user={user} light={light} onToggleTheme={() => setLight(!light)}
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
       <main className="main">
         <Routes>
-          <Route path="/"               element={<Dashboard />} />
-          <Route path="/direct-reports" element={<DirectReports />} />
-          <Route path="/interviews"     element={<Interviews />} />
-          <Route path="/notes"          element={<Notes />} />
-          <Route path="/direct-reports/:id" element={<PersonDetail />} />
+          <Route path="/"                    element={<Dashboard />} />
+          <Route path="/direct-reports"      element={<DirectReports />} />
+          <Route path="/direct-reports/:id"  element={<PersonDetail />} />
+          <Route path="/interviews"          element={<Interviews />} />
+          <Route path="/notes"               element={<Notes />} />
           <Route path="/follow-ups"          element={<FollowUps />} />
-          <Route path="*"              element={<Navigate to="/" replace />} />
+          <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
@@ -71,75 +57,37 @@ export default function App() {
 function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
-
-      {/* Brand — fixed top */}
-      <div className="brand">
-        <span className="dot">●</span>
-        <span className="brand-text">PeopleOS</span>
-      </div>
-
-      {/* Nav — grows to fill space, pushes bottom section down */}
+      <div className="brand"><span className="dot">●</span><span className="brand-text">PeopleOS</span></div>
       <div className="sidebar-scroll">
         <nav className="nav">
-          <NavLink to="/" end title="Dashboard">
-            <span className="nav-icon">📊</span>
-            <span className="nav-label">Dashboard</span>
-          </NavLink>
-          <NavLink to="/direct-reports" title="Direct Reports">
-            <span className="nav-icon">👥</span>
-            <span className="nav-label">Direct Reports</span>
-          </NavLink>
-          <NavLink to="/interviews" title="Interviews">
-            <span className="nav-icon">🗣️</span>
-            <span className="nav-label">Interviews</span>
-          </NavLink>
-          <NavLink to="/notes" title="Notes">
-            <span className="nav-icon">📝</span>
-            <span className="nav-label">Notes</span>
-          </NavLink>
-          <NavLink to="/follow-ups" title="Follow-ups">
-            <span className="nav-icon">📋</span>
-            <span className="nav-label">Follow-ups</span>
-          </NavLink>
+          <NavLink to="/" end title="Dashboard"><span className="nav-icon">📊</span><span className="nav-label">Dashboard</span></NavLink>
+          <NavLink to="/direct-reports" title="Direct Reports"><span className="nav-icon">👥</span><span className="nav-label">Direct Reports</span></NavLink>
+          <NavLink to="/interviews" title="Interviews"><span className="nav-icon">🗣️</span><span className="nav-label">Interviews</span></NavLink>
+          <NavLink to="/notes" title="Notes"><span className="nav-icon">📝</span><span className="nav-label">Notes</span></NavLink>
+          <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
         </nav>
       </div>
-
-      {/* Bottom section — always pinned to the bottom */}
       <div className="sidebar-bottom">
-
-        {/* Theme toggle */}
         <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
           <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
           <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
           <label className="toggle-pill">
             <input type="checkbox" checked={light} onChange={onToggleTheme} />
-            <span className="toggle-track" />
-            <span className="toggle-thumb" />
+            <span className="toggle-track" /><span className="toggle-thumb" />
           </label>
         </div>
-
-        {/* Collapse button */}
-        <button
-          className="collapse-btn"
-          onClick={onToggleCollapse}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
+        <button className="collapse-btn" onClick={onToggleCollapse}>
           <span className="collapse-btn-icon">◀</span>
           <span className="collapse-btn-label">Collapse</span>
         </button>
-
-        {/* User / sign out */}
         <div className="sidebar-footer">
-          {user.photoURL
-            ? <img className="avatar" src={user.photoURL} alt="" />
-            : <div className="avatar" />}
+          {user.photoURL ? <img className="avatar" src={user.photoURL} alt="" /> : <div className="avatar" />}
           <div className="user-mini">
             <div className="name">{user.displayName || 'You'}</div>
             <div className="email">{user.email}</div>
             <button className="signout-btn" onClick={logout}>Sign out</button>
           </div>
         </div>
-
       </div>
     </aside>
   )
@@ -151,18 +99,12 @@ function LoginPage({ onLogin, authError }) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="brand">
-          <span className="dot">●</span>
-          <span className="brand-text">PeopleOS</span>
-        </div>
+        <div className="brand"><span className="dot">●</span><span className="brand-text">PeopleOS</span></div>
         <p>Your leadership hub — direct reports, 1:1s, and notes.</p>
         <button className="google-btn" onClick={handle} disabled={busy}>
-          <GoogleIcon />
-          {busy ? 'Signing in…' : 'Continue with Google'}
+          <GoogleIcon />{busy ? 'Signing in…' : 'Continue with Google'}
         </button>
-        {authError === 'access_denied' && (
-          <div className="login-error">This Google account is not authorized for PeopleOS.</div>
-        )}
+        {authError === 'access_denied' && <div className="login-error">This Google account is not authorized.</div>}
       </div>
     </div>
   )
