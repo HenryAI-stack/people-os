@@ -144,7 +144,8 @@ export default function PersonDetail() {
     setGenSummary(true); setSummaryErr('')
     try {
       const summary = await generateAISummary(person, interviews)
-      const updated = { ...person, aiSummary:summary, aiSummaryDate:new Date().toISOString() }
+      // Use id from URL param (not person state) to guarantee correct record update
+      const updated = { ...person, id, aiSummary:summary, aiSummaryDate:new Date().toISOString() }
       await directReportsStore.upsert(updated); setPerson(updated)
     } catch (e) { setSummaryErr(e.message) }
     finally { setGenSummary(false) }
