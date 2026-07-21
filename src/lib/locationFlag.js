@@ -89,5 +89,6 @@ export function getCountryCode(location) {
 
 export function flagUrl(code) {
   if (!code) return null
-  return `https://flagcdn.com/20x15/${code.toLowerCase()}.png`
+  // Use 2× size image (40x30) displayed at 20x15 for crisp rendering on all screens
+  return `https://flagcdn.com/40x30/${code.toLowerCase()}.png`
 }
