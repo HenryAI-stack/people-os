@@ -53,11 +53,12 @@ export function makeStore(filename) {
       const { items, sha } = await readCollection(filename)
       const now = new Date().toISOString()
       const id  = record.id || crypto.randomUUID()
-      const existingIdx = items.findIndex((i) => i.id === id)
       const next = { ...record, id, updatedAt: now, createdAt: record.createdAt || now }
-      if (existingIdx >= 0) items[existingIdx] = next
-      else items.push(next)
-      await writeCollection(filename, items, sha, `chore: upsert ${id} in ${filename}`)
+      // Filter out ALL records with this id first (prevents duplicates even if
+      // the file already had a duplicate from a previous failed upsert), then append.
+      const deduped = items.filter((i) => i.id !== id)
+      deduped.push(next)
+      await writeCollection(filename, deduped, sha, `chore: upsert ${id} in ${filename}`)
       return next
     },
     async remove(id) {
