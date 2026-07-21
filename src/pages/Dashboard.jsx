@@ -140,29 +140,15 @@ export default function Dashboard() {
       {!loading && recentInterviews.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No conversations yet. <Link to="/interviews">Log your first one →</Link></div>}
       <div className="list">
         {recentInterviews.map((it) => (
-          <div className="row-card" key={it.id}>
+          <div className="row-card" key={it.id}
+            onClick={() => it.personId ? navigate(`/direct-reports/${it.personId}`) : navigate('/interviews')}
+            style={{ cursor:'pointer' }}>
             <div className="row-main"><div><div className="row-title">{it.title}</div><div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div></div></div>
             <span className="badge">{it.type}</span>
           </div>
         ))}
       </div>
 
-      <div className="section-title">Your team</div>
-      {!loading && reports.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No direct reports yet. <Link to="/direct-reports">Add your first one →</Link></div>}
-      <div className="list">
-        {reports.slice(0, 6).map((p) => (
-          <div className="row-card" key={p.id} onClick={() => navigate(`/direct-reports/${p.id}`)} style={{ cursor:'pointer' }}>
-            <div className="row-main">
-              <Avatar photo={p.photo} name={p.name} size={34} />
-              <div>
-                <div className="row-title">{p.name}</div>
-                <div className="row-sub">{p.role}{p.location && <> · {p.location}<FlagImg location={p.location} /></>}</div>
-              </div>
-            </div>
-            <span className={`badge ${p.status === 'active' ? 'good' : 'warn'}`}>{p.status}</span>
-          </div>
-        ))}
-      </div>
     </>
   )
 }
