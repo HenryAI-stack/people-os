@@ -35,6 +35,7 @@ jobs:
           VITE_GITHUB_BRANCH:        ${{ secrets.VITE_GITHUB_BRANCH }}
           VITE_ENCRYPTION_SECRET:    ${{ secrets.VITE_ENCRYPTION_SECRET }}
           VITE_OPENROUTER_API_KEY:   ${{ secrets.VITE_OPENROUTER_API_KEY }}
+          VITE_MS_GRAPH_TOKEN:       ${{ secrets.VITE_MS_GRAPH_TOKEN }}
         run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
