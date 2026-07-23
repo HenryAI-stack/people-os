@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { followUpsStore, directReportsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
+import { syncFollowUpToOutlook } from '../lib/msGraph.js'
 
 const EMPTY = { text: '', dueDate: '', personId: '', personName: '', sourceType: 'manual', sourceId: '', sourceTitle: '', done: false }
 
@@ -25,7 +26,23 @@ export default function FollowUps() {
   const [toast,   setToast]   = useState('')
   const navigate = useNavigate()
 
+  const [syncingId, setSyncingId] = useState(null)
+
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3000) }
+
+  async function handleSync(f) {
+    setSyncingId(f.id)
+    try {
+      const msTaskId = await syncFollowUpToOutlook(f)
+      await followUpsStore.upsert({ ...f, msTaskId })
+      showToast(`📅 "${f.text.length > 40 ? f.text.slice(0,40)+'…' : f.text}" synced to Outlook`)
+      load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSyncingId(null)
+    }
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -112,6 +129,10 @@ export default function FollowUps() {
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                 {urg.label && <span className={`badge ${urg.cls}`}>{urg.label}</span>}
+                <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px', color:'var(--accent)' }}
+                  onClick={() => handleSync(f)} disabled={syncingId === f.id} title={f.msTaskId ? 'Re-sync to Outlook' : 'Sync to Outlook'}>
+                  {syncingId === f.id ? '⏳' : f.msTaskId ? '🔄' : '📅'}
+                </button>
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px' }} onClick={() => setEditing({ ...f })}>Edit</button>
                 <button className="btn ghost danger" style={{ fontSize:12, padding:'4px 8px' }} onClick={() => handleDelete(f.id)}>Delete</button>
               </div>
