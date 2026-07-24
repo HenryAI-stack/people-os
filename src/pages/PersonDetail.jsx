@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
 import { Avatar, ReportForm } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
@@ -92,6 +92,7 @@ async function generateAISummary(person, interviews) {
 export default function PersonDetail() {
   const { id }   = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [person,         setPerson]         = useState(null)
   const [interviews,     setInterviews]     = useState([])
@@ -127,6 +128,15 @@ export default function PersonDetail() {
   }
 
   useEffect(() => { load() }, [id])
+
+  useEffect(() => {
+    const expandId = location.state?.expandInterview
+    if (!expandId || interviews.length === 0) return
+    setExpanded(expandId)
+    setTimeout(() => {
+      document.getElementById(`iv-${expandId}`)?.scrollIntoView({ behavior:'smooth', block:'center' })
+    }, 150)
+  }, [location.state, interviews])
 
   async function handleSaveInterview(record) {
     await interviewsStore.upsert({ ...record, person:person.name, personId:person.id })
@@ -244,7 +254,7 @@ export default function PersonDetail() {
       {interviews.length === 0 && <div className="empty-state" style={{ padding:'28px 20px' }}><div style={{ fontSize:13, color:'var(--text-faint)' }}>No interviews logged yet for {person.name}.</div></div>}
       <div className="list" style={{ marginBottom:40 }}>
         {interviews.map((iv) => (
-          <div className="row-card" key={iv.id} style={{ flexDirection:'column', alignItems:'stretch', cursor:'pointer' }}
+          <div className="row-card" key={iv.id} id={`iv-${iv.id}`} style={{ flexDirection:'column', alignItems:'stretch', cursor:'pointer' }}
             onClick={() => setExpanded(expanded===iv.id?null:iv.id)}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%' }}>
               <div className="row-main"><div><div className="row-title">{iv.title||'(untitled)'}</div><div className="row-sub">{iv.date||'no date'}</div>{iv.tags && (<div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>{iv.tags.split(',').map((t)=>t.trim()).filter(Boolean).map((t)=><span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>)}</div>)}</div></div>
