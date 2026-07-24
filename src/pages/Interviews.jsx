@@ -25,6 +25,8 @@ export default function Interviews() {
   const [query,      setQuery]      = useState('')
   const [editing,    setEditing]    = useState(null)
   const [expanded,   setExpanded]   = useState(null)
+  const [page,       setPage]       = useState(1)
+  const PAGE_SIZE = 20
 
   async function load() {
     setLoading(true)
@@ -45,6 +47,9 @@ export default function Interviews() {
       .filter((i) => !q || [i.title, i.person, i.summary, i.takeaways, i.tags]
         .join(' ').toLowerCase().includes(q))
   }, [items, filterType, query])
+
+  // Reset to page 1 whenever filter/query changes
+  useEffect(() => { setPage(1) }, [filterType, query])
 
   async function handleSave(record) {
     await interviewsStore.upsert(record)
@@ -87,8 +92,15 @@ export default function Interviews() {
         </div>
       )}
 
+      {/* Pagination info */}
+      {filtered.length > PAGE_SIZE && (
+        <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:12 }}>
+          Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length} interviews
+        </div>
+      )}
+
       <div className="list">
-        {filtered.map((it) => (
+        {filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE).map((it) => (
           <div className="row-card" key={it.id}
             style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer' }}
             onClick={() => setExpanded(expanded === it.id ? null : it.id)}>
@@ -133,6 +145,28 @@ export default function Interviews() {
           </div>
         ))}
       </div>
+
+      {/* Pagination controls */}
+      {filtered.length > PAGE_SIZE && (
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:8, marginTop:24 }}>
+          <button className="btn ghost" onClick={() => setPage(1)} disabled={page===1} style={{ fontSize:12, padding:'6px 10px' }}>«</button>
+          <button className="btn ghost" onClick={() => setPage(p=>p-1)} disabled={page===1} style={{ fontSize:12, padding:'6px 12px' }}>‹ Prev</button>
+          {Array.from({ length: Math.ceil(filtered.length/PAGE_SIZE) }, (_,i) => i+1)
+            .filter(p => p===1 || p===Math.ceil(filtered.length/PAGE_SIZE) || Math.abs(p-page)<=2)
+            .reduce((acc, p, i, arr) => {
+              if (i>0 && p-arr[i-1]>1) acc.push('...')
+              acc.push(p)
+              return acc
+            }, [])
+            .map((p, i) => p==='...'
+              ? <span key={`dots-${i}`} style={{ color:'var(--text-faint)', padding:'0 4px' }}>…</span>
+              : <button key={p} className={`btn ${p===page?'primary':'ghost'}`} onClick={() => setPage(p)} style={{ fontSize:12, padding:'6px 12px', minWidth:36 }}>{p}</button>
+            )
+          }
+          <button className="btn ghost" onClick={() => setPage(p=>p+1)} disabled={page===Math.ceil(filtered.length/PAGE_SIZE)} style={{ fontSize:12, padding:'6px 12px' }}>Next ›</button>
+          <button className="btn ghost" onClick={() => setPage(Math.ceil(filtered.length/PAGE_SIZE))} disabled={page===Math.ceil(filtered.length/PAGE_SIZE)} style={{ fontSize:12, padding:'6px 10px' }}>»</button>
+        </div>
+      )}
 
       {editing && (
         <InterviewForm
