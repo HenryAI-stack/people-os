@@ -97,6 +97,13 @@ export default function Interviews() {
                 <div>
                   <div className="row-title">{it.title || '(untitled)'}</div>
                   <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date || 'no date'}</div>
+                  {it.tags && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>
+                      {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
+                        <span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
