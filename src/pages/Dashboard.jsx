@@ -141,7 +141,9 @@ export default function Dashboard() {
       <div className="list">
         {recentInterviews.map((it) => (
           <div className="row-card" key={it.id}
-            onClick={() => it.personId ? navigate(`/direct-reports/${it.personId}`) : navigate('/interviews')}
+            onClick={() => it.personId
+              ? navigate(`/direct-reports/${it.personId}`, { state: { expandInterview: it.id } })
+              : navigate('/interviews', { state: { expandInterview: it.id } })}
             style={{ cursor:'pointer' }}>
             <div className="row-main"><div>
               <div className="row-title">{it.title}</div>
