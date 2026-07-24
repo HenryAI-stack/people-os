@@ -143,7 +143,17 @@ export default function Dashboard() {
           <div className="row-card" key={it.id}
             onClick={() => it.personId ? navigate(`/direct-reports/${it.personId}`) : navigate('/interviews')}
             style={{ cursor:'pointer' }}>
-            <div className="row-main"><div><div className="row-title">{it.title}</div><div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div></div></div>
+            <div className="row-main"><div>
+              <div className="row-title">{it.title}</div>
+              <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div>
+              {it.tags && (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>
+                  {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
+                    <span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>
+                  ))}
+                </div>
+              )}
+            </div></div>
             <span className="badge">{it.type}</span>
           </div>
         ))}
