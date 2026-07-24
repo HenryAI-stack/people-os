@@ -247,7 +247,7 @@ export default function PersonDetail() {
           <div className="row-card" key={iv.id} style={{ flexDirection:'column', alignItems:'stretch', cursor:'pointer' }}
             onClick={() => setExpanded(expanded===iv.id?null:iv.id)}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%' }}>
-              <div className="row-main"><div><div className="row-title">{iv.title||'(untitled)'}</div><div className="row-sub">{iv.date||'no date'}</div></div></div>
+              <div className="row-main"><div><div className="row-title">{iv.title||'(untitled)'}</div><div className="row-sub">{iv.date||'no date'}</div>{iv.tags && (<div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>{iv.tags.split(',').map((t)=>t.trim()).filter(Boolean).map((t)=><span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>)}</div>)}</div></div>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <span className="badge">{INTERVIEW_TYPES[iv.type]||iv.type}</span>
                 <span style={{ color:'var(--text-faint)', fontSize:13 }}>{expanded===iv.id?'▲':'▼'}</span>
