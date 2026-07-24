@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
@@ -27,6 +28,7 @@ export default function Interviews() {
   const [expanded,   setExpanded]   = useState(null)
   const [page,       setPage]       = useState(1)
   const PAGE_SIZE = 20
+  const location = useLocation()
 
   async function load() {
     setLoading(true)
@@ -39,6 +41,20 @@ export default function Interviews() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Auto-expand interview passed via navigation state (e.g. from Dashboard)
+  useEffect(() => {
+    const expandId = location.state?.expandInterview
+    if (!expandId || items.length === 0) return
+    setExpanded(expandId)
+    // Jump to the correct page
+    const idx = filtered.findIndex((i) => i.id === expandId)
+    if (idx >= 0) setPage(Math.floor(idx / PAGE_SIZE) + 1)
+    // Scroll to the expanded item after render
+    setTimeout(() => {
+      document.getElementById(`interview-${expandId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+  }, [location.state, items])
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
@@ -101,7 +117,7 @@ export default function Interviews() {
 
       <div className="list">
         {filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE).map((it) => (
-          <div className="row-card" key={it.id}
+          <div className="row-card" key={it.id} id={`interview-${it.id}`}
             style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer' }}
             onClick={() => setExpanded(expanded === it.id ? null : it.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
