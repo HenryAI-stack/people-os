@@ -1,19 +1,143 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PeopleOS — Leadership Hub</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>" />
-    <script>
-      (function() {
-        var r = sessionStorage.getItem('gh-pages-redirect');
-        if (r) { sessionStorage.removeItem('gh-pages-redirect'); var u = new URL(r); window.history.replaceState(null,'',u.pathname+u.search+u.hash); }
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Shift-checker</title>
+<meta name="description" content="Office / Home-office day checker" />
+<meta name="theme-color" content="#0d1117" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icons/icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app" class="app">
+
+  <!-- ===== Screen: Login ===== -->
+  <section id="screen-login" class="screen screen-login">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <span class="dot dot-office"></span><span class="dot dot-home"></span>
+      </div>
+      <h1 class="brand-title">Shift<span class="brand-accent">-checker</span></h1>
+      <p class="brand-sub" data-i18n="login.subtitle">Know where you're working, before you get there.</p>
+    </div>
+    <button id="btn-login" class="btn btn-google">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.16.28-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      <span data-i18n="login.button">Sign in with Google</span>
+    </button>
+    <p id="login-status" class="login-status" aria-live="polite"></p>
+  </section>
+
+  <!-- ===== Screen: First-time setup ===== -->
+  <section id="screen-setup" class="screen screen-setup hidden">
+    <header class="topbar">
+      <h2 data-i18n="setup.title">One-time setup</h2>
+    </header>
+    <p class="hint" data-i18n="setup.explain">Pick any Monday that was (or will be) an office Monday — Mon / Wed / Fri in office, Tue / Thu at home. The rhythm flips every following week.</p>
+
+    <label class="field">
+      <span data-i18n="setup.langLabel">Language</span>
+      <div class="segmented" id="setup-lang">
+        <button type="button" class="seg-btn" data-lang="en">EN</button>
+        <button type="button" class="seg-btn" data-lang="pl">PL</button>
+      </div>
+    </label>
+
+    <label class="field">
+      <span data-i18n="setup.mondayLabel">Reference office Monday</span>
+      <input type="date" id="setup-monday" class="input-date" />
+    </label>
+
+    <p id="setup-error" class="error hidden" data-i18n="setup.error">Please choose a Monday.</p>
+
+    <button id="btn-setup-save" class="btn btn-primary" data-i18n="setup.save">Save &amp; start</button>
+  </section>
+
+  <!-- ===== Screen: Main app ===== -->
+  <section id="screen-main" class="screen screen-main hidden">
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="brand-mark small" aria-hidden="true"><span class="dot dot-office"></span><span class="dot dot-home"></span></span>
+        <span class="app-name">Shift-checker</span>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-lang-toggle" class="btn-icon" title="Language">EN</button>
+        <button id="btn-settings" class="btn-icon" title="Settings" data-i18n-title="main.settings">⚙</button>
+        <img id="user-avatar" class="avatar hidden" alt="" />
+      </div>
+    </header>
+
+    <div class="checker">
+      <label class="field">
+        <span data-i18n="main.pickDate">Check a date</span>
+        <input type="date" id="date-input" class="input-date input-date-lg" />
+      </label>
+
+      <div id="result" class="result">
+        <div class="result-badge" id="result-badge">
+          <span id="result-label" class="result-label">—</span>
+        </div>
+        <p id="result-detail" class="result-detail"></p>
+      </div>
+    </div>
+
+    <div class="calendar-wrap">
+      <div class="cal-header">
+        <button id="cal-prev" class="btn-icon" aria-label="Previous month">‹</button>
+        <h3 id="cal-month-label" class="cal-month-label"></h3>
+        <button id="cal-next" class="btn-icon" aria-label="Next month">›</button>
+      </div>
+      <div class="cal-weekdays" id="cal-weekdays"></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="legend">
+        <span class="legend-item"><i class="sw sw-office"></i><span data-i18n="legend.office">Office</span></span>
+        <span class="legend-item"><i class="sw sw-home"></i><span data-i18n="legend.home">Home office</span></span>
+        <span class="legend-item"><i class="sw sw-holiday"></i><span data-i18n="legend.holiday">Holiday (PL)</span></span>
+        <span class="legend-item"><i class="sw sw-weekend"></i><span data-i18n="legend.weekend">Weekend</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Settings modal ===== -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-card">
+      <h2 data-i18n="settings.title">Settings</h2>
+      <label class="field">
+        <span data-i18n="setup.langLabel">Language</span>
+        <div class="segmented" id="settings-lang">
+          <button type="button" class="seg-btn" data-lang="en">EN</button>
+          <button type="button" class="seg-btn" data-lang="pl">PL</button>
+        </div>
+      </label>
+      <label class="field">
+        <span data-i18n="setup.mondayLabel">Reference office Monday</span>
+        <input type="date" id="settings-monday" class="input-date" />
+      </label>
+      <div class="modal-actions">
+        <button id="btn-settings-cancel" class="btn btn-ghost" data-i18n="settings.cancel">Cancel</button>
+        <button id="btn-settings-save" class="btn btn-primary" data-i18n="settings.save">Save</button>
+      </div>
+      <hr class="modal-sep" />
+      <button id="btn-logout" class="btn btn-ghost btn-danger" data-i18n="settings.logout">Sign out</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/holidays.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/store.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="window.__onGsiLoaded && window.__onGsiLoaded()"></script>
+<script src="js/sw-register.js"></script>
+</body>
 </html>
