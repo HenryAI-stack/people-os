@@ -58,11 +58,14 @@ export default function DirectReports() {
 
       {grouped.map(({ team, members }) => (
         <div key={team || '__none__'} style={{ marginBottom:28 }}>
-          <div className="section-title" style={{ marginTop:0 }}>
-            {team || 'No team assigned'}
+          <div className="section-title" style={{ marginTop:0, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span>{team || 'No team assigned'}
             <span style={{ marginLeft:8, fontWeight:400, color:'var(--text-faint)', textTransform:'none', fontSize:12, letterSpacing:0 }}>
               {members.length} {members.length === 1 ? 'person' : 'people'}
-            </span>
+            </span></span>
+            {team === '24/7 Core Operations' && (
+              <button className="btn" style={{ fontSize:12, padding:'4px 12px' }} onClick={() => navigate('/work-schedule')}>🗓️ Work Schedule</button>
+            )}
           </div>
           <div className="list">
             {members.map((p) => {
