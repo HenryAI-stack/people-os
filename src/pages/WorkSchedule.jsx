@@ -234,13 +234,16 @@ export default function WorkSchedule() {
             {(centerPeople[activeCenter]||[]).map((p) => {
               const s = stats[p.id] || { total:0, weekend:0, holiday:0 }
               const prev = schedule.fairnessSnapshot?.[p.id]
+              const hrs  = s.total * 8
+              const over = hrs > 168
               return (
-                <div key={p.id} className="ws-stat-chip">
+                <div key={p.id} className="ws-stat-chip" style={{ borderColor: over ? 'var(--bad)' : undefined }}>
                   <strong>{p.name.split(' ')[0]}</strong>
-                  <span>{s.total}d</span>
-                  {s.weekend > 0 && <span style={{ color:'var(--warn)' }}>🏖️{s.weekend}</span>}
-                  {s.holiday > 0 && <span style={{ color:'var(--bad)' }}>📅{s.holiday}</span>}
-                  {prev && <span style={{ color:'var(--text-faint)', fontSize:10 }}>∑W:{prev.weekendTotal}</span>}
+                  <span style={{ color: over ? 'var(--bad)' : undefined }} title={`${s.total} days × 8h`}>{hrs}h</span>
+                  <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
+                  {s.weekend > 0 && <span style={{ color:'var(--warn)' }} title="Weekend days">🏖️{s.weekend}</span>}
+                  {s.holiday > 0 && <span style={{ color:'var(--bad)' }} title="Holiday days">📅{s.holiday}</span>}
+                  {prev && <span style={{ color:'var(--text-faint)', fontSize:10 }} title="Cumulative weekend days all months">∑{prev.weekendTotal}we</span>}
                 </div>
               )
             })}
