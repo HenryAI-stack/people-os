@@ -6,7 +6,8 @@ import Dashboard    from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
 import Interviews   from './pages/Interviews.jsx'
 import Notes        from './pages/Notes.jsx'
-import FollowUps    from './pages/FollowUps.jsx'
+import FollowUps     from './pages/FollowUps.jsx'
+import WorkSchedule  from './pages/WorkSchedule.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
 
 function usePref(key, def) {
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/interviews"          element={<Interviews />} />
           <Route path="/notes"               element={<Notes />} />
           <Route path="/follow-ups"          element={<FollowUps />} />
+          <Route path="/work-schedule"       element={<WorkSchedule />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -65,6 +67,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/interviews" title="Interviews"><span className="nav-icon">🗣️</span><span className="nav-label">Interviews</span></NavLink>
           <NavLink to="/notes" title="Notes"><span className="nav-icon">📝</span><span className="nav-label">Notes</span></NavLink>
           <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
+          <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
         </nav>
       </div>
       <div className="sidebar-bottom">
