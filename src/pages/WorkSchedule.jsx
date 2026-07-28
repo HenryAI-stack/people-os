@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
+import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule } from '../lib/scheduleGenerator.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 
@@ -143,6 +144,7 @@ export default function WorkSchedule() {
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const days = useMemo(() => getDaysInMonth(month), [month])
+  const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people])
   const centerPeople = useMemo(() => {
     const map = {}
     for (const c of CENTERS) map[c.id] = people.filter((p) => getCenter(p) === c.id)
@@ -289,7 +291,8 @@ export default function WorkSchedule() {
                         <div className="ws-chip"
                           draggable
                           onDragStart={() => onDragStart(dateStr, c.id)}>
-                          <span className="ws-chip-name">{a.personName}</span>
+                          <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={20} />
+                          <span className="ws-chip-name">{a.personName.split(' ')[0]}</span>
                           <div className="ws-chip-actions">
                             {a.dayOffGranted && <span title="Day-off credit earned">💤</span>}
                             <button className="ws-comment-btn"
