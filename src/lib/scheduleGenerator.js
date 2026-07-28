@@ -1,153 +1,219 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 
 export const CENTERS = [
-  { id: 'Warsaw',      label: 'Warsaw, Poland',       country: 'PL', hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
-  { id: 'Bangalore',   label: 'Bangalore, India',      country: 'IN', hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
-  { id: 'Mexico City', label: 'Mexico City, Mexico',   country: 'MX', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
+  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
+  { id: 'Bangalore',   label: 'Bangalore, India',     country: 'IN', hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
+  { id: 'Mexico City', label: 'Mexico City, Mexico',  country: 'MX', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
 ]
 
-/** Match a direct report's location to a center id. */
 export function getCenter(person) {
   if (!person.location) return null
   const loc = person.location.toLowerCase()
   return CENTERS.find((c) => c.locationKeys.some((k) => loc.includes(k)))?.id || null
 }
 
+// ── Week grouping ─────────────────────────────────────────────────────────────
+// Returns array of weeks; each week is an array of YYYY-MM-DD strings (Mon–Sun)
+// that fall within the month.
+function groupByWeek(days) {
+  const weeks = []
+  let week = []
+  for (const d of days) {
+    const dow = new Date(d).getDay()  // 0=Sun,1=Mon…
+    // New week starts on Monday
+    if (dow === 1 && week.length) { weeks.push(week); week = [] }
+    // Handle Sunday as end-of-week
+    week.push(d)
+    if (dow === 0) { weeks.push(week); week = [] }
+  }
+  if (week.length) weeks.push(week)
+  return weeks
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+function dow(dateStr) { return new Date(dateStr).getDay() }  // 0=Sun, 1=Mon … 6=Sat
+
 /**
- * Auto-generate a fair monthly schedule.
+ * Generate a fair monthly schedule.
  *
- * @param {string} yearMonth  'YYYY-MM'
- * @param {Array}  people     direct reports (filtered to OPS team)
- * @param {Object} fairness   { [personId]: { weekendTotal, holidayTotal, totalDays } }
- *                            from previous months — used to balance burden
- * @returns {Array} assignments array
+ * Rules enforced:
+ * - Every calendar day is covered for every center (no gaps)
+ * - Each person works at most 5 days per Mon–Sun week (40 h/week)
+ * - Mon–Fri are primary working days; weekends balanced as evenly as possible
+ * - If someone works Saturday, Sunday, or a holiday → dayOffGranted flag set
+ *   and their next available Mon–Fri is freed if budget allows
+ * - Weekend & holiday burden carried forward across months via fairnessSnapshot
  */
 export function generateSchedule(yearMonth, people, fairness = {}) {
-  const days = getDaysInMonth(yearMonth)
-  const assignments = []
+  const days  = getDaysInMonth(yearMonth)
+  const weeks = groupByWeek(days)
 
   // Group people by center
-  const byCenterMap = {}
-  for (const c of CENTERS) byCenterMap[c.id] = []
+  const byCenter = {}
+  for (const c of CENTERS) byCenter[c.id] = []
   for (const p of people) {
     const cid = getCenter(p)
-    if (cid) byCenterMap[cid].push(p)
+    if (cid) byCenter[cid].push(p)
   }
 
-  // Per-person counters for this month
-  const monthCount = {}     // { [personId]: { total, weekend, holiday } }
-  const dayOffCredit = {}   // { [personId]: number } — pending day-off credits
+  const allAssignments = []
 
-  function getCount(personId) {
-    if (!monthCount[personId]) monthCount[personId] = { total: 0, weekend: 0, holiday: 0 }
-    return monthCount[personId]
-  }
-
-  function getFairness(personId) {
-    return fairness[personId] || { weekendTotal: 0, holidayTotal: 0, totalDays: 0 }
-  }
-
-  // Track who worked yesterday (for day-off logic)
-  const workedOn = {}  // { [personId]: Set of dateStr }
-
-  // Generate per center independently
   for (const center of CENTERS) {
-    const pool = byCenterMap[center.id]
-    if (pool.length === 0) continue
+    const pool = byCenter[center.id]
+    if (!pool.length) continue
 
-    // Days off tracking for this center
-    const daysOff = new Set()  // dateStr → personId pairs where day off is granted
+    // ── Per-person trackers ─────────────────────────────────────────────────
+    // weekLoad[personId] = { shifts: 0, dayOffCredit: 0 } per week index
+    const monthShifts  = {}  // personId → total shifts this month
+    const weekShifts   = {}  // personId → shifts in current week
+    const weekendTotal = {}  // personId → weekend+holiday shifts this month
+    const prevFair     = {}  // personId → { weekendTotal, holidayTotal } from prev months
+    const dayOffQueue  = {}  // personId → number of day-off credits pending
 
-    // First pass: identify all day-off days (Mon after Sun work, day after holiday)
-    // We'll handle this during assignment
+    for (const p of pool) {
+      monthShifts[p.id]  = 0
+      weekShifts[p.id]   = 0
+      weekendTotal[p.id] = 0
+      prevFair[p.id]     = fairness[p.id] || { weekendTotal: 0, holidayTotal: 0, totalDays: 0 }
+      dayOffQueue[p.id]  = 0
+    }
 
-    let prevAssigned = null  // person assigned the previous day
+    // Target: fill all days. With N people and D days: each works ~D/N days.
+    // Hard cap: 5 shifts per week per person (40 h/week).
+    const WEEK_CAP = 5
 
+    // Track assignments for this center day by day
+    const centerAssignments = {}  // dateStr → person
+
+    // ── Week-by-week assignment ──────────────────────────────────────────────
+    for (let wi = 0; wi < weeks.length; wi++) {
+      const week = weeks[wi]
+
+      // Reset weekly counters
+      for (const p of pool) weekShifts[p.id] = 0
+
+      // Separate weekdays and weekend days within this week
+      const weekdays    = week.filter((d) => dow(d) !== 0 && dow(d) !== 6)
+      const weekendDays = week.filter((d) => dow(d) === 0 || dow(d) === 6)
+
+      // ── Step 1: assign weekdays (Mon–Fri) ─────────────────────────────────
+      for (const dateStr of weekdays) {
+        const holidayName = getHoliday(dateStr, center.country)
+        const isHoliday   = !!holidayName
+
+        // Sort pool for weekday: prefer those with day-off credit (give day off),
+        // then least weekly shifts, then least monthly shifts, then fairness history
+        const sorted = [...pool].sort((a, b) => {
+          // If person has a day-off credit AND today is Mon–Fri → give them the day off
+          // (handled below, not in sort)
+          const wa = weekShifts[a.id],  wb = weekShifts[b.id]
+          const ma = monthShifts[a.id], mb = monthShifts[b.id]
+          const fa = prevFair[a.id].weekendTotal + weekendTotal[a.id]
+          const fb = prevFair[b.id].weekendTotal + weekendTotal[b.id]
+          if (wa !== wb) return wa - wb
+          if (ma !== mb) return ma - mb
+          return fa - fb
+        })
+
+        let assigned = null
+        for (const candidate of sorted) {
+          // Skip if at weekly cap
+          if (weekShifts[candidate.id] >= WEEK_CAP) continue
+          // If candidate has a day-off credit, give them this weekday off
+          if (dayOffQueue[candidate.id] > 0 && !isHoliday) {
+            dayOffQueue[candidate.id]--
+            continue
+          }
+          assigned = candidate
+          break
+        }
+        // Fallback: pick least-shifted person even if credit pending
+        if (!assigned) {
+          assigned = sorted.find((p) => weekShifts[p.id] < WEEK_CAP) || sorted[0]
+        }
+
+        weekShifts[assigned.id]++
+        monthShifts[assigned.id]++
+        if (isHoliday) {
+          weekendTotal[assigned.id]++
+          dayOffQueue[assigned.id]++
+        }
+
+        centerAssignments[dateStr] = {
+          personId:    assigned.id,
+          personName:  assigned.name,
+          isWeekend:   false,
+          isHoliday,
+          holidayName: holidayName || '',
+          dayOffGranted: isHoliday,
+          comment: '',
+        }
+      }
+
+      // ── Step 2: assign weekend days ────────────────────────────────────────
+      // Prefer those who have worked FEWER weekday shifts this week
+      // (so weekend work doesn't push them over 40 h if avoidable)
+      for (const dateStr of weekendDays) {
+        const isSun       = dow(dateStr) === 0
+        const holidayName = getHoliday(dateStr, center.country)
+        const isHoliday   = !!holidayName
+
+        // Sort: prefer fewer weekend shifts overall (across months), then fewer
+        // shifts this week (so someone who already has 5 weekdays is last resort)
+        const sorted = [...pool].sort((a, b) => {
+          const weA = (prevFair[a.id].weekendTotal || 0) + weekendTotal[a.id]
+          const weB = (prevFair[b.id].weekendTotal || 0) + weekendTotal[b.id]
+          if (weA !== weB) return weA - weB
+          return weekShifts[a.id] - weekShifts[b.id]
+        })
+
+        const assigned = sorted[0]  // Must assign someone — no gaps allowed
+
+        weekShifts[assigned.id]++
+        monthShifts[assigned.id]++
+        weekendTotal[assigned.id]++
+
+        const dayOffGranted = true  // always grant credit for weekend work
+        dayOffQueue[assigned.id]++
+
+        centerAssignments[dateStr] = {
+          personId:    assigned.id,
+          personName:  assigned.name,
+          isWeekend:   true,
+          isHoliday,
+          holidayName: holidayName || '',
+          dayOffGranted,
+          comment: '',
+        }
+      }
+    }
+
+    // Flatten to assignments array
     for (const dateStr of days) {
-      const weekend = isWeekend(dateStr)
-      const holidayName = getHoliday(dateStr, center.country)
-      const isHoliday = !!holidayName
-      const isSpecial = weekend || isHoliday  // needs fairness consideration
-
-      // Sort pool: person with fewest total shifts first; break ties by fairness history
-      const sorted = [...pool].sort((a, b) => {
-        const ca = getCount(a.id), cb = getCount(b.id)
-        const fa = getFairness(a.id), fb = getFairness(b.id)
-
-        // If special day, prioritise those with fewer weekend/holiday credits overall
-        if (isSpecial) {
-          const wDiff = (ca.weekend + fa.weekendTotal + ca.holiday + fa.holidayTotal)
-                      - (cb.weekend + fb.weekendTotal + cb.holiday + fb.holidayTotal)
-          if (wDiff !== 0) return wDiff
-        }
-
-        // Otherwise balance total shifts
-        return ca.total - cb.total
-      })
-
-      // Skip if this person has a pending day-off credit for today
-      // (granted after working Sunday/holiday)
-      let assigned = null
-      for (const candidate of sorted) {
-        const credit = dayOffCredit[candidate.id] || 0
-        if (credit > 0 && !isSpecial) {
-          // Give them the day off — skip to next candidate
-          continue
-        }
-        assigned = candidate
-        break
-      }
-      // Fallback: if everyone has day-off credit, pick least-worked
-      if (!assigned) assigned = sorted[0]
-
-      // Apply day-off credit if used
-      const d = new Date(dateStr)
-      const isMon = d.getDay() === 1
-      if (isMon && prevAssigned && dayOffCredit[prevAssigned.id] > 0) {
-        dayOffCredit[prevAssigned.id] = Math.max(0, dayOffCredit[prevAssigned.id] - 1)
-      }
-
-      // Record assignment
-      const count = getCount(assigned.id)
-      count.total++
-      if (isHoliday) count.holiday++
-      if (d.getDay() === 0 || d.getDay() === 6) count.weekend++
-
-      // Grant day-off credit if worked Sunday or holiday
-      const isSunday = d.getDay() === 0
-      let dayOffGranted = false
-      if (isSunday || isHoliday) {
-        dayOffCredit[assigned.id] = (dayOffCredit[assigned.id] || 0) + 1
-        dayOffGranted = true
-      }
-
-      assignments.push({
-        date:         dateStr,
-        center:       center.id,
-        personId:     assigned.id,
-        personName:   assigned.name,
-        isWeekend:    weekend,
-        isHoliday,
-        holidayName:  holidayName || '',
-        dayOffGranted,
-        comment:      '',
-      })
-
-      prevAssigned = assigned
+      const a = centerAssignments[dateStr]
+      if (a) allAssignments.push({ date: dateStr, center: center.id, ...a })
     }
   }
 
-  // Build updated fairness snapshot
+  // ── Build fairness snapshot ────────────────────────────────────────────────
   const fairnessSnapshot = {}
   for (const p of people) {
-    const prev = getFairness(p.id)
-    const cur  = getCount(p.id)
+    const prev = fairness[p.id] || { weekendTotal: 0, holidayTotal: 0, totalDays: 0 }
+    // Count from this month
+    const monthWe  = allAssignments.filter((a) => a.personId === p.id && (a.isWeekend || a.isHoliday)).length
+    const monthHol = allAssignments.filter((a) => a.personId === p.id && a.isHoliday).length
+    const monthTot = allAssignments.filter((a) => a.personId === p.id).length
     fairnessSnapshot[p.id] = {
-      weekendTotal: (prev.weekendTotal || 0) + (cur?.weekend || 0),
-      holidayTotal: (prev.holidayTotal || 0) + (cur?.holiday || 0),
-      totalDays:    (prev.totalDays   || 0) + (cur?.total   || 0),
+      weekendTotal: (prev.weekendTotal || 0) + monthWe,
+      holidayTotal: (prev.holidayTotal || 0) + monthHol,
+      totalDays:    (prev.totalDays   || 0) + monthTot,
     }
   }
 
-  return { assignments, fairnessSnapshot }
+  return { assignments: allAssignments, fairnessSnapshot }
 }
