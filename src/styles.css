@@ -289,15 +289,15 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
   border: 1px solid rgba(217,142,84,0.25);
   border-radius: 5px;
   padding: 3px 5px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--accent);
   cursor: grab;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   user-select: none;
+  min-width: 0;
 }
 .ws-chip:active { cursor: grabbing; }
 .ws-chip.ws-chip-empty { background: none; border-color: transparent; color: var(--text-faint); cursor: default; }
