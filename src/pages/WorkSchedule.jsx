@@ -240,7 +240,7 @@ export default function WorkSchedule() {
               const over = hrs > 168
               return (
                 <div key={p.id} className="ws-stat-chip" style={{ borderColor: over ? 'var(--bad)' : undefined }}>
-                  <strong>{p.name.split(' ')[0]}</strong>
+                  <strong>{p.name}</strong>
                   <span style={{ color: over ? 'var(--bad)' : undefined }} title={`${s.total} days × 8h`}>{hrs}h</span>
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
                   {s.weekend > 0 && <span style={{ color:'var(--warn)' }} title="Weekend days">🏖️{s.weekend}</span>}
@@ -292,7 +292,7 @@ export default function WorkSchedule() {
                           draggable
                           onDragStart={() => onDragStart(dateStr, c.id)}>
                           <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={20} />
-                          <span className="ws-chip-name">{a.personName.split(' ')[0]}</span>
+                          <span className="ws-chip-name">{a.personName}</span>
                           <div className="ws-chip-actions">
                             {a.dayOffGranted && <span title="Day-off credit earned">💤</span>}
                             <button className="ws-comment-btn"
