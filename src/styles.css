@@ -308,14 +308,17 @@ body.light .ws-chip { color: var(--accent); }
 
 .ws-comment-btn {
   background: none;
-  border: none;
-  padding: 0 2px;
-  font-size: 11px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 13px;
   cursor: pointer;
   color: var(--text-faint);
   line-height: 1;
+  transition: all 0.15s;
+  flex-shrink: 0;
 }
-.ws-comment-btn:hover { color: var(--accent); }
+.ws-comment-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 .ws-legend {
   display: flex;
