@@ -139,6 +139,18 @@ export default function WorkSchedule() {
     setCommentModal(null)
   }
 
+  // ── Delete schedule ──────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!schedule) return
+    if (!confirm(`Delete the schedule for ${month}? This cannot be undone.`)) return
+    setSaving(true); setError('')
+    try {
+      await schedulesStore.remove(schedule.id)
+      setSchedule(null)
+    } catch (e) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
   // ── Print / PDF ───────────────────────────────────────────────────────────
   function handlePrint() { window.print() }
 
@@ -199,6 +211,7 @@ export default function WorkSchedule() {
           {schedule && <button className="btn primary" onClick={handleSave} disabled={saving} style={{ fontSize:13 }}>
             {saving ? 'Saving…' : '💾 Save'}
           </button>}
+          {schedule && <button className="btn ghost danger" onClick={handleDelete} disabled={saving} style={{ fontSize:13 }}>🗑️ Delete</button>}
           {schedule && <button className="btn" onClick={handlePrint} style={{ fontSize:13 }}>🖨️ Print PDF</button>}
         </div>
       </div>
@@ -240,6 +253,7 @@ export default function WorkSchedule() {
               const over = hrs > 168
               return (
                 <div key={p.id} className="ws-stat-chip" style={{ borderColor: over ? 'var(--bad)' : undefined }}>
+                  <Avatar photo={p.photo} name={p.name} size={22} />
                   <strong>{p.name}</strong>
                   <span style={{ color: over ? 'var(--bad)' : undefined }} title={`${s.total} days × 8h`}>{hrs}h</span>
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
