@@ -40,8 +40,25 @@ export default function WorkSchedule() {
   const [generating,  setGenerating]  = useState(false)
   const [activeCenter,setActiveCenter]= useState(CENTERS[0].id)
   const [error,       setError]       = useState('')
+  const [autoSaved,   setAutoSaved]   = useState('')  // '' | 'saving' | 'saved'
+  const autoSaveTimer = useRef(null)
   const [dragSrc,     setDragSrc]     = useState(null)  // { date, center }
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
+
+  // Auto-save 1.5s after any change to the schedule
+  useEffect(() => {
+    if (!schedule) return
+    clearTimeout(autoSaveTimer.current)
+    setAutoSaved('saving')
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        await schedulesStore.upsert(schedule)
+        setAutoSaved('saved')
+        setTimeout(() => setAutoSaved(''), 2500)
+      } catch { setAutoSaved('') }
+    }, 1500)
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [schedule])
 
   async function load() {
     setLoading(true); setError('')
@@ -230,9 +247,15 @@ export default function WorkSchedule() {
             style={{ fontSize:13 }}>
             {generating ? '⏳ Generating…' : schedule ? '↻ Regenerate' : '✦ Generate schedule'}
           </button>
-          {schedule && <button className="btn primary" onClick={handleSave} disabled={saving} style={{ fontSize:13 }}>
-            {saving ? 'Saving…' : '💾 Save'}
-          </button>}
+          {schedule && (
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              {autoSaved === 'saving' && <span style={{ fontSize:12, color:'var(--text-faint)' }}>⏳ Auto-saving…</span>}
+              {autoSaved === 'saved'  && <span style={{ fontSize:12, color:'var(--good)' }}>✓ Auto-saved</span>}
+              <button className="btn primary" onClick={handleSave} disabled={saving} style={{ fontSize:13 }}>
+                {saving ? 'Saving…' : '💾 Save'}
+              </button>
+            </div>
+          )}
           {schedule && <button className="btn ghost danger" onClick={handleDelete} disabled={saving} style={{ fontSize:13 }}>🗑️ Delete</button>}
           {schedule && <button className="btn" onClick={handlePrint} style={{ fontSize:13 }}>🖨️ Print PDF</button>}
         </div>
