@@ -301,6 +301,29 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 }
 .ws-chip:active { cursor: grabbing; }
 .ws-chip.ws-chip-empty { background: none; border-color: transparent; color: var(--text-faint); cursor: default; }
+.ws-chip.ws-chip-cleared {
+  background: rgba(94,101,112,0.08);
+  border: 1px dashed var(--border);
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 11px;
+  justify-content: space-between;
+}
+.ws-chip.ws-chip-cleared:hover { border-color: var(--accent); color: var(--text-dim); }
+
+.ws-clear-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-faint);
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.ws-clear-btn:hover { color: var(--bad); border-color: var(--bad); background: rgba(217,113,106,0.1); }
 body.light .ws-chip { color: var(--accent); }
 
 .ws-chip-name  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
