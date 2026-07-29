@@ -121,6 +121,28 @@ export default function WorkSchedule() {
   }
 
   // ── Comment ──────────────────────────────────────────────────────────────
+  function clearDay(date, center) {
+    setSchedule((prev) => ({
+      ...prev,
+      assignments: prev.assignments.map((a) =>
+        a.date === date && a.center === center
+          ? { ...a, personId: '', personName: '', cleared: true }
+          : a
+      ),
+    }))
+  }
+
+  function restoreDay(date, center) {
+    setSchedule((prev) => ({
+      ...prev,
+      assignments: prev.assignments.map((a) =>
+        a.date === date && a.center === center
+          ? { ...a, cleared: false }
+          : a
+      ),
+    }))
+  }
+
   function openComment(date, center) {
     const a = schedule?.assignments.find((x) => x.date === date && x.center === center)
     setCommentModal({ date, center, text: a?.comment || '' })
@@ -301,7 +323,14 @@ export default function WorkSchedule() {
                         {fmtDay(dateStr)}
                         {hol && <span className="ws-hol-label" title={hol}>🗓️</span>}
                       </div>
-                      {a ? (
+                      {a?.cleared ? (
+                        <div className="ws-chip ws-chip-cleared"
+                          title="No work scheduled — click to restore"
+                          onClick={() => restoreDay(dateStr, c.id)}>
+                          <span style={{ fontSize:11 }}>🚫 No work</span>
+                          <button className="ws-clear-btn" onClick={(e) => { e.stopPropagation(); restoreDay(dateStr, c.id) }} title="Restore assignment">↩</button>
+                        </div>
+                      ) : a?.personId ? (
                         <div className="ws-chip"
                           draggable
                           onDragStart={() => onDragStart(dateStr, c.id)}>
@@ -310,10 +339,13 @@ export default function WorkSchedule() {
                           <div className="ws-chip-actions">
                             {a.dayOffGranted && <span title="Day-off credit earned">💤</span>}
                             <button className="ws-comment-btn"
-                              onClick={() => openComment(dateStr, c.id)}
+                              onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id) }}
                               title={a.comment ? a.comment : 'Add comment'}>
                               {a.comment ? '💬' : '○'}
                             </button>
+                            <button className="ws-clear-btn"
+                              onClick={(e) => { e.stopPropagation(); clearDay(dateStr, c.id) }}
+                              title="Clear this day (no work needed)">✕</button>
                           </div>
                         </div>
                       ) : (
