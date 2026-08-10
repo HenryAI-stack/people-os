@@ -110,25 +110,19 @@ export default function WorkSchedule() {
   }
 
   // ── Drag & drop ──────────────────────────────────────────────────────────
-  function onDragStart(date, center) { setDragSrc({ date, center }) }
+  function onDragStart(date, center, personId) { setDragSrc({ date, center, personId }) }
 
   function onDrop(tgtDate, tgtCenter) {
     if (!dragSrc || !schedule) return
     if (dragSrc.date === tgtDate && dragSrc.center === tgtCenter) { setDragSrc(null); return }
 
-    const src = schedule.assignments.find((a) => a.date === dragSrc.date && a.center === dragSrc.center)
-    const tgt = schedule.assignments.find((a) => a.date === tgtDate    && a.center === tgtCenter)
-    if (!src) { setDragSrc(null); return }
-
     setSchedule((prev) => {
       const next = prev.assignments.map((a) => {
-        if (a.date === dragSrc.date && a.center === dragSrc.center) {
-          return tgt
-            ? { ...a, personId:tgt.personId, personName:tgt.personName }
-            : { ...a, personId:'', personName:'—' }
-        }
-        if (tgt && a.date === tgtDate && a.center === tgtCenter) {
-          return { ...a, personId:src.personId, personName:src.personName }
+        // Move the dragged person to the new date
+        if (a.date === dragSrc.date && a.center === dragSrc.center && a.personId === dragSrc.personId) {
+          const we = isWeekend(tgtDate)
+          const hol = getHoliday(tgtDate, CENTERS.find(c=>c.id===tgtCenter)?.country||'')
+          return { ...a, date: tgtDate, center: tgtCenter, isWeekend: we, isHoliday: !!hol, holidayName: hol||'', dayOffGranted: we || !!hol }
         }
         return a
       })
@@ -138,31 +132,31 @@ export default function WorkSchedule() {
   }
 
   // ── Comment ──────────────────────────────────────────────────────────────
-  function clearDay(date, center) {
+  function clearAssignment(date, center, personId) {
     setSchedule((prev) => ({
       ...prev,
       assignments: prev.assignments.map((a) =>
-        a.date === date && a.center === center
-          ? { ...a, personId: '', personName: '', cleared: true }
+        a.date === date && a.center === center && a.personId === personId
+          ? { ...a, cleared: true }
           : a
       ),
     }))
   }
 
-  function restoreDay(date, center) {
+  function restoreAssignment(date, center, personId) {
     setSchedule((prev) => ({
       ...prev,
       assignments: prev.assignments.map((a) =>
-        a.date === date && a.center === center
+        a.date === date && a.center === center && a.personId === personId
           ? { ...a, cleared: false }
           : a
       ),
     }))
   }
 
-  function openComment(date, center) {
-    const a = schedule?.assignments.find((x) => x.date === date && x.center === center)
-    setCommentModal({ date, center, text: a?.comment || '' })
+  function openComment(date, center, personId) {
+    const a = schedule?.assignments.find((x) => x.date === date && x.center === center && x.personId === personId)
+    setCommentModal({ date, center, personId, text: a?.comment || '' })
   }
 
   function saveComment() {
@@ -170,7 +164,7 @@ export default function WorkSchedule() {
     setSchedule((prev) => ({
       ...prev,
       assignments: prev.assignments.map((a) =>
-        a.date === commentModal.date && a.center === commentModal.center
+        a.date === commentModal.date && a.center === commentModal.center && a.personId === commentModal.personId
           ? { ...a, comment: commentModal.text }
           : a
       ),
@@ -204,7 +198,11 @@ export default function WorkSchedule() {
 
   const assignmentMap = useMemo(() => {
     const m = {}
-    for (const a of (schedule?.assignments || [])) m[`${a.date}|${a.center}`] = a
+    for (const a of (schedule?.assignments || [])) {
+      const key = `${a.date}|${a.center}`
+      if (!m[key]) m[key] = []
+      m[key].push(a)
+    }
     return m
   }, [schedule])
 
@@ -212,6 +210,7 @@ export default function WorkSchedule() {
   const stats = useMemo(() => {
     const s = {}
     for (const a of (schedule?.assignments || [])) {
+      if (a.cleared) continue
       if (!s[a.personId]) s[a.personId] = { total:0, weekend:0, holiday:0 }
       s[a.personId].total++
       if (a.isWeekend) s[a.personId].weekend++
@@ -346,34 +345,35 @@ export default function WorkSchedule() {
                         {fmtDay(dateStr)}
                         {hol && <span className="ws-hol-label" title={hol}>🗓️</span>}
                       </div>
-                      {a?.cleared ? (
-                        <div className="ws-chip ws-chip-cleared"
-                          title="No work scheduled — click to restore"
-                          onClick={() => restoreDay(dateStr, c.id)}>
-                          <span style={{ fontSize:11 }}>🚫 No work</span>
-                          <button className="ws-clear-btn" onClick={(e) => { e.stopPropagation(); restoreDay(dateStr, c.id) }} title="Restore assignment">↩</button>
-                        </div>
-                      ) : a?.personId ? (
-                        <div className="ws-chip"
-                          draggable
-                          onDragStart={() => onDragStart(dateStr, c.id)}>
-                          <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={20} />
-                          <span className="ws-chip-name">{a.personName}</span>
-                          <div className="ws-chip-actions">
-                            {a.dayOffGranted && <span title="Day-off credit earned">💤</span>}
-                            <button className="ws-comment-btn"
-                              onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id) }}
-                              title={a.comment ? a.comment : 'Add comment'}>
-                              {a.comment ? '💬' : '○'}
-                            </button>
-                            <button className="ws-clear-btn"
-                              onClick={(e) => { e.stopPropagation(); clearDay(dateStr, c.id) }}
-                              title="Clear this day (no work needed)">✕</button>
+                      {(() => {
+                        const dayAssignments = assignmentMap[`${dateStr}|${c.id}`] || []
+                        if (dayAssignments.length === 0) return <div className="ws-chip ws-chip-empty">—</div>
+                        return dayAssignments.map((a) => a.cleared ? (
+                          <div key={a.personId} className="ws-chip ws-chip-cleared"
+                            onClick={() => restoreAssignment(dateStr, c.id, a.personId)}>
+                            <span style={{ fontSize:10 }}>🚫 {a.personName.split(' ')[0]}</span>
+                            <button className="ws-clear-btn" onClick={(e) => { e.stopPropagation(); restoreAssignment(dateStr, c.id, a.personId) }}>↩</button>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="ws-chip ws-chip-empty">—</div>
-                      )}
+                        ) : (
+                          <div key={a.personId} className="ws-chip"
+                            draggable
+                            onDragStart={() => onDragStart(dateStr, c.id, a.personId)}>
+                            <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={18} />
+                            <span className="ws-chip-name">{a.personName}</span>
+                            <div className="ws-chip-actions">
+                              {a.dayOffGranted && <span title="Day-off credit">💤</span>}
+                              <button className="ws-comment-btn"
+                                onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id, a.personId) }}
+                                title={a.comment || 'Add comment'}>
+                                {a.comment ? '💬' : '○'}
+                              </button>
+                              <button className="ws-clear-btn"
+                                onClick={(e) => { e.stopPropagation(); clearAssignment(dateStr, c.id, a.personId) }}
+                                title="Remove from this day">✕</button>
+                            </div>
+                          </div>
+                        ))
+                      })()}
                     </div>
                   )
                 })}
