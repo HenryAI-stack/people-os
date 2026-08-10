@@ -253,7 +253,7 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 }
 
 .ws-day-cell {
-  min-height: 72px;
+  min-height: 90px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 6px;
