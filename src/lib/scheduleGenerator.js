@@ -12,23 +12,19 @@ export function getCenter(person) {
   return CENTERS.find((c) => c.locationKeys.some((k) => loc.includes(k)))?.id || null
 }
 
-function dow(d) { return new Date(d).getDay() } // 0=Sun,1=Mon…6=Sat
+function dow(d) { return new Date(d).getDay() }
 
 /**
- * Each person works exactly their target days (20 or 21 per month = 160 or 168 h).
- * Multiple people may be scheduled on the same day — double/triple occupation is allowed.
- *
- * Strategy per person:
- *  1. Fill weekdays (Mon–Fri) first, rotating evenly across the month.
- *  2. If target > available weekdays, fill remaining slots with weekend days.
- *  3. Weekend / holiday days distributed fairly across team (least-burdened first).
+ * Generate schedule where:
+ * - Every weekend day is covered (at least one person per center)
+ * - Every person works exactly target days (20–21) = 160–168 h
+ * - Weekend duty distributed fairly; remaining days filled with weekdays
  */
 export function generateSchedule(yearMonth, people, fairness = {}) {
   const days     = getDaysInMonth(yearMonth)
   const weekdays = days.filter((d) => dow(d) !== 0 && dow(d) !== 6)
   const weekend  = days.filter((d) => dow(d) === 0 || dow(d) === 6)
 
-  // Group by center
   const byCenter = {}
   for (const c of CENTERS) byCenter[c.id] = []
   for (const p of people) {
@@ -42,80 +38,70 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
     const pool = byCenter[center.id]
     if (!pool.length) continue
 
-    // Sort pool by cumulative weekend burden — least loaded gets first pick of weekdays
+    const n      = pool.length
+    const target = Math.min(21, Math.max(20, Math.round(weekdays.length * 0.9)))
+
+    // Sort by cumulative weekend burden — least loaded gets fewest weekends this month
     const sorted = [...pool].sort((a, b) =>
       (fairness[a.id]?.weekendTotal || 0) - (fairness[b.id]?.weekendTotal || 0)
     )
 
-    // Target days per person: 20 standard, 21 if month has extra workdays
-    // Standard months have 20–23 weekdays; cap each person at 21 days (168 h).
-    const target = Math.min(21, Math.max(20, Math.ceil(weekdays.length / 1)))
+    // ── Step 1: distribute ALL weekend days across pool ────────────────────
+    // Round-robin starting from the person with least weekend history.
+    // Each person may get multiple weekend days.
+    const personWeDays = Object.fromEntries(pool.map((p) => [p.id, []]))
+    weekend.forEach((dateStr, i) => {
+      const person = sorted[i % n]
+      personWeDays[person.id].push(dateStr)
+    })
 
-    // Track how many weekend days each person is assigned this month
-    const personWeekends = Object.fromEntries(pool.map((p) => [p.id, 0]))
-    const personHolidays = Object.fromEntries(pool.map((p) => [p.id, 0]))
-    const personTotal    = Object.fromEntries(pool.map((p) => [p.id, 0]))
+    // ── Step 2: for each person, fill remaining slots with weekdays ─────────
+    // Spread weekday picks evenly across the full month (no front-loading).
+    const usedWeekdays = new Set()  // track which weekday indices are taken per person
 
     for (const person of sorted) {
-      const remaining = target  // each person gets exactly `target` days
-      let assigned    = 0
+      const myWeekends    = personWeDays[person.id]
+      const weekdayNeeded = Math.max(0, target - myWeekends.length)
 
-      // ── Step 1: assign weekdays evenly across the month ──────────────────
-      // Spread picks across the full range so days aren't all at the start.
-      // Pick every Nth weekday so the person is distributed across the month.
-      const step = weekdays.length / Math.min(remaining, weekdays.length)
-      const pickedWd = new Set()
+      // Pick weekdays spread across the month (every Nth slot)
+      const step       = weekdays.length / Math.max(weekdayNeeded, 1)
+      const myWeekdays = []
 
-      for (let i = 0; i < weekdays.length && assigned < remaining; i++) {
-        const idx = Math.round(i * step)
-        if (idx < weekdays.length && !pickedWd.has(idx)) {
-          pickedWd.add(idx)
-          const dateStr    = weekdays[idx]
-          const holiday    = getHoliday(dateStr, center.country)
-          const isHoliday  = !!holiday
-          if (isHoliday) personHolidays[person.id]++
-          personTotal[person.id]++
-          allAssignments.push({
-            date: dateStr, center: center.id,
-            personId: person.id, personName: person.name,
-            isWeekend: false, isHoliday, holidayName: holiday || '',
-            dayOffGranted: isHoliday, cleared: false, comment: '',
-          })
-          assigned++
+      for (let slot = 0; slot < weekdayNeeded; slot++) {
+        let idx = Math.round(slot * step)
+        // Find next unused weekday index (wrapping around)
+        let tries = 0
+        while (usedWeekdays.has(`${person.id}:${idx}`) && tries < weekdays.length) {
+          idx = (idx + 1) % weekdays.length
+          tries++
         }
+        usedWeekdays.add(`${person.id}:${idx}`)
+        if (weekdays[idx]) myWeekdays.push(weekdays[idx])
       }
 
-      // ── Step 2: if target > weekdays assigned, fill with weekend days ─────
-      // Sort weekend days by how many people already have them (balance load)
-      const weCount = {}
-      for (const d of weekend) weCount[d] = allAssignments.filter((a) => a.date === d && a.center === center.id && a.personId !== person.id).length
-
-      const sortedWe = [...weekend].sort((a, b) => {
-        // Prefer Saturdays over Sundays, and less-occupied days first
-        const isSunA = dow(a) === 0, isSunB = dow(b) === 0
-        if (isSunA !== isSunB) return isSunA ? 1 : -1
-        return weCount[a] - weCount[b]
-      })
-
-      for (const dateStr of sortedWe) {
-        if (assigned >= remaining) break
-        const holiday   = getHoliday(dateStr, center.country)
-        const isHoliday = !!holiday
-        personWeekends[person.id]++
-        personTotal[person.id]++
-        if (isHoliday) personHolidays[person.id]++
+      // ── Emit assignments ─────────────────────────────────────────────────
+      const allDays = [...myWeekdays, ...myWeekends]
+      for (const dateStr of allDays) {
+        const we      = isWeekend(dateStr)
+        const holiday = getHoliday(dateStr, center.country)
+        const isHol   = !!holiday
         allAssignments.push({
-          date: dateStr, center: center.id,
-          personId: person.id, personName: person.name,
-          isWeekend: true, isHoliday, holidayName: holiday || '',
-          dayOffGranted: true, cleared: false, comment: '',
+          date:         dateStr,
+          center:       center.id,
+          personId:     person.id,
+          personName:   person.name,
+          isWeekend:    we,
+          isHoliday:    isHol,
+          holidayName:  holiday || '',
+          dayOffGranted: we || isHol,
+          cleared:      false,
+          comment:      '',
         })
-        assigned++
       }
     }
   }
 
-  // ── Fairness snapshot ────────────────────────────────────────────────────
+  // ── Fairness snapshot ─────────────────────────────────────────────────────
   const fairnessSnapshot = {}
   for (const p of people) {
     const prev = fairness[p.id] || { weekendTotal: 0, holidayTotal: 0, totalDays: 0 }
