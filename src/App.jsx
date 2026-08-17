@@ -99,9 +99,9 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
 
 // ── World Clock ───────────────────────────────────────────────────────────────
 const CLOCKS = [
-  { city: 'Vienna',      country: 'AT', tz: 'Europe/Vienna'       },
-  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw'       },
   { city: 'Bangalore',   country: 'IN', tz: 'Asia/Kolkata'        },
+  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw'       }
+  { city: 'Chicago',     country: 'US', tz: 'America/Chicago'     },
   { city: 'Mexico City', country: 'MX', tz: 'America/Mexico_City' },
 ]
 
