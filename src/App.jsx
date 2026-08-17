@@ -70,6 +70,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
         </nav>
       </div>
+      <WorldClock collapsed={collapsed} />
       <div className="sidebar-bottom">
         <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
           <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
@@ -95,6 +96,57 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
     </aside>
   )
 }
+
+// ── World Clock ───────────────────────────────────────────────────────────────
+const CLOCKS = [
+  { city: 'Vienna',      country: 'AT', tz: 'Europe/Vienna'       },
+  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw'       },
+  { city: 'Bangalore',   country: 'IN', tz: 'Asia/Kolkata'        },
+  { city: 'Mexico City', country: 'MX', tz: 'America/Mexico_City' },
+]
+
+function WorldClock({ collapsed }) {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  function fmtTime(tz) {
+    return now.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+  function fmtDate(tz) {
+    return now.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' })
+  }
+  function flagUrl(code) {
+    return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`
+  }
+
+  if (collapsed) return null
+
+  return (
+    <div style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-faint)', marginBottom: 6, paddingLeft: 2 }}>
+        🌐 World Clock
+      </div>
+      {CLOCKS.map((c) => (
+        <div key={c.city} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 4px', borderRadius: 6, marginBottom: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            <img src={flagUrl(c.country)} alt={c.country} style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+            <span style={{ fontSize: 11.5, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.city}</span>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
+              {fmtTime(c.tz)}
+            </div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(c.tz)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 
 function LoginPage({ onLogin, authError }) {
   const [busy, setBusy] = useState(false)
