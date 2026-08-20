@@ -99,10 +99,10 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
 
 // ── World Clock ───────────────────────────────────────────────────────────────
 const CLOCKS = [
-  { city: 'Bangalore',   country: 'IN', tz: 'Asia/Kolkata'        },
-  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw'       },
-  { city: 'Chicago',     country: 'US', tz: 'America/Chicago'     },
-  { city: 'Mexico City', country: 'MX', tz: 'America/Mexico_City' },
+  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw',       offset: null    },
+  { city: 'Chicago',     country: 'US', tz: 'America/Chicago',     offset: '−7h'   },
+  { city: 'Bangalore',   country: 'IN', tz: 'Asia/Kolkata',        offset: '+3.5h' },
+  { city: 'Mexico City', country: 'MX', tz: 'America/Mexico_City', offset: '−8h'   },
 ]
 
 function WorldClock({ collapsed }) {
@@ -134,6 +134,7 @@ function WorldClock({ collapsed }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
             <img src={flagUrl(c.country)} alt={c.country} style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
             <span style={{ fontSize: 11.5, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.city}</span>
+            {c.offset && <span style={{ fontSize: 9.5, color: 'var(--text-faint)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>{c.offset}</span>}
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
