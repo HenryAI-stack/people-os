@@ -122,7 +122,7 @@ export default function PersonDetail() {
         const nameMatch = iv.person?.trim().toLowerCase() === found.name?.trim().toLowerCase()
         const idMatch   = iv.personId === found.id
         return nameMatch || idMatch
-      }))
+      }).sort((a, b) => (b.date || '').localeCompare(a.date || '')))
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
