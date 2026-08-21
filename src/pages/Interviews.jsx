@@ -62,6 +62,7 @@ export default function Interviews() {
       .filter((i) => filterType === 'all' || i.type === filterType)
       .filter((i) => !q || [i.title, i.person, i.summary, i.takeaways, i.tags]
         .join(' ').toLowerCase().includes(q))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   }, [items, filterType, query])
 
   // Reset to page 1 whenever filter/query changes
