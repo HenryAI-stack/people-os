@@ -33,7 +33,7 @@ export default function DirectReports() {
     const map = {}
     filtered.forEach((p) => { const key = p.team?.trim() || ''; if (!map[key]) map[key] = []; map[key].push(p) })
     const teams = Object.keys(map).sort((a, b) => { if (!a) return 1; if (!b) return -1; return a.localeCompare(b) })
-    return teams.map((team) => ({ team, members: map[team] }))
+    return teams.map((team) => ({ team, members: map[team].sort((a, b) => a.name.localeCompare(b.name)) }))
   }, [filtered])
 
   async function handleSave(record) { await directReportsStore.upsert(record); setEditing(null); load() }
