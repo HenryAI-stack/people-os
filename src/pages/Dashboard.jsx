@@ -62,7 +62,7 @@ export default function Dashboard() {
           directReportsStore.list(), interviewsStore.list(),
           notesStore.list(), followUpsStore.list(),
         ])
-        setReports(r); setInterviews(i); setNotes(n); setFollowUps(f)
+        setReports([...r].sort((a, b) => a.name.localeCompare(b.name))); setInterviews(i); setNotes(n); setFollowUps(f)
       } catch (e) { setError(e.message) }
       finally { setLoading(false) }
     })()
