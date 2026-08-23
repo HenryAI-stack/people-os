@@ -121,6 +121,10 @@ function WorldClock({ collapsed }) {
   function flagUrl(code) {
     return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`
   }
+  function fmtTzAbbr(tz) {
+    return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+      .formatToParts(now).find((p) => p.type === 'timeZoneName')?.value || ''
+  }
 
   if (collapsed) return null
 
@@ -141,6 +145,7 @@ function WorldClock({ collapsed }) {
               {fmtTime(c.tz)}
             </div>
             <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(c.tz)}</div>
+            <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px' }}>{fmtTzAbbr(c.tz)}</div>
           </div>
         </div>
       ))}
