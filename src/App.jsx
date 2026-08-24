@@ -125,6 +125,13 @@ function WorldClock({ collapsed }) {
     return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
       .formatToParts(now).find((p) => p.type === 'timeZoneName')?.value || ''
   }
+  function fmtTzFull(tz) {
+    // Use Intl long name, with override for common browser inconsistencies
+    const overrides = { 'India Standard Time': 'Indian Standard Time' }
+    const raw = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'long' })
+      .formatToParts(now).find((p) => p.type === 'timeZoneName')?.value || ''
+    return overrides[raw] || raw
+  }
 
   if (collapsed) return null
 
@@ -145,7 +152,7 @@ function WorldClock({ collapsed }) {
               {fmtTime(c.tz)}
             </div>
             <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(c.tz)}</div>
-            <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px' }}>{fmtTzAbbr(c.tz)}</div>
+            <div title={fmtTzFull(c.tz)} style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px', cursor: 'help' }}>{fmtTzAbbr(c.tz)}</div>
           </div>
         </div>
       ))}
