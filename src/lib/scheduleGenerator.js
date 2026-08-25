@@ -12,7 +12,12 @@ export function getCenter(person) {
   return CENTERS.find((c) => c.locationKeys.some((k) => loc.includes(k)))?.id || null
 }
 
-function dow(d) { return new Date(d).getDay() }
+function dow(d) { return new Date(d).getDay() } // 0=Sun,1=Mon…6=Sat
+function isSunday(d) { return dow(d) === 0 }
+function addOneDay(dateStr) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
 
 function makeAssignment(dateStr, center, person, we, hol) {
   return {
@@ -25,16 +30,14 @@ function makeAssignment(dateStr, center, person, we, hol) {
 
 /**
  * Rules:
- * - Weekdays (Mon–Fri, non-holiday): minimum 2 people per center per day
- * - Weekends & national holidays: exactly 1 person per center per day
- * - Each person works 20–21 days total (160–168 h/month)
- * - Weekend / holiday burden balanced across months
+ * 1. Weekdays (Mon–Fri, non-holiday): minimum 2 people per day
+ * 2. Weekends & holidays: minimum 1, can be 2 if capacity allows
+ * 3. If someone works Sunday OR a national holiday → they are BLOCKED the next calendar day
+ * 4. Each person works 20–21 days (160–168 h/month)
+ * 5. Weekend/holiday burden balanced across months
  */
 export function generateSchedule(yearMonth, people, fairness = {}) {
-  const days     = getDaysInMonth(yearMonth)
-  const weekdays = days.filter((d) => dow(d) !== 0 && dow(d) !== 6)
-  const weekend  = days.filter((d) => dow(d) === 0 || dow(d) === 6)
-
+  const days    = getDaysInMonth(yearMonth)
   const byCenter = {}
   for (const c of CENTERS) byCenter[c.id] = []
   for (const p of people) {
@@ -47,77 +50,103 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
   for (const center of CENTERS) {
     const pool = byCenter[center.id]
     if (!pool.length) continue
-    const n = pool.length
+    const n      = pool.length
+    const target = 20  // 160h standard; topped to 21 in step 4 if needed
 
-    // Target per person: 20–21 days
-    const target = Math.min(21, Math.max(20, 20))
-
-    // Per-person shift counter
-    const used = Object.fromEntries(pool.map((p) => [p.id, 0]))
-
-    // Sort by cumulative weekend burden (least first)
+    // Sort by fairness (least weekend burden first)
     const byFairness = [...pool].sort((a, b) =>
       (fairness[a.id]?.weekendTotal || 0) - (fairness[b.id]?.weekendTotal || 0)
     )
 
-    // ── Step 1: weekends & national holidays — 1 person, round-robin ────────
-    const specialDays = days.filter((d) => {
-      const we  = isWeekend(d)
-      const hol = getHoliday(d, center.country)
-      return we || !!hol
-    })
+    const used     = Object.fromEntries(pool.map((p) => [p.id, 0]))
+    // blockedOn[dateStr] = Set of personIds who CANNOT work that day
+    const blockedOn = {}
 
-    specialDays.forEach((dateStr, i) => {
-      const person = byFairness[i % n]
-      const we     = isWeekend(dateStr)
-      const hol    = getHoliday(dateStr, center.country)
+    function isBlocked(personId, dateStr) {
+      return blockedOn[dateStr]?.has(personId) || false
+    }
+
+    function blockNextDay(personId, dateStr) {
+      const next = addOneDay(dateStr)
+      if (!blockedOn[next]) blockedOn[next] = new Set()
+      blockedOn[next].add(personId)
+    }
+
+    function assign(dateStr, person) {
+      const we  = isWeekend(dateStr)
+      const hol = getHoliday(dateStr, center.country)
       allAssignments.push(makeAssignment(dateStr, center, person, we, hol))
       used[person.id]++
-    })
-
-    // ── Step 2: weekdays — ensure MINIMUM 2 people per day ──────────────────
-    // True weekdays = Mon–Fri that are NOT national holidays
-    const trueWeekdays = weekdays.filter((d) => !getHoliday(d, center.country))
-
-    // First pass: assign 1 person to every weekday (round-robin by fairness / used)
-    for (const dateStr of trueWeekdays) {
-      const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      // Pick the person with fewest shifts, not already on this day
-      const already = new Set(allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId))
-      const pick = sorted.find((p) => !already.has(p.id) && used[p.id] < target) || sorted.find((p) => !already.has(p.id))
-      if (pick) { allAssignments.push(makeAssignment(dateStr, center, pick, false, null)); used[pick.id]++ }
+      // Rule 3: block next day after Sunday or holiday
+      if (isSunday(dateStr) || !!hol) blockNextDay(person.id, dateStr)
     }
 
-    // Second pass: add a second person to every weekday (ensuring min 2)
-    for (const dateStr of trueWeekdays) {
-      const alreadyOn = new Set(allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId))
-      if (alreadyOn.size >= 2) continue  // already covered
+    // ── Step 1: special days (weekends + holidays) ────────────────────────
+    // At least 1 person per day; add 2nd if capacity available
+    const specialDays = days.filter((d) => isWeekend(d) || !!getHoliday(d, center.country))
 
-      const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      const pick = sorted.find((p) => !alreadyOn.has(p.id) && used[p.id] < target) || sorted.find((p) => !alreadyOn.has(p.id))
-      if (pick) { allAssignments.push(makeAssignment(dateStr, center, pick, false, null)); used[pick.id]++ }
+    for (let i = 0; i < specialDays.length; i++) {
+      const dateStr = specialDays[i]
+      // Pick 1st person: round-robin by fairness, not blocked, under target
+      const first = byFairness.find((p) => !isBlocked(p.id, dateStr) && used[p.id] < target + 1)
+                 || byFairness.find((p) => !isBlocked(p.id, dateStr))
+                 || byFairness[i % n]
+      assign(dateStr, first)
+
+      // Add 2nd person if someone still has capacity (double weekend assignment)
+      const second = byFairness.find((p) =>
+        p.id !== first.id &&
+        !isBlocked(p.id, dateStr) &&
+        used[p.id] < target + 1
+      )
+      if (second) assign(dateStr, second)
     }
 
-    // ── Step 3: top up under-target people with remaining weekday slots ──────
+    // ── Step 2: weekdays (Mon–Fri, non-holiday), min 2 per day ────────────
+    const trueWeekdays = days.filter((d) => !isWeekend(d) && !getHoliday(d, center.country))
+
+    // Pass A: first person on each weekday
+    for (const dateStr of trueWeekdays) {
+      const alreadyOn = new Set(
+        allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
+      )
+      const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
+      const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
+               || sorted.find((p) => !alreadyOn.has(p.id))
+      if (pick) { assign(dateStr, pick) }
+    }
+
+    // Pass B: second person on each weekday (enforce min 2)
+    for (const dateStr of trueWeekdays) {
+      const alreadyOn = new Set(
+        allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
+      )
+      if (alreadyOn.size >= 2) continue
+      const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
+      const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
+               || sorted.find((p) => !alreadyOn.has(p.id))
+      if (pick) { assign(dateStr, pick) }
+    }
+
+    // ── Step 3: top up under-target people ────────────────────────────────
     for (const person of pool) {
-      let shortage = target - used[person.id]
-      if (shortage <= 0) continue
-
-      // Find weekdays this person isn't already on, preferring spread across month
+      let gap = (target + 1) - used[person.id]  // allow up to 21 days
+      if (gap <= 0) continue
       const available = trueWeekdays.filter((d) =>
+        !isBlocked(person.id, d) &&
         !allAssignments.find((a) => a.date === d && a.center === center.id && a.personId === person.id)
       )
-
-      const step = Math.max(1, Math.floor(available.length / shortage))
-      for (let i = 0; i < available.length && shortage > 0; i += step) {
-        allAssignments.push(makeAssignment(available[i], center, person, false, null))
-        used[person.id]++
-        shortage--
+      const step = Math.max(1, Math.floor(available.length / gap))
+      for (let i = 0; i < available.length && gap > 0; i += step) {
+        assign(available[i], person)
+        gap--
       }
     }
   }
 
-  // ── Fairness snapshot ─────────────────────────────────────────────────────
+  // ── Fairness snapshot ──────────────────────────────────────────────────
   const fairnessSnapshot = {}
   for (const p of people) {
     const prev = fairness[p.id] || { weekendTotal: 0, holidayTotal: 0, totalDays: 0 }
