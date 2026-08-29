@@ -4,7 +4,7 @@ import { directReportsStore, interviewsStore, followUpsStore } from '../lib/data
 import { Avatar, ReportForm } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
-import { generateTags, generateTakeaways } from '../lib/autoTags.js'
+import { generateTags, generateTakeaways, generateFollowUpTopics } from '../lib/autoTags.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
 const INTERVIEW_TYPES = {
@@ -284,10 +284,10 @@ export default function PersonDetail() {
       )}
 
       {/* Add interview modal */}
-      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name }} title="Log interview" onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
+      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name }} title="Log interview" previousInterviews={interviews} personName={person.name} onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
 
       {/* Edit interview modal */}
-      {editingIv && <InterviewForm key={editingIv.id} initial={editingIv} title="Edit interview" onCancel={() => setEditingIv(null)} onSave={handleSaveInterview} />}
+      {editingIv && <InterviewForm key={editingIv.id} initial={editingIv} title="Edit interview" previousInterviews={interviews} personName={person.name} onCancel={() => setEditingIv(null)} onSave={handleSaveInterview} />}
 
       {/* Quick follow-up modal */}
       {addingFU && <QuickFollowUpForm interview={addingFU} person={person} onCancel={() => setAddingFU(null)} onSave={async (record) => { await followUpsStore.upsert(record); setAddingFU(null); load() }} />}
@@ -318,14 +318,26 @@ function Chip({ label, value }) {
   )
 }
 
-function InterviewForm({ initial, onCancel, onSave, title='Log interview' }) {
+function InterviewForm({ initial, onCancel, onSave, title='Log interview', previousInterviews=[], personName='' }) {
   const [form,        setForm]        = useState({ ...initial })
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
-  const [genTags,     setGenTags]     = useState(false)
-  const [genTakeaways,setGenTakeaways]= useState(false)
+  const [genTags,       setGenTags]       = useState(false)
+  const [genTakeaways,  setGenTakeaways]  = useState(false)
+  const [suggestions,   setSuggestions]   = useState([])
+  const [genSuggestions,setGenSuggestions]= useState(false)
+  const [suggError,     setSuggError]     = useState('')
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+
+  async function handleGetSuggestions() {
+    setGenSuggestions(true); setSuggError('')
+    try {
+      const topics = await generateFollowUpTopics(personName, previousInterviews)
+      setSuggestions(topics)
+    } catch (err) { setSuggError(err.message) }
+    finally { setGenSuggestions(false) }
+  }
 
   async function handleGenerateTakeaways() {
     if (!form.summary) return
@@ -350,8 +362,12 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview' }) {
   }
 
   return (
-    <DraggableModal title={title} onClose={onCancel}>
-      <form onSubmit={submit}>
+    <div className="overlay" onMouseDown={(e) => e.target===e.currentTarget&&onCancel()}>
+      <div style={{ display:'flex', alignItems:'flex-start', gap:16, maxHeight:'90vh' }}>
+        {/* ── Main form modal ── */}
+        <div className="modal" style={{ maxWidth:520, width:'100%', overflow:'auto', maxHeight:'88vh' }}>
+          <h2 style={{ fontFamily:'var(--font-display)', margin:'0 0 18px', fontSize:20, cursor:'default' }}>{title}</h2>
+          <form onSubmit={submit}>
         {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:14, padding:'10px 12px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>⚠️ {error}</div>}
         <div className="field"><label>Title</label><input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" /></div>
         <div className="field">
@@ -382,12 +398,48 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview' }) {
           </label>
           <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="Click ✦ Generate tags or type manually" />
         </div>
-        <div className="modal-actions">
-          <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={saving}>{saving?'Saving…':'Save'}</button>
+            <div className="modal-actions">
+              <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn primary" disabled={saving}>{saving?'Saving…':'Save'}</button>
+            </div>
+          </form>
         </div>
-      </form>
-    </DraggableModal>
+
+        {/* ── Suggestions side panel ── */}
+        <div className="modal" style={{ width:260, flexShrink:0, maxHeight:'88vh', overflow:'auto', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ fontFamily:'var(--font-display)', fontSize:16, fontWeight:600, marginBottom:4 }}>
+            💡 Follow-up topics
+          </div>
+          <p style={{ fontSize:12, color:'var(--text-dim)', margin:0 }}>
+            AI suggestions based on {previousInterviews.length} previous interview{previousInterviews.length!==1?'s':''} with {personName || 'this person'}.
+          </p>
+          <button type="button" className="btn" style={{ fontSize:12, padding:'6px 12px' }}
+            onClick={handleGetSuggestions}
+            disabled={genSuggestions || previousInterviews.length===0}>
+            {genSuggestions ? '⏳ Generating…' : suggestions.length ? '↻ Refresh' : '✦ Generate suggestions'}
+          </button>
+          {suggError && <div style={{ color:'var(--bad)', fontSize:12 }}>⚠️ {suggError}</div>}
+          {previousInterviews.length===0 && !genSuggestions && (
+            <div style={{ fontSize:12, color:'var(--text-faint)' }}>No previous interviews yet — add some first.</div>
+          )}
+          {suggestions.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {suggestions.map((s, i) => (
+                <div key={i}
+                  onClick={() => set('takeaways', form.takeaways ? form.takeaways + '
+• ' + s : '• ' + s)}
+                  style={{ fontSize:12.5, color:'var(--text)', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 10px', cursor:'pointer', lineHeight:1.5, transition:'border-color 0.15s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor='var(--accent)'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor='var(--border)'}>
+                  • {s}
+                </div>
+              ))}
+              <div style={{ fontSize:11, color:'var(--text-faint)', marginTop:2 }}>Click a topic to add it to Key Takeaways</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
