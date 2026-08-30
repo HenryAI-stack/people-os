@@ -4,7 +4,7 @@ async function callOpenRouter(prompt, maxTokens = 80) {
   if (!API_KEY) throw new Error('VITE_OPENROUTER_API_KEY is not set.')
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30000)
+  const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
 
   let res
   try {
@@ -32,7 +32,10 @@ async function callOpenRouter(prompt, maxTokens = 80) {
 
   if (!res.ok) {
     let msg = `API error (${res.status})`
-    try { const body = await res.json(); msg = body?.error?.message || msg } catch {}
+    try {
+      const body = await res.json()
+      msg = body?.error?.message || msg
+    } catch {}
     throw new Error(msg)
   }
 
@@ -68,7 +71,7 @@ export async function generateTags(summary, takeaways) {
     `Do NOT include any explanation or extra text.\n\n` +
     `Interview note:\n${text}`
 
-  const raw  = await callOpenRouter(prompt, 60)
+  const raw = await callOpenRouter(prompt, 60)
   const tags = sanitiseTags(raw)
   if (!tags) throw new Error('Could not extract tags — try again.')
   return tags
@@ -83,14 +86,52 @@ export async function generateTakeaways(summary) {
     `Reply with ONLY the bullet points, no intro text.\n\n` +
     `Summary:\n${summary}`
 
-  const raw   = await callOpenRouter(prompt, 200)
-  const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
+  const raw = await callOpenRouter(prompt, 200)
+
+  // Strip any model preamble/reasoning — only keep lines that are actual bullets.
+  // Some free models leak "thinking" text before the bullet points.
+  const lines = raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+
+  // Find where the bullets actually start
   const bulletStart = lines.findIndex((l) => /^[-*•]/.test(l))
   const bulletLines = bulletStart >= 0 ? lines.slice(bulletStart) : lines
+
+  // Keep only bullet lines (drop any trailing prose the model may add)
   const bullets = bulletLines
     .filter((l) => /^[-*•]/.test(l))
     .map((l) => l.replace(/^[-*•]\s*/, '• '))
 
   if (bullets.length === 0) throw new Error('No bullet points found in response — try again.')
   return bullets.join('\n')
+}
+
+
+export async function generateFollowUpTopics(personName, previousInterviews) {
+  if (!previousInterviews.length) throw new Error('No previous interviews found.')
+
+  const interviewText = previousInterviews.slice(0, 10).map((iv, i) =>
+    `[${i+1}] ${iv.title || 'Untitled'} | ${iv.type} | ${iv.date || 'no date'}\n` +
+    (iv.summary   ? `Summary: ${iv.summary}\n`     : '') +
+    (iv.takeaways ? `Takeaways: ${iv.takeaways}\n` : '') +
+    (iv.tags      ? `Tags: ${iv.tags}\n`           : '')
+  ).join('\n')
+
+  const prompt =
+    `You are a People Leader's assistant. Based on the previous interviews with ${personName}, ` +
+    `suggest 6-8 specific follow-up topics for the next conversation.\n` +
+    `Focus on: unresolved action items, recurring themes, growth areas, open decisions, and wellbeing.\n\n` +
+    `Previous interviews:\n${interviewText}\n\n` +
+    `Reply with ONLY a bullet list. Each line starts with • and is one concise sentence. No intro text.`
+
+  const raw = await callOpenRouter(prompt, 400)
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+  const bulletStart = lines.findIndex(l => /^[•\-\*]/.test(l))
+  const bullets = (bulletStart >= 0 ? lines.slice(bulletStart) : lines)
+    .filter(l => /^[•\-\*]/.test(l))
+    .map(l => l.replace(/^[•\-\*]\s*/, ''))
+  if (!bullets.length) throw new Error('No suggestions returned — try again.')
+  return bullets
 }
