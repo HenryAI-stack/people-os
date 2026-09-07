@@ -58,8 +58,11 @@ Browser (React SPA)
 - **AI features**: `src/lib/ai.js` is the one place the app talks to an LLM — a `chat(prompt,
   {maxTokens})` helper that POSTs to OpenRouter (`https://openrouter.ai/api/v1/chat/completions`,
   OpenAI-compatible) with `VITE_OPENROUTER_API_KEY`. Model is the `MODEL` constant in that file
-  (`openai/gpt-4o-mini` — a real paid slug; the account needs credit, and the old
-  `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly).
+  (`google/gemini-2.0-flash-001` — Azure-served OpenAI models like `gpt-4o-mini` content-filter
+  HR/review text and come back as an empty 200; the account also needs credit, and the old
+  `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly). `chat()`
+  surfaces OpenRouter's 200-with-error-body and `finish_reason` cases rather than a generic
+  "empty response".
   `src/lib/autoTags.js` builds on it for auto interview tags, key takeaways, and
   follow-up-topic suggestions (used from `Interviews.jsx` and `PersonDetail.jsx`);
   `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the executive summary.

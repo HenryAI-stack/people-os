@@ -17,10 +17,11 @@
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 const API_KEY  = import.meta.env.VITE_OPENROUTER_API_KEY
 
-// Cheap, fast, reliable. Alternatives: 'google/gemini-2.0-flash-001',
-// 'anthropic/claude-3.5-haiku', 'openai/gpt-4.1-mini'. Browse slugs at
-// https://openrouter.ai/models.
-export const MODEL = 'openai/gpt-4o-mini'
+// Fast, cheap, and (unlike Azure-served OpenAI models) not prone to
+// content-filter blocks on HR / performance-review text. Alternatives:
+// 'openai/gpt-4o-mini', 'anthropic/claude-3.5-haiku', 'openai/gpt-4.1-mini'.
+// Browse slugs at https://openrouter.ai/models.
+export const MODEL = 'google/gemini-2.0-flash-001'
 
 // Shown on OpenRouter's app-rankings dashboard; harmless if it doesn't
 // match your fork's URL.
@@ -79,7 +80,33 @@ export async function chat(prompt, { maxTokens = 400, timeoutMs = 30000 } = {}) 
   }
 
   const data = await res.json()
-  const text = data.choices?.[0]?.message?.content?.trim()
-  if (!text) throw new Error('Empty response from AI — try again.')
-  return text
+
+  // OpenRouter frequently returns HTTP 200 with an error object instead of
+  // choices — out of credit, data-policy mismatch, provider/moderation error.
+  if (data.error) {
+    throw new Error(data.error.message || `AI error: ${JSON.stringify(data.error)}`)
+  }
+
+  const choice = data.choices?.[0]
+  const text = choice?.message?.content?.trim()
+  if (text) return text
+
+  // 200 but no usable text — surface whatever the response says about why.
+  const reason = choice?.finish_reason || choice?.native_finish_reason
+  if (choice?.message?.refusal) {
+    throw new Error(`Model refused the request: ${choice.message.refusal}`)
+  }
+  if (reason === 'content_filter') {
+    throw new Error(
+      "Blocked by the provider's content filter. Switch MODEL in src/lib/ai.js " +
+      'to a non-Azure model, or rephrase the notes.'
+    )
+  }
+  if (reason === 'length') {
+    throw new Error('Hit the token limit before producing any text — raise maxTokens.')
+  }
+  throw new Error(
+    `Empty response from AI${reason ? ` (finish_reason: ${reason})` : ''}. ` +
+    'Check the chat/completions response in DevTools → Network for the raw error.'
+  )
 }
