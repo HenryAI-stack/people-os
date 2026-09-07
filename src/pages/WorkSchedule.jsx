@@ -3,6 +3,7 @@ import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule } from '../lib/scheduleGenerator.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
+import { flagUrl } from '../lib/locationFlag.js'
 
 const TEAM_NAME = '24/7 Core Operations'
 
@@ -282,6 +283,7 @@ export default function WorkSchedule() {
               <button key={c.id}
                 className={`ws-tab ${activeCenter===c.id?'active':''}`}
                 onClick={() => setActiveCenter(c.id)}>
+                <img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} />
                 {c.label}
                 <span style={{ fontSize:11, marginLeft:6, opacity:0.7 }}>{c.hours}</span>
               </button>
@@ -314,7 +316,7 @@ export default function WorkSchedule() {
             <div key={c.id} className={`ws-center-block ${activeCenter===c.id?'':'hidden-screen'}`}>
               {/* Print header per center */}
               <div className="print-only ws-print-header">
-                <h2>{c.label} — {c.hours}</h2>
+                <h2><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label} — {c.hours}</h2>
                 <p>{new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</p>
               </div>
 
