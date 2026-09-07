@@ -136,7 +136,7 @@ These get injected as environment variables on every build (see
 
 | Secret name                 | Example value                      | Powers                |
 | ---------------------------- | ----------------------------------- | --------------------- |
-| `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, and follow-up-topic suggestions ([openrouter.ai](https://openrouter.ai) → Keys) |
+| `VITE_GITHUB_MODELS_TOKEN`  | `github_pat_...`                    | AI interview tags, takeaways, follow-up topics, and executive summaries, via [GitHub Models](https://github.com/marketplace/models). Fine-grained PAT with the account permission **Models → Read-only** and nothing else |
 | `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | One-way sync of follow-ups to Microsoft To Do. Short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token**; refresh when sync stops working |
 | `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" button — see the Monthly accomplishments email section below |
 
@@ -181,7 +181,6 @@ places. If you forked/renamed (i.e. your app repo is **not** literally
 | ---- | -------------- |
 | `vite.config.js` | `base: '/people-os/'` → `'/YOUR-REPO/'` (must match the repo name exactly, with leading and trailing slash) |
 | `src/lib/githubActions.js` | `APP_OWNER` / `APP_REPO` constants — these tell the "Send this month's email" button which repo's workflow to dispatch |
-| `src/lib/autoTags.js` | the `HTTP-Referer` header (`https://<owner>.github.io/<repo>/`) — cosmetic, shown in your OpenRouter dashboard |
 
 ```js
 // vite.config.js
@@ -193,7 +192,7 @@ export default defineConfig({
 
 Then commit and push:
 ```bash
-git add vite.config.js src/lib/githubActions.js src/lib/autoTags.js
+git add vite.config.js src/lib/githubActions.js
 git commit -m "chore: point config at my fork"
 git push
 ```

@@ -5,6 +5,7 @@ import { Avatar, ReportForm } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { generateTags, generateTakeaways, generateFollowUpTopics } from '../lib/autoTags.js'
+import { chat } from '../lib/ai.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
 const INTERVIEW_TYPES = {
@@ -33,8 +34,6 @@ function getNextAnniversary(startDateStr) {
 // ── AI summary ───────────────────────────────────────────────────────────────
 async function generateAISummary(person, interviews) {
   if (interviews.length === 0) throw new Error('No interviews to summarise yet.')
-  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
-  if (!apiKey) throw new Error('VITE_OPENROUTER_API_KEY is not set.')
 
   const tenure = person.startDate
     ? `Started ${person.startDate} (${Math.floor((Date.now()-new Date(person.startDate))/(365.25*24*3600*1000)*10)/10} years)`
@@ -72,20 +71,7 @@ async function generateAISummary(person, interviews) {
     `**Recommended Next Steps** — 2–3 concrete actions for the people leader.\n\n` +
     `Tone: professional, direct, and evidence-based.`
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://henryai-stack.github.io/people-os/',
-      'X-Title': 'PeopleOS',
-    },
-    body: JSON.stringify({ model:'openrouter/free', max_tokens:1000, messages:[{ role:'user', content:prompt }] }),
-  })
-
-  if (!res.ok) { const e = await res.json().catch(()=>{}); throw new Error(e?.error?.message||`AI error (${res.status})`) }
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content || ''
+  return chat(prompt, { maxTokens: 1000 })
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
