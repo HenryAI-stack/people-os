@@ -8,9 +8,14 @@ notes, and general notes — built on the same serverless pattern as RecruitOS.
 - **Direct Reports** — add, edit, and track your team
 - **Interviews** — log 1:1s, skip-levels, hiring interviews, and exit interviews
 - **Notes** — a freeform scratchpad
+- **Follow-ups** — an action-item tracker, optionally linked to a person,
+  with optional one-way sync of each item to Microsoft To Do
 - **Accomplishments** — collect wins per month, assignable to a person or a
   team; a GitHub Actions cron job emails you a summary on the last working
   Thursday of each month (see [INSTALLATION.md](./INSTALLATION.md))
+- **Work Schedule** — generate a monthly office/home-office rota for support
+  centers (Warsaw, Bangalore, Mexico City), aware of each country's public
+  holidays
 - **Storage**: every record is AES-256 encrypted client-side, then committed
   as JSON to a **private** GitHub data repo via the GitHub Contents API.
   No database, no server.
