@@ -43,7 +43,7 @@ Browser (React SPA)
 - **Auth**: `src/lib/auth.js` wraps Firebase `signInWithPopup` and hard-checks
   `result.user.email` against `VITE_ALLOWED_EMAIL`, signing the user back out and throwing
   `ACCESS_DENIED` if it doesn't match. This is a single-user app by design — one hardcoded
-  allowed email, not a domain allowlist. `App.jsx` imports from `auth.js` exclusively.
+  allowed email, not a domain allowlist.
 - **Data**: `src/lib/dataStore.js` is the entire persistence layer. `makeStore(filename)`
   builds a tiny CRUD wrapper (`list` / `upsert` / `remove`) around one JSON file in the data
   repo (e.g. `direct-reports.json`). `upsert`/`remove` re-fetch the file's current SHA first
@@ -89,9 +89,7 @@ src/
                        (localStorage: peopleos-theme-light, peopleos-sidebar-collapsed),
                        plus an inline World Clock component
   lib/
-    auth.js            Firebase Auth wrapper — ACTIVE, used by App.jsx (VITE_ALLOWED_EMAIL)
-    firebase.js        DEAD CODE — a second, unused Auth wrapper (redirect-based, domain
-                        allowlist via VITE_ALLOWED_DOMAIN); nothing imports it. See quirks.
+    auth.js            Firebase Auth wrapper — used by App.jsx (VITE_ALLOWED_EMAIL)
     dataStore.js       GitHub-repo-as-database CRUD layer, one store per collection
     crypto.js          AES encrypt/decrypt helpers
     autoTags.js        OpenRouter calls for tags / takeaways / follow-up topics
@@ -101,7 +99,6 @@ src/
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
     locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image URL
     imageUtils.js      Client-side avatar photo resizing before storing as base64
-    useDraggable.js    DEAD CODE — DraggableModal.jsx has its own inline copy of this logic
   pages/
     Dashboard.jsx      Team stats, upcoming anniversaries, recent activity
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
@@ -133,7 +130,6 @@ Data collections (each a JSON file in the **separate, private** data repo — de
   introducing one.
 - **Forms use `DraggableModal`.** Add/edit forms across the app render inside
   `<DraggableModal title=... onClose=...>`; reuse it rather than building a new modal shell.
-  (Ignore `lib/useDraggable.js` — it's an orphaned earlier version of the same idea.)
 - **Cross-page exports are normal here.** `DirectReports.jsx` exports `Avatar` and
   `ReportForm`; `FollowUps.jsx` exports `urgencyLabel`. `Dashboard.jsx`, `PersonDetail.jsx`,
   and `WorkSchedule.jsx` import these directly. It's a small app — don't over-abstract this
@@ -150,14 +146,11 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Known quirks worth knowing
 
-- **Auth config is inconsistent across the repo.** The running code (`auth.js`, used by
-  `App.jsx`) checks a single `VITE_ALLOWED_EMAIL`. But `.env.example` and `INSTALLATION.md`
-  describe `VITE_ALLOWED_DOMAIN` instead — that variable is only read by the dead
-  `lib/firebase.js` and does nothing at runtime. `deploy.yml` correctly passes
-  `VITE_ALLOWED_EMAIL`. Treat `deploy.yml` + `auth.js` as the source of truth; confirm with
-  the user before "fixing" `.env.example`/`INSTALLATION.md` or before deleting `firebase.js`.
-- `lib/useDraggable.js` and `lib/firebase.js` are both unused. Don't wire them in; confirm
-  with the user before deleting.
+- **Auth config docs are inconsistent with the code.** The running code (`auth.js`) checks a
+  single `VITE_ALLOWED_EMAIL`, and `deploy.yml` passes it. But `.env.example` and
+  `INSTALLATION.md` still describe `VITE_ALLOWED_DOMAIN`, which nothing reads anymore. Treat
+  `deploy.yml` + `auth.js` as the source of truth; `.env.example`/`INSTALLATION.md` are stale
+  on this point.
 - `scripts/send-accomplishments-email.mjs` re-implements `dataStore.js`'s GitHub read +
   base64 + AES-decrypt by hand (it can't import browser code that uses `import.meta.env`).
   If you change the storage format, encryption, or file layout in `dataStore.js`/`crypto.js`,
@@ -172,8 +165,8 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in (but see the auth quirk above — you likely want
-`VITE_ALLOWED_EMAIL`, not `VITE_ALLOWED_DOMAIN`). Production: the same names are stored as
+Local dev: `cp .env.example .env` and fill in (but see the auth quirk above — use
+`VITE_ALLOWED_EMAIL`; `VITE_ALLOWED_DOMAIN` in `.env.example` is stale and unused). Production: the same names are stored as
 GitHub Actions repository secrets and injected at build time. `deploy.yml` is the definitive
 list of what the app build consumes; `accomplishments-email.yml` lists what the email job
 consumes.
@@ -189,7 +182,7 @@ consumes.
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
 | `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
 | `ACCOMPLISHMENTS_EMAIL_TO` | email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
-| `VITE_ALLOWED_DOMAIN` | nothing at runtime | Read only by dead `lib/firebase.js`; ignore |
+| `VITE_ALLOWED_DOMAIN` | nothing | Stale — still named in `.env.example`/`INSTALLATION.md` but no code reads it |
 
 **Security note**: the GitHub PAT, encryption secret, OpenRouter key, Graph token, and
 Actions token all ship inside the client-side JS bundle. That's an accepted, documented
