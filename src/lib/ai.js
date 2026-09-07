@@ -1,23 +1,31 @@
 /**
- * GitHub Models — the single place PeopleOS talks to an LLM.
+ * OpenRouter — the single place PeopleOS talks to an LLM.
  *
- * OpenAI-compatible chat completions, hosted by GitHub. Auth is a
- * fine-grained PAT with the account-level "Models" permission set to
- * "Read-only" (nothing else) — VITE_GITHUB_MODELS_TOKEN. Like the other
- * tokens it ships in the client bundle, so keep its scope to models:read.
+ * OpenAI-compatible chat completions. Auth is an OpenRouter API key
+ * (VITE_OPENROUTER_API_KEY); like the other tokens it ships in the client
+ * bundle, so keep it on a dedicated key you can rotate.
  *
- * Every AI feature in the app goes through chat(), so switching provider
- * later (Azure OpenAI, OpenRouter, a local proxy, …) is a change to this
- * file alone.
+ * IMPORTANT: use a real, paid model slug (below) and put at least $10 of
+ * credit on the OpenRouter account. The old `openrouter/free` slug + the
+ * free tier's 20 req/min / ~50 req/day cap were the cause of the constant
+ * failures.
+ *
+ * Every AI feature goes through chat(), so switching provider later (Azure
+ * AI Foundry, a local proxy, …) is a change to this file alone.
  */
 
-const ENDPOINT = 'https://models.github.ai/inference/chat/completions'
-const TOKEN    = import.meta.env.VITE_GITHUB_MODELS_TOKEN
+const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+const API_KEY  = import.meta.env.VITE_OPENROUTER_API_KEY
 
-// Cheap, fast, and on GitHub Models' most generous rate-limit tier.
-// Swap for 'openai/gpt-4.1-mini', 'openai/gpt-4.1', 'openai/gpt-5', etc.
-// See https://github.com/marketplace/models for the catalogue.
+// Cheap, fast, reliable. Alternatives: 'google/gemini-2.0-flash-001',
+// 'anthropic/claude-3.5-haiku', 'openai/gpt-4.1-mini'. Browse slugs at
+// https://openrouter.ai/models.
 export const MODEL = 'openai/gpt-4o-mini'
+
+// Shown on OpenRouter's app-rankings dashboard; harmless if it doesn't
+// match your fork's URL.
+const APP_URL   = 'https://henryai-stack.github.io/people-os/'
+const APP_TITLE = 'PeopleOS'
 
 /**
  * Send a single user-message prompt and return the assistant's text.
@@ -27,7 +35,7 @@ export const MODEL = 'openai/gpt-4o-mini'
  * @param {{ maxTokens?: number, timeoutMs?: number }} [opts]
  */
 export async function chat(prompt, { maxTokens = 400, timeoutMs = 30000 } = {}) {
-  if (!TOKEN) throw new Error('VITE_GITHUB_MODELS_TOKEN is not set.')
+  if (!API_KEY) throw new Error('VITE_OPENROUTER_API_KEY is not set.')
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -39,7 +47,9 @@ export async function chat(prompt, { maxTokens = 400, timeoutMs = 30000 } = {}) 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${TOKEN}`,
+        'Authorization': `Bearer ${API_KEY}`,
+        'HTTP-Referer': APP_URL,
+        'X-Title': APP_TITLE,
       },
       body: JSON.stringify({
         model: MODEL,
@@ -56,13 +66,13 @@ export async function chat(prompt, { maxTokens = 400, timeoutMs = 30000 } = {}) 
 
   if (!res.ok) {
     let msg = `AI error (${res.status})`
-    if (res.status === 401) msg = 'GitHub Models token is missing or invalid.'
-    else if (res.status === 403) msg = 'Token lacks the "Models" read permission, or access to this model is denied.'
+    if (res.status === 401) msg = 'OpenRouter API key is missing or invalid.'
+    else if (res.status === 402) msg = 'OpenRouter account is out of credit — top it up.'
     else if (res.status === 429) msg = 'Rate limit hit — wait a minute and try again.'
     else {
       try {
         const body = await res.json()
-        msg = body?.error?.message || body?.error || msg
+        msg = body?.error?.message || msg
       } catch {}
     }
     throw new Error(msg)

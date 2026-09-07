@@ -35,7 +35,7 @@ accomplishments summary (server-side, via Resend).
 Browser (React SPA)
    ├── Google Login  → Firebase Authentication (identity check only)
    ├── Read/write    → GitHub Contents API → private data repo (AES-256-encrypted JSON)
-   ├── AI features   → GitHub Models (OpenAI-compatible), called directly from the browser
+   ├── AI features   → OpenRouter (OpenAI-compatible), called directly from the browser
    ├── Outlook sync  → Microsoft Graph API, called directly from the browser
    ├── "Send email now" → dispatches a GitHub Actions workflow (no mail key in the bundle)
    └── Deploy        → GitHub Actions → GitHub Pages
@@ -56,15 +56,17 @@ Browser (React SPA)
   exists** — there's no migration path, old data just becomes unreadable. `decrypt` swallows
   failures and returns `null`.
 - **AI features**: `src/lib/ai.js` is the one place the app talks to an LLM — a `chat(prompt,
-  {maxTokens})` helper that POSTs to GitHub Models (`https://models.github.ai/inference/chat/
-  completions`, OpenAI-compatible) with `VITE_GITHUB_MODELS_TOKEN` (fine-grained PAT, account
-  permission "Models: read" only). Model is the `MODEL` constant in that file
-  (`openai/gpt-4o-mini`). `src/lib/autoTags.js` builds on it for auto interview tags, key
-  takeaways, and follow-up-topic suggestions (used from `Interviews.jsx` and
-  `PersonDetail.jsx`); `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the
-  executive summary. All best-effort with try/catch and user-facing error strings; the
-  takeaway/topic parsers still strip any "thinking" preamble a model may emit. Swapping
-  provider (Azure OpenAI, OpenRouter, a proxy) is a change to `ai.js` alone.
+  {maxTokens})` helper that POSTs to OpenRouter (`https://openrouter.ai/api/v1/chat/completions`,
+  OpenAI-compatible) with `VITE_OPENROUTER_API_KEY`. Model is the `MODEL` constant in that file
+  (`openai/gpt-4o-mini` — a real paid slug; the account needs credit, and the old
+  `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly).
+  `src/lib/autoTags.js` builds on it for auto interview tags, key takeaways, and
+  follow-up-topic suggestions (used from `Interviews.jsx` and `PersonDetail.jsx`);
+  `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the executive summary.
+  All best-effort with try/catch and user-facing error strings; the takeaway/topic parsers
+  still strip any "thinking" preamble a model may emit. Swapping provider (Azure AI Foundry,
+  a proxy, …) is a change to `ai.js` alone. (Note: GitHub Models was retired 2026-07-30 —
+  don't reach for it.)
 - **Outlook / Microsoft To Do sync**: `src/lib/msGraph.js` — one-way push of a follow-up to
   a "PeopleOS Follow-ups" task list via Microsoft Graph, using a short-lived
   `VITE_MS_GRAPH_TOKEN` (manually pasted from Graph Explorer, expires ~1h). Called from
@@ -98,7 +100,7 @@ src/
     auth.js            Firebase Auth wrapper — used by App.jsx (VITE_ALLOWED_EMAIL)
     dataStore.js       GitHub-repo-as-database CRUD layer, one store per collection
     crypto.js          AES encrypt/decrypt helpers
-    ai.js              chat() helper — the only LLM call site (GitHub Models)
+    ai.js              chat() helper — the only LLM call site (OpenRouter)
     autoTags.js        Prompts on top of ai.js: tags / takeaways / follow-up topics
     msGraph.js         Microsoft Graph push of follow-ups to Microsoft To Do
     githubActions.js   Fires the accomplishments-email workflow via workflow_dispatch
@@ -145,8 +147,8 @@ Data collections (each a JSON file in the **separate, private** data repo — de
   filename. Export a `<name>Store` alongside the existing ones.
 - **`base: '/people-os/'` in `vite.config.js`** must keep matching the GitHub Pages repo
   name — don't change one without the other. `githubActions.js`'s `APP_OWNER`/`APP_REPO`
-  constants are also hardcoded to `HenryAI-stack/people-os`; update them together if the repo
-  moves.
+  constants (and, cosmetically, `ai.js`'s `APP_URL`) are also hardcoded to
+  `HenryAI-stack/people-os`; update them together if the repo moves.
 - Styling is hand-rolled CSS variables (`var(--accent)`, `var(--bad)`, `var(--border)`,
   `var(--text-dim)`, `var(--text-faint)`, …) in `src/styles.css` — match the existing look
   rather than adding a UI library. Dark is the default; `body.light` is the light theme.
@@ -185,13 +187,13 @@ consumes; `accomplishments-email.yml` lists what the email job consumes (that jo
 | `VITE_ALLOWED_EMAIL` | app build (`auth.js`) | The single Google account allowed to log in |
 | `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`, `VITE_GITHUB_TOKEN`, `VITE_GITHUB_BRANCH` | app build + email job | Data-repo access — the PAT is bundled client-side, scope it narrowly |
 | `VITE_ENCRYPTION_SECRET` | app build + email job | AES passphrase for all records — never rotate once real data exists |
-| `VITE_GITHUB_MODELS_TOKEN` | app build (`ai.js`) | GitHub Models PAT ("Models: read" only) — powers all AI features (tags, takeaways, follow-up topics, exec summary) |
+| `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
 | `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Short-lived Graph token for Outlook / Microsoft To Do sync; expires ~1h |
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
 | `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
 | `ACCOMPLISHMENTS_EMAIL_TO` | email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
 
-**Security note**: the data-repo PAT, encryption secret, GitHub Models PAT, Graph token, and
+**Security note**: the data-repo PAT, encryption secret, OpenRouter key, Graph token, and
 Actions token all ship inside the client-side JS bundle. That's an accepted, documented
 tradeoff for this single-user tool (see `INSTALLATION.md`) — don't "fix" it by moving secrets
 around without understanding the intended threat model first. The one key kept server-side is
