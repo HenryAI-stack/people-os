@@ -31,8 +31,11 @@ function makeAssignment(dateStr, center, person, we, hol) {
 /**
  * Rules:
  * 1. Weekdays (Mon–Fri, non-holiday): minimum 2 people per day
- * 2. Weekends & holidays: minimum 1, can be 2 if capacity allows
- * 3. If someone works Sunday OR a national holiday → they are BLOCKED the next calendar day
+ * 2. Weekends & holidays: exactly 1 person per day — kept to the minimum
+ *    on purpose, to reduce time worked on weekends/holidays
+ * 3. If someone works Sunday OR a national holiday → they are BLOCKED the next
+ *    calendar day. This is a hard rule: if every remaining candidate is
+ *    blocked, the day is left short-staffed rather than breaking the rule.
  * 4. Each person works 20–21 days (160–168 h/month)
  * 5. Weekend/holiday burden balanced across months
  */
@@ -50,7 +53,6 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
   for (const center of CENTERS) {
     const pool = byCenter[center.id]
     if (!pool.length) continue
-    const n      = pool.length
     const target = 20  // 160h standard; topped to 21 in step 4 if needed
 
     // Sort by fairness (least weekend burden first)
@@ -82,30 +84,26 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
     }
 
     // ── Step 1: special days (weekends + holidays) ────────────────────────
-    // At least 1 person per day; add 2nd if capacity available
+    // Exactly 1 person per day (Rule 2) — no 2nd person is added even if
+    // capacity allows, so weekend/holiday coverage stays at the minimum.
+    // Rule 3 takes priority over coverage: if everyone is blocked (e.g. all
+    // worked the prior Sunday/holiday), the day is left unassigned.
     const specialDays = days.filter((d) => isWeekend(d) || !!getHoliday(d, center.country))
 
-    for (let i = 0; i < specialDays.length; i++) {
-      const dateStr = specialDays[i]
-      // Pick 1st person: round-robin by fairness, not blocked, under target
-      const first = byFairness.find((p) => !isBlocked(p.id, dateStr) && used[p.id] < target + 1)
-                 || byFairness.find((p) => !isBlocked(p.id, dateStr))
-                 || byFairness[i % n]
-      assign(dateStr, first)
-
-      // Add 2nd person if someone still has capacity (double weekend assignment)
-      const second = byFairness.find((p) =>
-        p.id !== first.id &&
-        !isBlocked(p.id, dateStr) &&
-        used[p.id] < target + 1
-      )
-      if (second) assign(dateStr, second)
+    for (const dateStr of specialDays) {
+      // Pick person: round-robin by fairness, not blocked, under target
+      const pick = byFairness.find((p) => !isBlocked(p.id, dateStr) && used[p.id] < target + 1)
+                || byFairness.find((p) => !isBlocked(p.id, dateStr))
+      if (pick) assign(dateStr, pick)
     }
 
     // ── Step 2: weekdays (Mon–Fri, non-holiday), min 2 per day ────────────
     const trueWeekdays = days.filter((d) => !isWeekend(d) && !getHoliday(d, center.country))
 
     // Pass A: first person on each weekday
+    // (Rule 3 priority: no unconditional fallback that ignores isBlocked —
+    // if everyone available is blocked, the slot is left open rather than
+    // assigning someone who just earned a day off.)
     for (const dateStr of trueWeekdays) {
       const alreadyOn = new Set(
         allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
@@ -113,7 +111,6 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
       const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
                || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
-               || sorted.find((p) => !alreadyOn.has(p.id))
       if (pick) { assign(dateStr, pick) }
     }
 
@@ -126,7 +123,6 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
       const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
                || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
-               || sorted.find((p) => !alreadyOn.has(p.id))
       if (pick) { assign(dateStr, pick) }
     }
 
