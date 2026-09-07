@@ -92,7 +92,7 @@ This token lets the app write to your private data repo.
 > app's client-side JavaScript so the browser can call the GitHub API directly.
 > That means anyone with your deployed app's URL *and* dev tools open could
 > in theory extract this token from the bundle. Mitigate this by:
-> - Setting `VITE_ALLOWED_DOMAIN` so only your company's Google accounts can log in
+> - Setting `VITE_ALLOWED_EMAIL` so only your own Google account can log in
 > - Scoping the PAT to **only** the `people-os-data` repo if you use a
 >   fine-grained token (Settings → Developer settings → Fine-grained tokens)
 > - Rotating the token regularly and immediately if you suspect exposure
@@ -128,7 +128,7 @@ These get injected as environment variables on every build.
 | `VITE_GITHUB_REPO`           | `people-os-data`                    | Name of the data repo  |
 | `VITE_GITHUB_TOKEN`          | `ghp_xxxxxxxxxxxx`                  | Step 3                 |
 | `VITE_ENCRYPTION_SECRET`     | `mX7#kP9$qR2@wN5!...`               | Step 4                 |
-| `VITE_ALLOWED_DOMAIN`        | `yourcompany.com` (optional)        | Restricts who can log in |
+| `VITE_ALLOWED_EMAIL`         | `you@example.com`                   | The only Google account allowed to log in |
 
 ---
 

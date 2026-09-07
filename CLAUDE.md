@@ -146,11 +146,10 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Known quirks worth knowing
 
-- **Auth config docs are inconsistent with the code.** The running code (`auth.js`) checks a
-  single `VITE_ALLOWED_EMAIL`, and `deploy.yml` passes it. But `.env.example` and
-  `INSTALLATION.md` still describe `VITE_ALLOWED_DOMAIN`, which nothing reads anymore. Treat
-  `deploy.yml` + `auth.js` as the source of truth; `.env.example`/`INSTALLATION.md` are stale
-  on this point.
+- **Auth is a single allowed email, not a domain.** `auth.js` checks `result.user.email`
+  against `VITE_ALLOWED_EMAIL` exactly; there is no domain-allowlist mode. `deploy.yml`,
+  `.env.example`, and `INSTALLATION.md` all agree on this. (An older `VITE_ALLOWED_DOMAIN`
+  is fully gone — don't reintroduce it.)
 - `scripts/send-accomplishments-email.mjs` re-implements `dataStore.js`'s GitHub read +
   base64 + AES-decrypt by hand (it can't import browser code that uses `import.meta.env`).
   If you change the storage format, encryption, or file layout in `dataStore.js`/`crypto.js`,
@@ -165,8 +164,7 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in (but see the auth quirk above — use
-`VITE_ALLOWED_EMAIL`; `VITE_ALLOWED_DOMAIN` in `.env.example` is stale and unused). Production: the same names are stored as
+Local dev: `cp .env.example .env` and fill in. Production: the same names are stored as
 GitHub Actions repository secrets and injected at build time. `deploy.yml` is the definitive
 list of what the app build consumes; `accomplishments-email.yml` lists what the email job
 consumes.
@@ -182,7 +180,6 @@ consumes.
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
 | `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
 | `ACCOMPLISHMENTS_EMAIL_TO` | email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
-| `VITE_ALLOWED_DOMAIN` | nothing | Stale — still named in `.env.example`/`INSTALLATION.md` but no code reads it |
 
 **Security note**: the GitHub PAT, encryption secret, OpenRouter key, Graph token, and
 Actions token all ship inside the client-side JS bundle. That's an accepted, documented
