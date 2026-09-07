@@ -164,10 +164,13 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in. Production: the same names are stored as
-GitHub Actions repository secrets and injected at build time. `deploy.yml` is the definitive
-list of what the app build consumes; `accomplishments-email.yml` lists what the email job
-consumes.
+Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 12 build vars and is
+kept in sync with `import.meta.env.*` usage in `src/` and with `deploy.yml` (verified — no
+gaps in any direction). Production: the same names are stored as GitHub Actions repository
+secrets and injected at build time. `deploy.yml` is the definitive list of what the app build
+consumes; `accomplishments-email.yml` lists what the email job consumes (that job's
+`RESEND_API_KEY` and `ACCOMPLISHMENTS_EMAIL_TO` are server-side only and not in
+`.env.example`).
 
 | Variable | Used by | Purpose |
 |---|---|---|
