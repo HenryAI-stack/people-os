@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { accomplishmentsStore, directReportsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
+import { sendAccomplishmentsEmailNow, ACTIONS_URL } from '../lib/githubActions.js'
 
 const EMPTY = {
   month: '', date: '', text: '',
@@ -39,6 +40,19 @@ export default function Accomplishments() {
   const [error,   setError]   = useState('')
   const [editing, setEditing] = useState(null)
   const [groupBy, setGroupBy] = useState('assignee') // 'assignee' | 'date'
+  const [sending, setSending] = useState(false)
+  const [toast,   setToast]   = useState('')
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 4000) }
+
+  async function handleSendNow() {
+    setSending(true); setError('')
+    try {
+      await sendAccomplishmentsEmailNow(month)
+      showToast(`📧 Email for ${fmtMonth(month)} queued — check your inbox in a minute.`)
+    } catch (e) { setError(e.message) }
+    finally { setSending(false) }
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -111,6 +125,10 @@ export default function Accomplishments() {
               <button key={v} className={`btn ${groupBy === v ? 'primary' : 'ghost'}`} style={{ fontSize: 12.5, padding: '6px 12px' }} onClick={() => setGroupBy(v)}>{l}</button>
             ))}
           </div>
+          <button className="btn ghost" style={{ fontSize: 12.5, padding: '6px 12px' }} onClick={handleSendNow} disabled={sending}
+            title={`Send the ${fmtMonth(month)} summary email now, instead of waiting for the last working Thursday`}>
+            {sending ? '⏳ Queuing…' : '📧 Send this month’s email'}
+          </button>
           <button className="btn primary" onClick={() => setEditing({ ...EMPTY, month, date: todayDate() })}>+ Add accomplishment</button>
         </div>
       </div>
@@ -162,6 +180,12 @@ export default function Accomplishments() {
           onCancel={() => setEditing(null)}
           onSave={handleSave}
         />
+      )}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-card)', border: '1px solid var(--good)', color: 'var(--good)', borderRadius: 10, padding: '11px 20px', fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 100, maxWidth: '90vw', animation: 'fadeInUp 0.2s ease' }}>
+          {toast}{' '}
+          <a href={ACTIONS_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--good)', textDecoration: 'underline' }}>View run →</a>
+        </div>
       )}
     </>
   )

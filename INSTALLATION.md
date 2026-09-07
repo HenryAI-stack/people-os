@@ -243,6 +243,29 @@ the current month regardless of what day it is — handy for checking the
 email looks right before waiting for the real schedule. You can also pass a
 specific `month` (e.g. `2026-08`) to preview a past month.
 
+### Sending it on demand, from inside the app
+
+The Accomplishments page has a **"Send this month's email"** button that
+fires the same workflow for whatever month you're viewing, without going
+to GitHub. It calls GitHub's Actions API — never Resend directly — so your
+`RESEND_API_KEY` never leaves the server side.
+
+This needs one more secret:
+
+1. Go to https://github.com/settings/personal-access-tokens/new
+2. **Repository access** → Only select repositories → `people-os`
+3. **Permissions** → Repository permissions → **Actions** → set to
+   **Read and write**. Leave everything else as "No access".
+4. Generate, copy the token, and add it as a repo secret named
+   `VITE_GH_ACTIONS_TOKEN` (same place as the others — Settings → Secrets
+   and variables → Actions).
+
+This token is bundled into the app's client-side JavaScript, same
+limitation as `VITE_GITHUB_TOKEN` (see Step 3 above) — but it can only
+start a run of a single workflow on a repo that's already public, nothing
+more. If you'd rather not add it, the button just shows an error telling
+you it's not configured; the scheduled Thursday send is unaffected either way.
+
 ---
 
 ## Shipping updates
