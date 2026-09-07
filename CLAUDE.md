@@ -21,7 +21,8 @@ accomplishments summary (server-side, via Resend).
 - `react-router-dom` v6, mounted with `HashRouter` in `src/main.jsx` (required — GitHub Pages
   has no server-side routing)
 - `firebase` v10 — **Authentication only**, not used for data storage
-- `crypto-js` — AES encryption of every record before it leaves the browser
+- `crypto-js` — AES-256 encryption of every record before it leaves the browser (passphrase
+  mode: `CryptoJS.AES.encrypt(json, secret)`)
 - `date-fns`
 - No CSS framework — plain `src/styles.css` with CSS custom properties for theming
 - No test runner and no linter are configured in this repo
@@ -33,7 +34,7 @@ accomplishments summary (server-side, via Resend).
 ```
 Browser (React SPA)
    ├── Google Login  → Firebase Authentication (identity check only)
-   ├── Read/write    → GitHub Contents API → private data repo (AES-encrypted JSON)
+   ├── Read/write    → GitHub Contents API → private data repo (AES-256-encrypted JSON)
    ├── AI features   → OpenRouter (free model), called directly from the browser
    ├── Outlook sync  → Microsoft Graph API, called directly from the browser
    ├── "Send email now" → dispatches a GitHub Actions workflow (no mail key in the bundle)

@@ -21,7 +21,7 @@ Browser (React app)
 
 - A **GitHub account** (free)
 - A **Google account** (for Firebase)
-- **Node.js** 18+ → https://nodejs.org
+- **Node.js** 20+ → https://nodejs.org (CI builds on Node 22)
 - **Git** → https://git-scm.com
 
 ---
@@ -163,12 +163,11 @@ git push -u origin main
 ## Step 7 — Enable GitHub Pages
 
 1. App repo → **Settings** → **Pages**
-2. **Source:** `Deploy from a branch`
-3. **Branch:** `gh-pages` → `/ (root)`
-4. **Save**
+2. **Source:** `GitHub Actions`
 
-The first deploy kicks off automatically via GitHub Actions once you push.
-Watch progress under **your repo → Actions**.
+That's all — `.github/workflows/deploy.yml` builds the site and publishes it
+straight to Pages (there is no `gh-pages` branch). The first deploy kicks off
+automatically once you push. Watch progress under **your repo → Actions**.
 
 ---
 
