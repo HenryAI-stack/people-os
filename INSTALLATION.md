@@ -171,21 +171,30 @@ automatically once you push. Watch progress under **your repo → Actions**.
 
 ---
 
-## Step 8 — Set the correct base path
+## Step 8 — Update the hardcoded repo name
 
-Open `vite.config.js` and make sure `base` matches your repo name:
+This repo hardcodes the upstream name `HenryAI-stack/people-os` in a few
+places. If you forked/renamed (i.e. your app repo is **not** literally
+`people-os` owned by `HenryAI-stack`), update all of them:
+
+| File | What to change |
+| ---- | -------------- |
+| `vite.config.js` | `base: '/people-os/'` → `'/YOUR-REPO/'` (must match the repo name exactly, with leading and trailing slash) |
+| `src/lib/githubActions.js` | `APP_OWNER` / `APP_REPO` constants — these tell the "Send this month's email" button which repo's workflow to dispatch |
+| `src/lib/autoTags.js` | the `HTTP-Referer` header (`https://<owner>.github.io/<repo>/`) — cosmetic, shown in your OpenRouter dashboard |
 
 ```js
+// vite.config.js
 export default defineConfig({
   plugins: [react()],
-  base: '/people-os/',   // ← match your actual repo name
+  base: '/YOUR-REPO/',   // ← match your actual repo name
 })
 ```
 
 Then commit and push:
 ```bash
-git add vite.config.js
-git commit -m "fix: set correct base path"
+git add vite.config.js src/lib/githubActions.js src/lib/autoTags.js
+git commit -m "chore: point config at my fork"
 git push
 ```
 
