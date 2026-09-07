@@ -319,25 +319,17 @@ function Chip({ label, value }) {
 }
 
 function InterviewForm({ initial, onCancel, onSave, title='Log interview', previousInterviews=[], personName='' }) {
-  const [form,        setForm]        = useState({ ...initial })
-  const [saving,      setSaving]      = useState(false)
-  const [error,       setError]       = useState('')
+  const [form,          setForm]          = useState({ ...initial })
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState('')
   const [genTags,       setGenTags]       = useState(false)
   const [genTakeaways,  setGenTakeaways]  = useState(false)
   const [suggestions,   setSuggestions]   = useState([])
-  const [genSuggestions,setGenSuggestions]= useState(false)
+  const [genSugg,       setGenSugg]       = useState(false)
   const [suggError,     setSuggError]     = useState('')
+  const [showSugg,      setShowSugg]      = useState(false)
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
-
-  async function handleGetSuggestions() {
-    setGenSuggestions(true); setSuggError('')
-    try {
-      const topics = await generateFollowUpTopics(personName, previousInterviews)
-      setSuggestions(topics)
-    } catch (err) { setSuggError(err.message) }
-    finally { setGenSuggestions(false) }
-  }
 
   async function handleGenerateTakeaways() {
     if (!form.summary) return
@@ -355,6 +347,19 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
     finally { setGenTags(false) }
   }
 
+  async function handleGetSuggestions() {
+    setGenSugg(true); setSuggError(''); setShowSugg(true)
+    try {
+      const topics = await generateFollowUpTopics(personName, previousInterviews)
+      setSuggestions(topics)
+    } catch (err) { setSuggError(err.message) }
+    finally { setGenSugg(false) }
+  }
+
+  function appendToTakeaways(s) {
+    setForm((f) => ({ ...f, takeaways: f.takeaways ? f.takeaways + '\n• ' + s : '• ' + s }))
+  }
+
   async function submit(e) {
     e.preventDefault(); setSaving(true); setError('')
     try { await onSave(form) }
@@ -362,13 +367,37 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
   }
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target===e.currentTarget&&onCancel()}>
-      <div style={{ display:'flex', alignItems:'flex-start', gap:16, maxHeight:'90vh' }}>
-        {/* ── Main form modal ── */}
-        <div className="modal" style={{ maxWidth:520, width:'100%', overflow:'auto', maxHeight:'88vh' }}>
-          <h2 style={{ fontFamily:'var(--font-display)', margin:'0 0 18px', fontSize:20, cursor:'default' }}>{title}</h2>
-          <form onSubmit={submit}>
+    <DraggableModal title={title} onClose={onCancel}>
+      <form onSubmit={submit}>
         {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:14, padding:'10px 12px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>⚠️ {error}</div>}
+
+        {/* ── AI Follow-up suggestions button ── */}
+        {previousInterviews.length > 0 && (
+          <div style={{ marginBottom:16, padding:'10px 12px', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:8 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: showSugg && suggestions.length ? 10 : 0 }}>
+              <span style={{ fontSize:13, fontWeight:600, color:'var(--text-dim)' }}>💡 Follow-up topic suggestions</span>
+              <button type="button" className="btn" style={{ fontSize:12, padding:'4px 12px' }}
+                onClick={handleGetSuggestions} disabled={genSugg}>
+                {genSugg ? '⏳ Generating…' : suggestions.length ? '↻ Refresh' : '✦ Generate'}
+              </button>
+            </div>
+            {suggError && <div style={{ color:'var(--bad)', fontSize:12, marginTop:6 }}>⚠️ {suggError}</div>}
+            {showSugg && suggestions.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:8 }}>
+                {suggestions.map((s, i) => (
+                  <div key={i} onClick={() => appendToTakeaways(s)}
+                    style={{ fontSize:12.5, padding:'6px 10px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', lineHeight:1.5 }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor='var(--accent)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor='var(--border)'}>
+                    • {s}
+                  </div>
+                ))}
+                <div style={{ fontSize:11, color:'var(--text-faint)' }}>↑ Click any topic to add it to Key Takeaways</div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="field"><label>Title</label><input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" /></div>
         <div className="field">
           <label>Type</label>
@@ -398,50 +427,15 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
           </label>
           <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="Click ✦ Generate tags or type manually" />
         </div>
-            <div className="modal-actions">
-              <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
-              <button type="submit" className="btn primary" disabled={saving}>{saving?'Saving…':'Save'}</button>
-            </div>
-          </form>
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving?'Saving…':'Save'}</button>
         </div>
-
-        {/* ── Suggestions side panel ── */}
-        <div className="modal" style={{ width:260, flexShrink:0, maxHeight:'88vh', overflow:'auto', display:'flex', flexDirection:'column', gap:10 }}>
-          <div style={{ fontFamily:'var(--font-display)', fontSize:16, fontWeight:600, marginBottom:4 }}>
-            💡 Follow-up topics
-          </div>
-          <p style={{ fontSize:12, color:'var(--text-dim)', margin:0 }}>
-            AI suggestions based on {previousInterviews.length} previous interview{previousInterviews.length!==1?'s':''} with {personName || 'this person'}.
-          </p>
-          <button type="button" className="btn" style={{ fontSize:12, padding:'6px 12px' }}
-            onClick={handleGetSuggestions}
-            disabled={genSuggestions || previousInterviews.length===0}>
-            {genSuggestions ? '⏳ Generating…' : suggestions.length ? '↻ Refresh' : '✦ Generate suggestions'}
-          </button>
-          {suggError && <div style={{ color:'var(--bad)', fontSize:12 }}>⚠️ {suggError}</div>}
-          {previousInterviews.length===0 && !genSuggestions && (
-            <div style={{ fontSize:12, color:'var(--text-faint)' }}>No previous interviews yet — add some first.</div>
-          )}
-          {suggestions.length > 0 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {suggestions.map((s, i) => (
-                <div key={i}
-                  onClick={() => set('takeaways', form.takeaways ? form.takeaways + '
-• ' + s : '• ' + s)}
-                  style={{ fontSize:12.5, color:'var(--text)', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 10px', cursor:'pointer', lineHeight:1.5, transition:'border-color 0.15s' }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor='var(--accent)'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor='var(--border)'}>
-                  • {s}
-                </div>
-              ))}
-              <div style={{ fontSize:11, color:'var(--text-faint)', marginTop:2 }}>Click a topic to add it to Key Takeaways</div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      </form>
+    </DraggableModal>
   )
 }
+
 
 function QuickFollowUpForm({ interview, person, onCancel, onSave }) {
   const [text,    setText]    = useState('')
