@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - name: Build
         env:
           VITE_FIREBASE_API_KEY:     ${{ secrets.VITE_FIREBASE_API_KEY }}

@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - name: Send accomplishments email
         env:
           VITE_GITHUB_OWNER:      ${{ secrets.VITE_GITHUB_OWNER }}

@@ -212,6 +212,10 @@ npm run preview   # preview the production build locally
 There is no `npm test` or `npm run lint` script — don't assume either exists when writing
 CI steps or pre-commit instructions.
 
+`package-lock.json` is committed and both workflows run `npm ci`, so keep the lockfile in
+sync with `package.json` (run `npm install` locally after changing deps and commit the
+lockfile change).
+
 To exercise the monthly email script locally, set the env vars from the table above
 (`VITE_GITHUB_*`, `VITE_ENCRYPTION_SECRET`, `RESEND_API_KEY`) plus `FORCE_SEND=true`
 (optionally `FORCE_MONTH=YYYY-MM`) and run `node scripts/send-accomplishments-email.mjs`.
