@@ -17,11 +17,12 @@
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 const API_KEY  = import.meta.env.VITE_OPENROUTER_API_KEY
 
-// Fast, cheap, and (unlike Azure-served OpenAI models) not prone to
-// content-filter blocks on HR / performance-review text. Alternatives:
-// 'openai/gpt-4o-mini', 'anthropic/claude-3.5-haiku', 'openai/gpt-4.1-mini'.
-// Browse slugs at https://openrouter.ai/models.
-export const MODEL = 'google/gemini-2.0-flash-001'
+// OpenRouter retires model slugs regularly, so this is overridable via
+// VITE_OPENROUTER_MODEL without touching code. Default: fast, cheap, and
+// (unlike Azure-served OpenAI models) not prone to content-filter blocks
+// on HR / performance-review text. Check current slugs at
+// https://openrouter.ai/models — a stale one fails with "No endpoints found".
+export const MODEL = import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemini-2.5-flash'
 
 // Shown on OpenRouter's app-rankings dashboard; harmless if it doesn't
 // match your fork's URL.
@@ -84,7 +85,11 @@ export async function chat(prompt, { maxTokens = 400, timeoutMs = 30000 } = {}) 
   // OpenRouter frequently returns HTTP 200 with an error object instead of
   // choices — out of credit, data-policy mismatch, provider/moderation error.
   if (data.error) {
-    throw new Error(data.error.message || `AI error: ${JSON.stringify(data.error)}`)
+    let m = data.error.message || `AI error: ${JSON.stringify(data.error)}`
+    if (/no endpoints found/i.test(m)) {
+      m += ` — the model slug (VITE_OPENROUTER_MODEL, currently "${MODEL}") is stale or unavailable; pick a current one at https://openrouter.ai/models.`
+    }
+    throw new Error(m)
   }
 
   const choice = data.choices?.[0]

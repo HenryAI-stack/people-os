@@ -57,12 +57,13 @@ Browser (React SPA)
   failures and returns `null`.
 - **AI features**: `src/lib/ai.js` is the one place the app talks to an LLM — a `chat(prompt,
   {maxTokens})` helper that POSTs to OpenRouter (`https://openrouter.ai/api/v1/chat/completions`,
-  OpenAI-compatible) with `VITE_OPENROUTER_API_KEY`. Model is the `MODEL` constant in that file
-  (`google/gemini-2.0-flash-001` — Azure-served OpenAI models like `gpt-4o-mini` content-filter
-  HR/review text and come back as an empty 200; the account also needs credit, and the old
-  `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly). `chat()`
-  surfaces OpenRouter's 200-with-error-body and `finish_reason` cases rather than a generic
-  "empty response".
+  OpenAI-compatible) with `VITE_OPENROUTER_API_KEY`. Model = `VITE_OPENROUTER_MODEL` or the
+  `MODEL` default in `ai.js` (`google/gemini-2.5-flash`). Avoid Azure-served OpenAI slugs like
+  `gpt-4o-mini` — their content filter blocks HR/review text and returns an empty 200.
+  OpenRouter also retires slugs often ("No endpoints found") and the account needs credit; the
+  old `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly.
+  `chat()` surfaces OpenRouter's 200-with-error-body, stale-slug, and `finish_reason` cases
+  rather than a generic "empty response".
   `src/lib/autoTags.js` builds on it for auto interview tags, key takeaways, and
   follow-up-topic suggestions (used from `Interviews.jsx` and `PersonDetail.jsx`);
   `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the executive summary.
@@ -176,7 +177,7 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 12 build vars and is
+Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 13 build vars and is
 kept in sync with `import.meta.env.*` usage in `src/` and with `deploy.yml` (verified — no
 gaps in any direction). Production: the same names are stored as GitHub Actions repository
 secrets and injected at build time. `deploy.yml` is the definitive list of what the app build
@@ -191,6 +192,7 @@ consumes; `accomplishments-email.yml` lists what the email job consumes (that jo
 | `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`, `VITE_GITHUB_TOKEN`, `VITE_GITHUB_BRANCH` | app build + email job | Data-repo access — the PAT is bundled client-side, scope it narrowly |
 | `VITE_ENCRYPTION_SECRET` | app build + email job | AES passphrase for all records — never rotate once real data exists |
 | `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
+| `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug |
 | `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Short-lived Graph token for Outlook / Microsoft To Do sync; expires ~1h |
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
 | `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
