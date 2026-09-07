@@ -103,8 +103,9 @@ export function makeStore(filename) {
   }
 }
 
-export const directReportsStore = makeStore('direct-reports.json')
-export const interviewsStore    = makeStore('interviews.json')
-export const notesStore         = makeStore('notes.json')
-export const followUpsStore     = makeStore('follow-ups.json')
-export const schedulesStore     = makeStore('schedules.json')
+export const directReportsStore   = makeStore('direct-reports.json')
+export const interviewsStore      = makeStore('interviews.json')
+export const notesStore           = makeStore('notes.json')
+export const followUpsStore       = makeStore('follow-ups.json')
+export const schedulesStore       = makeStore('schedules.json')
+export const accomplishmentsStore = makeStore('accomplishments.json')

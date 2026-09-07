@@ -214,6 +214,37 @@ https://YOUR-USERNAME.github.io/people-os/
 
 ---
 
+## Optional — Monthly accomplishments email
+
+The **Accomplishments** tab lets you log wins per month, assigned to a
+person or a team. A scheduled GitHub Actions workflow
+(`.github/workflows/accomplishments-email.yml`) checks every Thursday
+whether it's the **last working Thursday of the month** (Europe/Vienna) and,
+if so, emails you a summary of everything logged that month. It reuses the
+same GitHub token and encryption secret the app already uses to read the
+data, so the only new thing to set up is the email send.
+
+1. **Create a free [Resend](https://resend.com) account** and generate an
+   API key (Dashboard → API Keys → Create API Key).
+2. **Add the key as a repo secret**: Settings → Secrets and variables →
+   Actions → New repository secret → name it `RESEND_API_KEY`.
+3. That's it for a quick start — Resend's shared `onboarding@resend.dev`
+   sender works out of the box **as long as the recipient is the email
+   address you signed up to Resend with** (`maximilian.bielecki@ul.com`).
+   If you ever want to send from your own address instead, verify a domain
+   in Resend and set an `ACCOMPLISHMENTS_EMAIL_FROM` secret/env
+   (e.g. `PeopleOS <accomplishments@yourdomain.com>`) in the workflow.
+4. To change who receives the email, edit the `ACCOMPLISHMENTS_EMAIL_TO`
+   line directly in the workflow file.
+
+**Testing it:** Repo → Actions → "Accomplishments Email" → **Run workflow**.
+The manual trigger defaults to `force: true`, so it sends immediately for
+the current month regardless of what day it is — handy for checking the
+email looks right before waiting for the real schedule. You can also pass a
+specific `month` (e.g. `2026-08`) to preview a past month.
+
+---
+
 ## Shipping updates
 
 ```bash

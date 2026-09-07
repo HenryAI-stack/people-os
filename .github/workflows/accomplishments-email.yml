@@ -1,0 +1,43 @@
+name: Accomplishments Email
+
+on:
+  schedule:
+    # Every Thursday at 07:00 UTC (~08:00–09:00 Europe/Vienna depending on DST).
+    # The script itself checks whether this is the LAST Thursday of the month
+    # (Europe/Vienna) and only sends then — every other Thursday it's a no-op.
+    - cron: '0 7 * * 4'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Send even if today is not the last Thursday of the month'
+        type: boolean
+        default: true
+      month:
+        description: 'Month to summarize, as YYYY-MM (leave blank for the current month)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Send accomplishments email
+        env:
+          VITE_GITHUB_OWNER:      ${{ secrets.VITE_GITHUB_OWNER }}
+          VITE_GITHUB_REPO:       ${{ secrets.VITE_GITHUB_REPO }}
+          VITE_GITHUB_TOKEN:      ${{ secrets.VITE_GITHUB_TOKEN }}
+          VITE_GITHUB_BRANCH:     ${{ secrets.VITE_GITHUB_BRANCH }}
+          VITE_ENCRYPTION_SECRET: ${{ secrets.VITE_ENCRYPTION_SECRET }}
+          RESEND_API_KEY:         ${{ secrets.RESEND_API_KEY }}
+          ACCOMPLISHMENTS_EMAIL_TO: maximilian.bielecki@ul.com
+          FORCE_SEND:  ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+          FORCE_MONTH: ${{ inputs.month }}
+        run: node scripts/send-accomplishments-email.mjs
