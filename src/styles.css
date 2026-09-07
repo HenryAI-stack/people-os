@@ -203,6 +203,8 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 }
 
 .ws-tab {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -215,6 +217,17 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 }
 .ws-tab:hover  { border-color: var(--accent); color: var(--text); }
 .ws-tab.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+.ws-tab-flag {
+  width: 18px;
+  height: 13px;
+  object-fit: cover;
+  border-radius: 2px;
+  margin-right: 7px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
 
 .ws-stats {
   display: flex;
