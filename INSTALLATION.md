@@ -114,7 +114,8 @@ Example: `mX7#kP9$qR2@wN5!vB8^jL3&hD6*cA1`
 
 ## Step 5 — Configure GitHub Secrets
 
-These get injected as environment variables on every build.
+These get injected as environment variables on every build (see
+`.github/workflows/deploy.yml`).
 
 1. Go to your **app repository** → **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret** for each of the following:
@@ -127,8 +128,21 @@ These get injected as environment variables on every build.
 | `VITE_GITHUB_OWNER`          | `your-github-username`              | Your GitHub profile    |
 | `VITE_GITHUB_REPO`           | `people-os-data`                    | Name of the data repo  |
 | `VITE_GITHUB_TOKEN`          | `ghp_xxxxxxxxxxxx`                  | Step 3                 |
+| `VITE_GITHUB_BRANCH`         | `main`                              | Branch in the data repo (usually `main`) |
 | `VITE_ENCRYPTION_SECRET`     | `mX7#kP9$qR2@wN5!...`               | Step 4                 |
 | `VITE_ALLOWED_EMAIL`         | `you@example.com`                   | The only Google account allowed to log in |
+
+**Optional** — leave unset to disable the feature it powers (the build still succeeds):
+
+| Secret name                 | Example value                      | Powers                |
+| ---------------------------- | ----------------------------------- | --------------------- |
+| `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, and follow-up-topic suggestions ([openrouter.ai](https://openrouter.ai) → Keys) |
+| `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | One-way sync of follow-ups to Microsoft To Do. Short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token**; refresh when sync stops working |
+| `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" button — see the Monthly accomplishments email section below |
+
+> The monthly accomplishments email also needs `RESEND_API_KEY` (and reuses
+> `VITE_GITHUB_*` + `VITE_ENCRYPTION_SECRET`). It's a separate workflow with its
+> own setup — see **Optional — Monthly accomplishments email** below.
 
 ---
 
@@ -196,7 +210,7 @@ https://YOUR-USERNAME.github.io/people-os/
 | Data isn't saving                          | Check GitHub token scope (`repo`) and that it hasn't expired                |
 | Data unreadable after rotating the token   | That's fine — the token doesn't affect decryption, only write access        |
 | Data unreadable after changing the secret  | The encryption secret must **never** change — otherwise old data is lost    |
-| Actions workflow fails                     | Repo → Actions → read the log; confirm all 8 secrets are set correctly      |
+| Actions workflow fails                     | Repo → Actions → read the log; confirm all required secrets from Step 5 are set correctly |
 
 ---
 
