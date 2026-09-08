@@ -87,10 +87,14 @@ Browser (React SPA)
   people to a center by free-text `location`. Holiday awareness and month/weekend helpers
   come from `src/lib/holidays.js` (`getHoliday`, `isWeekend`, `getDaysInMonth`; hardcoded
   PL/IN/MX holiday tables for 2024–2027). Key rota rules, encoded in `generateSchedule`:
-  weekdays need ≥2 people, weekends/holidays exactly 1, working a Sunday or holiday blocks
-  that person the next calendar day (hard rule — a day is left short-staffed rather than
-  broken), ~20–21 working days per person, weekend burden balanced across months via a
-  `fairnessSnapshot` persisted on the schedule record.
+  weekdays need ≥2 people, weekends/holidays exactly 1; each special day is re-ranked so it
+  goes to whoever has the lightest weekend/holiday load (this month's `specialUsed` +
+  cross-month `fairnessSnapshot`), so it rotates instead of piling on one person; a soft
+  preference skips whoever worked the day before (so a Saturday worker isn't also given the
+  Sunday) unless nobody else is free; working a Sunday or holiday hard-blocks that person the
+  next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
+  person; weekend burden balanced across months via the `fairnessSnapshot` persisted on the
+  schedule record.
 
 ## Directory layout
 
