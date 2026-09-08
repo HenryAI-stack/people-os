@@ -375,20 +375,64 @@ body.light .ws-chip { color: var(--accent); }
 /* ── Print styles ── */
 .print-only { display: none; }
 
+/* Work Schedule prints landscape, one center's month per page. */
+@page {
+  size: A4 landscape;
+  margin: 8mm 10mm;
+}
+
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block; }
   .hidden-screen { display: block !important; }
-  .ws-center-block { page-break-after: always; margin-bottom: 0; }
-  .ws-calendar { gap: 2px; }
-  .ws-day-cell { min-height: 54px; border: 0.5px solid #ccc; border-radius: 3px; }
-  .ws-chip { font-size: 9.5px; padding: 2px 3px; border: none; background: #f0e8dc; color: #333; }
-  .ws-day-num { font-size: 9px; }
-  .ws-day-header { font-size: 9px; }
-  .ws-print-header h2 { font-size: 16px; margin: 0 0 2px; }
-  .ws-print-header p  { font-size: 12px; margin: 0 0 10px; color: #666; }
+
+  body { background: white; }
+  .app-shell { display: block; height: auto; overflow: visible; }
+  .sidebar { display: none !important; }
+  .main { flex: none; max-width: none; padding: 0; overflow: visible; height: auto; }
+
+  /* One center block == one full landscape page, stretched to fill it. */
+  .ws-center-block {
+    break-after: page;
+    break-inside: avoid;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .ws-center-block:last-of-type { break-after: auto; }
+
+  .ws-print-header { flex: 0 0 auto; }
+  .ws-print-header h2 { font-size: 15px; margin: 0 0 2px; }
+  .ws-print-header p  { font-size: 11px; margin: 0 0 6px; color: #666; }
+
+  /* Grid takes the rest of the page; the weekday-label row stays auto-height
+     and the 5–6 week rows share the remaining height evenly. */
+  .ws-calendar {
+    flex: 1 1 auto;
+    gap: 3px;
+    margin-bottom: 0;
+    grid-template-rows: auto;
+    grid-auto-rows: 1fr;
+  }
+  .ws-day-header { font-size: 10px; padding: 2px 0; color: #444; }
+  .ws-day-cell {
+    min-height: 0;
+    border: 0.5px solid #bbb;
+    border-radius: 3px;
+    padding: 3px;
+    overflow: hidden;
+  }
   .ws-day-cell.ws-weekend { background: #fffae8; }
   .ws-day-cell.ws-holiday { background: #fff0ee; }
-  body { background: white; }
-  .main { padding: 16px; overflow: visible; height: auto; }
+  .ws-day-num { font-size: 10px; color: #333; }
+  .ws-chip {
+    font-size: 10.5px;
+    padding: 2px 4px;
+    gap: 4px;
+    border: none;
+    background: #f0e8dc;
+    color: #333;
+  }
+  .ws-chip-actions button { display: none; }   /* keep the 💤 day-off marker, drop the controls */
 }
