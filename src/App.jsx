@@ -10,6 +10,7 @@ import FollowUps     from './pages/FollowUps.jsx'
 import WorkSchedule  from './pages/WorkSchedule.jsx'
 import Accomplishments from './pages/Accomplishments.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
+import Settings from './pages/Settings.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
 
 function usePref(key, def) {
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/follow-ups"          element={<FollowUps />} />
           <Route path="/accomplishments"     element={<Accomplishments />} />
           <Route path="/work-schedule"       element={<WorkSchedule />} />
+          <Route path="/settings"            element={<Settings />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -72,6 +74,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
           <NavLink to="/accomplishments" title="Accomplishments"><span className="nav-icon">🏆</span><span className="nav-label">Accomplishments</span></NavLink>
           <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
+          <NavLink to="/settings" title="Settings"><span className="nav-icon">⚙️</span><span className="nav-label">Settings</span></NavLink>
         </nav>
       </div>
       <WorldClock collapsed={collapsed} />

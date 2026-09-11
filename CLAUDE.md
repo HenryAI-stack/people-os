@@ -72,9 +72,14 @@ Browser (React SPA)
   a proxy, …) is a change to `ai.js` alone. (Note: GitHub Models was retired 2026-07-30 —
   don't reach for it.)
 - **Outlook / Microsoft To Do sync**: `src/lib/msGraph.js` — one-way push of a follow-up to
-  a "PeopleOS Follow-ups" task list via Microsoft Graph, using a short-lived
-  `VITE_MS_GRAPH_TOKEN` (manually pasted from Graph Explorer, expires ~1h). Called from
-  `FollowUps.jsx`; stores the returned task id back on the record as `msTaskId`.
+  a "PeopleOS Follow-ups" task list via Microsoft Graph, using a short-lived Graph Explorer
+  token (expires ~1h). `src/lib/settings.js`'s `getMsGraphToken()` reads it from
+  `localStorage` (set via the Settings page's paste-a-token form — the normal way to refresh
+  it, since it doesn't require a rebuild) and falls back to the build-time
+  `VITE_MS_GRAPH_TOKEN` env var if nothing is stored locally. Called from `FollowUps.jsx`
+  (per-row "Sync to Outlook" and a "Sync all to Outlook" that loops every follow-up,
+  collecting a success/fail count rather than stopping at the first error); stores the
+  returned task id back on the record as `msTaskId`.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`
@@ -114,20 +119,34 @@ src/
     githubActions.js   Fires the accomplishments-email workflow via workflow_dispatch
     scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
-    locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image URL
+    locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image
+                        URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
+    sunPosition.js     Approximate subsolar point + terminator latitude, for WorldMapModal's
+                        day/night shading
     imageUtils.js      Client-side avatar photo resizing before storing as base64
+    settings.js        Browser-local (localStorage) user settings — currently just
+                        getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
+                        written by the Settings page
   pages/
     Dashboard.jsx      Team stats, upcoming anniversaries, recent activity
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
     Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log
-    FollowUps.jsx      Action-item tracker, optional person link, optional Outlook sync;
+    FollowUps.jsx      Action-item tracker, optional person link, optional Outlook sync
+                        (per-row, or "Sync all to Outlook" for every follow-up at once);
                         exports `urgencyLabel`
     Notes.jsx          Freeform scratchpad
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
+    Settings.jsx       Browser-local settings — currently the Microsoft Graph token form
+                        (backs msGraph.js via settings.js), with instructions for generating
+                        one from Graph Explorer
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
+    WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
+                        day/night terminator + a pin per active direct report's resolved
+                        location, hover tooltip with photo/name; pins sharing a city cluster
+                        into one badge
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
 .github/workflows/
@@ -174,10 +193,14 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 - Anniversary-date math is duplicated (`nextAnniversary` in `Dashboard.jsx` vs.
   `getNextAnniversary` in `PersonDetail.jsx`) with slightly different return shapes. If you
   touch one, check whether the other needs the same fix.
-- `msGraph.js` and `githubActions.js` both rely on tokens shipped in the client bundle that
-  are either short-lived (`VITE_MS_GRAPH_TOKEN`, ~1h) or narrowly scoped
-  (`VITE_GH_ACTIONS_TOKEN` — "Actions: write" on this repo only). Both features degrade to a
-  clear error string when the token is absent or expired; that's intended.
+- `msGraph.js` and `githubActions.js` both rely on tokens that are either short-lived
+  (the Microsoft Graph token, ~1h) or narrowly scoped (`VITE_GH_ACTIONS_TOKEN` —
+  "Actions: write" on this repo only). Both features degrade to a clear error string when
+  the token is absent or expired; that's intended. The Graph token is the one exception to
+  "env vars are build-time only": it's normally set at runtime from the Settings page
+  (`localStorage`, via `settings.js`), specifically so refreshing the ~1h-lived token doesn't
+  need a rebuild+redeploy. `VITE_MS_GRAPH_TOKEN` still works as a build-time fallback when
+  nothing is stored locally.
 
 ## Environment variables
 
@@ -197,7 +220,7 @@ consumes; `accomplishments-email.yml` lists what the email job consumes (that jo
 | `VITE_ENCRYPTION_SECRET` | app build + email job | AES passphrase for all records — never rotate once real data exists |
 | `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
 | `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug |
-| `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Short-lived Graph token for Outlook / Microsoft To Do sync; expires ~1h |
+| `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Build-time fallback Graph token for Outlook / Microsoft To Do sync; expires ~1h. Normally set instead from the Settings page at runtime (`localStorage`, no rebuild needed) — see `src/lib/settings.js` |
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
 | `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
 | `ACCOMPLISHMENTS_EMAIL_TO` | email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |

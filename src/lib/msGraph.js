@@ -2,18 +2,20 @@
  * Microsoft Graph API — one-way push of PeopleOS follow-ups to Microsoft To Do.
  *
  * Token: get a temporary access token from https://developer.microsoft.com/graph/graph-explorer
- * (sign in → click avatar → Access token). Add as VITE_MS_GRAPH_TOKEN in GitHub secrets.
- * Tokens expire after ~1 hour — refresh from Graph Explorer when sync stops working.
+ * (sign in → click avatar → Access token), then paste it on the Settings page.
+ * Tokens expire after ~1 hour — refresh from Graph Explorer and update it there when
+ * sync stops working.
  */
+import { getMsGraphToken } from './settings.js'
 
 const BASE    = 'https://graph.microsoft.com/v1.0/me/todo'
-const TOKEN   = import.meta.env.VITE_MS_GRAPH_TOKEN
 const LIST_NAME = 'PeopleOS Follow-ups'
 
 function authHeaders() {
-  if (!TOKEN) throw new Error('VITE_MS_GRAPH_TOKEN is not set. Add it in GitHub secrets.')
+  const token = getMsGraphToken()
+  if (!token) throw new Error('No Microsoft Graph token set. Add one on the Settings page.')
   return {
-    'Authorization': `Bearer ${TOKEN}`,
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
   }
 }
@@ -22,7 +24,7 @@ function authHeaders() {
 async function getOrCreateList() {
   // Fetch all lists
   const res = await fetch(`${BASE}/lists`, { headers: authHeaders() })
-  if (res.status === 401) throw new Error('Microsoft token has expired. Refresh it from Graph Explorer.')
+  if (res.status === 401) throw new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
   if (!res.ok) throw new Error(`Graph API error (${res.status})`)
 
   const data  = await res.json()
@@ -81,7 +83,7 @@ export async function syncFollowUpToOutlook(followUp) {
       // Task was deleted in Outlook — create a new one
       return createTask(listId, body)
     }
-    if (res.status === 401) throw new Error('Microsoft token has expired. Refresh it from Graph Explorer.')
+    if (res.status === 401) throw new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
     if (!res.ok) throw new Error(`Could not update task (${res.status})`)
     return followUp.msTaskId
   }
@@ -96,7 +98,7 @@ async function createTask(listId, body) {
     headers: authHeaders(),
     body: JSON.stringify(body),
   })
-  if (res.status === 401) throw new Error('Microsoft token has expired. Refresh it from Graph Explorer.')
+  if (res.status === 401) throw new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
   if (!res.ok) throw new Error(`Could not create task (${res.status})`)
   const task = await res.json()
   return task.id

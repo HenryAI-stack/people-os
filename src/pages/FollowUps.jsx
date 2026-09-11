@@ -26,7 +26,8 @@ export default function FollowUps() {
   const [toast,   setToast]   = useState('')
   const navigate = useNavigate()
 
-  const [syncingId, setSyncingId] = useState(null)
+  const [syncingId,  setSyncingId]  = useState(null)
+  const [syncingAll, setSyncingAll] = useState(false)
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -42,6 +43,25 @@ export default function FollowUps() {
     } finally {
       setSyncingId(null)
     }
+  }
+
+  async function handleSyncAll() {
+    setSyncingAll(true); setError('')
+    let ok = 0, failed = 0, firstErr = ''
+    for (const f of items) {
+      try {
+        const msTaskId = await syncFollowUpToOutlook(f)
+        await followUpsStore.upsert({ ...f, msTaskId })
+        ok++
+      } catch (err) {
+        failed++
+        if (!firstErr) firstErr = err.message // surface the first failure (e.g. missing/expired token)
+      }
+    }
+    setSyncingAll(false)
+    showToast(`📅 Synced ${ok} follow-up${ok === 1 ? '' : 's'} to Outlook${failed ? `, ${failed} failed` : ''}`)
+    await load() // load() clears the error banner, so re-set it after if a failure happened
+    if (firstErr) setError(firstErr)
   }
 
   async function load() {
@@ -94,7 +114,12 @@ export default function FollowUps() {
             </button>
           ))}
         </div>
-        <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ Add follow-up</button>
+        <div style={{ display:'flex', gap:6 }}>
+          <button className="btn ghost" onClick={handleSyncAll} disabled={syncingAll || items.length === 0} title="Sync every follow-up to Outlook">
+            {syncingAll ? '⏳ Syncing…' : '📅 Sync all to Outlook'}
+          </button>
+          <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ Add follow-up</button>
+        </div>
       </div>
       {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:16, padding:'10px 14px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>⚠️ {error}</div>}
       {loading && <div className="empty-state">Loading…</div>}
@@ -130,7 +155,7 @@ export default function FollowUps() {
               <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                 {urg.label && <span className={`badge ${urg.cls}`}>{urg.label}</span>}
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px', color:'var(--accent)' }}
-                  onClick={() => handleSync(f)} disabled={syncingId === f.id} title={f.msTaskId ? 'Re-sync to Outlook' : 'Sync to Outlook'}>
+                  onClick={() => handleSync(f)} disabled={syncingId === f.id || syncingAll} title={f.msTaskId ? 'Re-sync to Outlook' : 'Sync to Outlook'}>
                   {syncingId === f.id ? '⏳' : f.msTaskId ? '🔄' : '📅'}
                 </button>
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px' }} onClick={() => setEditing({ ...f })}>Edit</button>
