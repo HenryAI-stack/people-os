@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { followUpsStore, directReportsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
-import { syncFollowUpToOutlook } from '../lib/msGraph.js'
+import { syncFollowUpToOutlook, listOutlookTasks, deleteOutlookTask } from '../lib/msGraph.js'
 
 const EMPTY = { text: '', dueDate: '', personId: '', personName: '', sourceType: 'manual', sourceId: '', sourceTitle: '', done: false }
 
@@ -35,7 +35,7 @@ export default function FollowUps() {
     setSyncingId(f.id)
     try {
       const msTaskId = await syncFollowUpToOutlook(f)
-      await followUpsStore.upsert({ ...f, msTaskId })
+      await followUpsStore.upsert({ ...f, msTaskId, msSyncedAt: new Date().toISOString() })
       showToast(`📅 "${f.text.length > 40 ? f.text.slice(0,40)+'…' : f.text}" synced to Outlook`)
       load()
     } catch (err) {
@@ -45,21 +45,84 @@ export default function FollowUps() {
     }
   }
 
+  /**
+   * Full two-way reconciliation with the "PeopleOS Follow-ups" list in Outlook:
+   * - A follow-up whose linked task changed in Outlook (and hasn't also changed locally
+   *   since the last sync) is pulled in — its text/due date/done state overwritten from
+   *   the task.
+   * - Everything else pushes local state to Outlook, same as the per-row sync button
+   *   (this also covers brand-new follow-ups and ones whose task got deleted in Outlook).
+   *   If BOTH sides changed since the last sync, local wins — there's no merge UI here.
+   * - A task that exists in Outlook but isn't linked to any local follow-up (created
+   *   directly in Outlook) gets imported as a new one.
+   * Deleting a follow-up in PeopleOS (see handleDelete) also deletes its Outlook task, so
+   * deleted items don't come back to life via that last step.
+   */
   async function handleSyncAll() {
     setSyncingAll(true); setError('')
-    let ok = 0, failed = 0, firstErr = ''
-    for (const f of items) {
-      try {
-        const msTaskId = await syncFollowUpToOutlook(f)
-        await followUpsStore.upsert({ ...f, msTaskId })
-        ok++
-      } catch (err) {
-        failed++
-        if (!firstErr) firstErr = err.message // surface the first failure (e.g. missing/expired token)
+    let pushed = 0, pulled = 0, imported = 0, failed = 0, firstErr = ''
+
+    function fail(err) { failed++; if (!firstErr) firstErr = err.message }
+
+    try {
+      const tasks = await listOutlookTasks()
+      const taskById = new Map(tasks.map((t) => [t.id, t]))
+      const linkedTaskIds = new Set(items.filter((f) => f.msTaskId).map((f) => f.msTaskId))
+
+      for (const f of items) {
+        const task = f.msTaskId ? taskById.get(f.msTaskId) : null
+        try {
+          if (task) {
+            const lastSync = f.msSyncedAt ? new Date(f.msSyncedAt) : new Date(0)
+            const remoteChanged = new Date(task.lastModifiedDateTime) > lastSync
+            const localChanged  = new Date(f.updatedAt || 0) > lastSync
+            if (remoteChanged && !localChanged) {
+              // dataStore.upsert always re-stamps updatedAt to "now" — so msSyncedAt must
+              // also be "now" here, not task.lastModifiedDateTime, or this record would
+              // look locally-changed (updatedAt > msSyncedAt) on the very next sync.
+              await followUpsStore.upsert({
+                ...f,
+                text: task.title || f.text,
+                dueDate: task.dueDate,
+                done: task.status === 'completed',
+                msSyncedAt: new Date().toISOString(),
+              })
+              pulled++
+              continue
+            }
+          }
+          const msTaskId = await syncFollowUpToOutlook(f)
+          await followUpsStore.upsert({ ...f, msTaskId, msSyncedAt: new Date().toISOString() })
+          pushed++
+        } catch (err) { fail(err) }
       }
-    }
+
+      for (const task of tasks) {
+        if (linkedTaskIds.has(task.id)) continue
+        try {
+          await followUpsStore.upsert({
+            ...EMPTY,
+            text: task.title || '(untitled Outlook task)',
+            dueDate: task.dueDate,
+            done: task.status === 'completed',
+            sourceType: 'outlook',
+            sourceTitle: 'Imported from Outlook',
+            msTaskId: task.id,
+            msSyncedAt: new Date().toISOString(),
+          })
+          imported++
+        } catch (err) { fail(err) }
+      }
+    } catch (err) { fail(err) }
+
     setSyncingAll(false)
-    showToast(`📅 Synced ${ok} follow-up${ok === 1 ? '' : 's'} to Outlook${failed ? `, ${failed} failed` : ''}`)
+    const parts = [
+      pushed   && `${pushed} pushed`,
+      pulled   && `${pulled} pulled`,
+      imported && `${imported} imported`,
+      failed   && `${failed} failed`,
+    ].filter(Boolean)
+    showToast(`🔄 Outlook sync: ${parts.join(', ') || 'nothing to do'}`)
     await load() // load() clears the error banner, so re-set it after if a failure happened
     if (firstErr) setError(firstErr)
   }
@@ -95,7 +158,15 @@ export default function FollowUps() {
   const overdueCount = items.filter((f) => !f.done && f.dueDate && new Date(f.dueDate) < new Date().setHours(0,0,0,0)).length
 
   async function handleSave(record) { await followUpsStore.upsert(record); setEditing(null); load() }
-  async function handleDelete(id) { await followUpsStore.remove(id); load() }
+  async function handleDelete(id) {
+    const item = items.find((f) => f.id === id)
+    await followUpsStore.remove(id)
+    // Best-effort: also remove the linked Outlook task so it doesn't get pulled back in
+    // as an "imported from Outlook" follow-up on the next sync. A missing/expired token
+    // shouldn't block the local delete, which already succeeded above.
+    if (item?.msTaskId) { try { await deleteOutlookTask(item.msTaskId) } catch {} }
+    load()
+  }
   async function toggleDone(item) {
     const nowDone = !item.done
     await followUpsStore.upsert({ ...item, done: nowDone })
@@ -115,8 +186,8 @@ export default function FollowUps() {
           ))}
         </div>
         <div style={{ display:'flex', gap:6 }}>
-          <button className="btn ghost" onClick={handleSyncAll} disabled={syncingAll || items.length === 0} title="Sync every follow-up to Outlook">
-            {syncingAll ? '⏳ Syncing…' : '📅 Sync all to Outlook'}
+          <button className="btn ghost" onClick={handleSyncAll} disabled={syncingAll} title="Two-way sync: pushes local changes, pulls Outlook changes, and imports tasks created directly in Outlook">
+            {syncingAll ? '⏳ Syncing…' : '🔄 Sync with Outlook'}
           </button>
           <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ Add follow-up</button>
         </div>

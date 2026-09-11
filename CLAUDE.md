@@ -71,15 +71,28 @@ Browser (React SPA)
   still strip any "thinking" preamble a model may emit. Swapping provider (Azure AI Foundry,
   a proxy, …) is a change to `ai.js` alone. (Note: GitHub Models was retired 2026-07-30 —
   don't reach for it.)
-- **Outlook / Microsoft To Do sync**: `src/lib/msGraph.js` — one-way push of a follow-up to
-  a "PeopleOS Follow-ups" task list via Microsoft Graph, using a short-lived Graph Explorer
-  token (expires ~1h). `src/lib/settings.js`'s `getMsGraphToken()` reads it from
-  `localStorage` (set via the Settings page's paste-a-token form — the normal way to refresh
-  it, since it doesn't require a rebuild) and falls back to the build-time
-  `VITE_MS_GRAPH_TOKEN` env var if nothing is stored locally. Called from `FollowUps.jsx`
-  (per-row "Sync to Outlook" and a "Sync all to Outlook" that loops every follow-up,
-  collecting a success/fail count rather than stopping at the first error); stores the
-  returned task id back on the record as `msTaskId`.
+- **Outlook / Microsoft To Do sync**: `src/lib/msGraph.js` talks to a "PeopleOS Follow-ups"
+  task list via Microsoft Graph, using a short-lived Graph Explorer token (expires ~1h).
+  `src/lib/settings.js`'s `getMsGraphToken()` reads it from `localStorage` (set via the
+  Settings page's paste-a-token form — the normal way to refresh it, since it doesn't
+  require a rebuild) and falls back to the build-time `VITE_MS_GRAPH_TOKEN` env var if
+  nothing is stored locally. msGraph.js itself is just Graph API calls
+  (`syncFollowUpToOutlook` create/update, `listOutlookTasks`, `deleteOutlookTask`) — the
+  reconciliation logic lives in `FollowUps.jsx`, per the "page components own their data"
+  convention:
+  - Per-row "Sync to Outlook" is a one-way push, same as before.
+  - "Sync with Outlook" (was "Sync all to Outlook") is now a full two-way reconciliation:
+    for each linked follow-up it compares the task's `lastModifiedDateTime` against the
+    record's `msSyncedAt` (the timestamp of the last successful sync, stored on the
+    record) to decide whether to **pull** (Outlook changed since, local didn't — overwrite
+    local `text`/`dueDate`/`done` from the task) or **push** (the default — local wins,
+    including when both sides changed since there's no merge UI); Outlook tasks with no
+    matching local record get **imported** as new follow-ups (`sourceType: 'outlook'`).
+    `msSyncedAt` is always set to "now" at write time, not the task's timestamp — `dataStore.
+    upsert` always re-stamps `updatedAt` to "now" too, and if `msSyncedAt` used the (older)
+    task timestamp instead, the record would look locally-changed on the very next sync.
+  - Deleting a follow-up (`handleDelete`) also best-effort deletes its linked Outlook task,
+    so it doesn't reappear as an "imported" follow-up on the next sync.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`
@@ -133,7 +146,8 @@ src/
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
     Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log
     FollowUps.jsx      Action-item tracker, optional person link, optional Outlook sync
-                        (per-row, or "Sync all to Outlook" for every follow-up at once);
+                        (per-row one-way push, or "Sync with Outlook" for a full two-way
+                        reconciliation across every follow-up);
                         exports `urgencyLabel`
     Notes.jsx          Freeform scratchpad
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
