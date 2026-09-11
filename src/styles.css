@@ -150,6 +150,39 @@ body.light .modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .field textarea { resize: vertical; min-height: 90px; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+/* ── World Map ── */
+.world-clock-title-btn { border-radius: 6px; transition: background 0.15s, color 0.15s; }
+.world-clock-title-btn:hover { background: var(--accent-soft); color: var(--accent); }
+.world-map-icon { margin-left: auto; font-size: 12px; }
+.world-map-overlay { z-index: 60; align-items: center; }
+.world-map-modal { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px; width: 100%; max-width: 980px; max-height: 92vh; box-shadow: 0 8px 40px rgba(0,0,0,0.28); display: flex; flex-direction: column; gap: 12px; }
+body.light .world-map-modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
+.world-map-header { display: flex; align-items: center; justify-content: space-between; }
+.world-map-header h2 { font-family: var(--font-display); margin: 0; font-size: 19px; }
+.world-map-close { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 30px; color: var(--text-dim); cursor: pointer; font-size: 13px; transition: background 0.15s, color 0.15s; }
+.world-map-close:hover { background: var(--accent-soft); color: var(--accent); }
+.world-map-canvas { position: relative; width: 100%; aspect-ratio: 2 / 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #0a1420; }
+.world-map-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; }
+.world-map-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sun-marker { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: radial-gradient(circle, #fff6d6 0%, #ffd25c 55%, rgba(255,210,92,0) 75%); box-shadow: 0 0 10px 3px rgba(255,210,92,0.65); pointer-events: none; }
+.world-map-pin { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.world-map-pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(217,142,84,0.45), 0 1px 4px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #1b1f26; transition: transform 0.12s; }
+.world-map-pin:hover .world-map-pin-dot, .world-map-pin.hover .world-map-pin-dot { transform: scale(1.35); }
+.world-map-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-width: 190px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); z-index: 5; display: flex; flex-direction: column; gap: 6px; }
+.world-map-tooltip.flip-up { bottom: auto; top: calc(100% + 8px); }
+.world-map-tooltip.flip-left { left: auto; right: 0; transform: none; }
+.world-map-tooltip-row { display: flex; align-items: center; gap: 8px; }
+.world-map-tooltip-text .name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.world-map-tooltip-text .loc { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+.world-map-legend { display: flex; align-items: center; gap: 18px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+.world-map-legend .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.world-map-legend .swatch-night { background: rgba(6,10,25,0.75); }
+.world-map-legend .swatch-sun { background: radial-gradient(circle, #fff6d6, #ffd25c); }
+@media (max-width: 640px) {
+  .world-map-modal { padding: 14px; }
+  .world-map-tooltip { min-width: 160px; }
+}
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-faint); }
 .empty-state .icon { font-size: 32px; margin-bottom: 12px; }
 
