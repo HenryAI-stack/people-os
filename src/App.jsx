@@ -10,6 +10,8 @@ import FollowUps     from './pages/FollowUps.jsx'
 import WorkSchedule  from './pages/WorkSchedule.jsx'
 import Accomplishments from './pages/Accomplishments.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
+import Settings from './pages/Settings.jsx'
+import WorldMapModal from './components/WorldMapModal.jsx'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -51,6 +53,7 @@ export default function App() {
           <Route path="/follow-ups"          element={<FollowUps />} />
           <Route path="/accomplishments"     element={<Accomplishments />} />
           <Route path="/work-schedule"       element={<WorkSchedule />} />
+          <Route path="/settings"            element={<Settings />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -71,6 +74,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
           <NavLink to="/accomplishments" title="Accomplishments"><span className="nav-icon">🏆</span><span className="nav-label">Accomplishments</span></NavLink>
           <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
+          <NavLink to="/settings" title="Settings"><span className="nav-icon">⚙️</span><span className="nav-label">Settings</span></NavLink>
         </nav>
       </div>
       <WorldClock collapsed={collapsed} />
@@ -110,6 +114,7 @@ const CLOCKS = [
 
 function WorldClock({ collapsed }) {
   const [now, setNow] = useState(new Date())
+  const [mapOpen, setMapOpen] = useState(false)
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 10000)
     return () => clearInterval(t)
@@ -140,9 +145,16 @@ function WorldClock({ collapsed }) {
 
   return (
     <div style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-faint)', marginBottom: 6, paddingLeft: 2 }}>
-        🌐 World Clock
-      </div>
+      <button
+        className="world-clock-title-btn"
+        onClick={() => setMapOpen(true)}
+        title="Open world map"
+        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-faint)', marginBottom: 6, paddingLeft: 2, background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}
+      >
+        <span aria-hidden="true">🌐</span> World Clock
+        <span className="world-map-icon" aria-hidden="true">🗺️</span>
+      </button>
+      {mapOpen && <WorldMapModal onClose={() => setMapOpen(false)} />}
       {CLOCKS.map((c) => (
         <div key={c.city} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 4px', borderRadius: 6, marginBottom: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>

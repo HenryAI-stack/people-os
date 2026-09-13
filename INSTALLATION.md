@@ -138,7 +138,7 @@ These get injected as environment variables on every build (see
 | ---------------------------- | ----------------------------------- | --------------------- |
 | `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, follow-up topics, and executive summaries, via [OpenRouter](https://openrouter.ai/keys). Put ≥ $10 of credit on the account — the free tier is capped at ~50 requests/day |
 | `VITE_OPENROUTER_MODEL`     | `google/gemini-2.5-flash`          | Optional. Overrides the default model in `src/lib/ai.js` — set it if that slug gets retired (error: "No endpoints found"). Current [model list](https://openrouter.ai/models) |
-| `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | One-way sync of follow-ups to Microsoft To Do. Short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token**; refresh when sync stops working |
+| `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | Build-time fallback for Outlook / Microsoft To Do sync. Easier in practice: paste the token straight into the app's **Settings** page instead (saved to `localStorage`, no rebuild needed) — same short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token** |
 | `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" button — see the Monthly accomplishments email section below |
 
 > The monthly accomplishments email also needs `RESEND_API_KEY` (and reuses
