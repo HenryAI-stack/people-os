@@ -35,7 +35,7 @@ export default function FollowUps() {
     setSyncingId(f.id)
     try {
       const msTaskId = await syncFollowUpToOutlook(f)
-      await followUpsStore.upsert({ ...f, msTaskId, msSyncedAt: new Date().toISOString() })
+      await followUpsStore.upsert({ ...f, msTaskId })
       showToast(`📅 "${f.text.length > 40 ? f.text.slice(0,40)+'…' : f.text}" synced to Outlook`)
       load()
     } catch (err) {
@@ -46,15 +46,22 @@ export default function FollowUps() {
   }
 
   /**
-   * Full two-way reconciliation with the "PeopleOS Follow-ups" list in Outlook:
-   * - A follow-up whose linked task changed in Outlook (and hasn't also changed locally
-   *   since the last sync) is pulled in — its text/due date/done state overwritten from
-   *   the task.
-   * - Everything else pushes local state to Outlook, same as the per-row sync button
-   *   (this also covers brand-new follow-ups and ones whose task got deleted in Outlook).
-   *   If BOTH sides changed since the last sync, local wins — there's no merge UI here.
+   * Full two-way reconciliation with the "PeopleOS Follow-ups" list in Outlook, decided by
+   * comparing real timestamps rather than a separately-tracked "last synced" marker (an
+   * earlier version tracked one in `msSyncedAt`, but capturing that timestamp in JS before
+   * awaiting `followUpsStore.upsert` — which itself does a GitHub round-trip before
+   * stamping `updatedAt` — meant `updatedAt` always ended up after it. That made every
+   * follow-up look "changed locally since last sync" on every run, which silently starved
+   * pulls in favor of pushes. Comparing `task.lastModifiedDateTime` straight against the
+   * follow-up's own `updatedAt` has no such gap: whichever side actually wrote more
+   * recently wins, full stop):
+   * - A follow-up whose linked task was modified more recently than the local record gets
+   *   **pulled** — text/due date/done overwritten from the task.
+   * - Otherwise it **pushes** local state to Outlook, same as the per-row sync button
+   *   (this also covers brand-new follow-ups, ones whose task got deleted in Outlook, and
+   *   ties/no-op re-pushes when nothing actually changed).
    * - A task that exists in Outlook but isn't linked to any local follow-up (created
-   *   directly in Outlook) gets imported as a new one.
+   *   directly in Outlook) gets **imported** as a new one.
    * Deleting a follow-up in PeopleOS (see handleDelete) also deletes its Outlook task, so
    * deleted items don't come back to life via that last step.
    */
@@ -72,27 +79,18 @@ export default function FollowUps() {
       for (const f of items) {
         const task = f.msTaskId ? taskById.get(f.msTaskId) : null
         try {
-          if (task) {
-            const lastSync = f.msSyncedAt ? new Date(f.msSyncedAt) : new Date(0)
-            const remoteChanged = new Date(task.lastModifiedDateTime) > lastSync
-            const localChanged  = new Date(f.updatedAt || 0) > lastSync
-            if (remoteChanged && !localChanged) {
-              // dataStore.upsert always re-stamps updatedAt to "now" — so msSyncedAt must
-              // also be "now" here, not task.lastModifiedDateTime, or this record would
-              // look locally-changed (updatedAt > msSyncedAt) on the very next sync.
-              await followUpsStore.upsert({
-                ...f,
-                text: task.title || f.text,
-                dueDate: task.dueDate,
-                done: task.status === 'completed',
-                msSyncedAt: new Date().toISOString(),
-              })
-              pulled++
-              continue
-            }
+          if (task && new Date(task.lastModifiedDateTime) > new Date(f.updatedAt || 0)) {
+            await followUpsStore.upsert({
+              ...f,
+              text: task.title || f.text,
+              dueDate: task.dueDate,
+              done: task.status === 'completed',
+            })
+            pulled++
+            continue
           }
           const msTaskId = await syncFollowUpToOutlook(f)
-          await followUpsStore.upsert({ ...f, msTaskId, msSyncedAt: new Date().toISOString() })
+          await followUpsStore.upsert({ ...f, msTaskId })
           pushed++
         } catch (err) { fail(err) }
       }
@@ -108,7 +106,6 @@ export default function FollowUps() {
             sourceType: 'outlook',
             sourceTitle: 'Imported from Outlook',
             msTaskId: task.id,
-            msSyncedAt: new Date().toISOString(),
           })
           imported++
         } catch (err) { fail(err) }
