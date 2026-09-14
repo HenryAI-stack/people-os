@@ -156,14 +156,26 @@ body.light .modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .world-clock-title-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .world-map-icon { margin-left: auto; font-size: 12px; }
 .world-map-overlay { z-index: 60; align-items: center; }
-.world-map-modal { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px; width: 100%; max-width: 980px; max-height: 92vh; box-shadow: 0 8px 40px rgba(0,0,0,0.28); display: flex; flex-direction: column; gap: 12px; }
+.world-map-modal { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px; width: 100%; max-width: 1180px; max-height: 92vh; box-shadow: 0 8px 40px rgba(0,0,0,0.28); display: flex; flex-direction: column; gap: 12px; }
 body.light .world-map-modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .world-map-header { display: flex; align-items: center; justify-content: space-between; }
 .world-map-header h2 { font-family: var(--font-display); margin: 0; font-size: 19px; }
 .world-map-close { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 30px; color: var(--text-dim); cursor: pointer; font-size: 13px; transition: background 0.15s, color 0.15s; }
 .world-map-close:hover { background: var(--accent-soft); color: var(--accent); }
-.world-map-canvas { position: relative; width: 100%; aspect-ratio: 2 / 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #0a1420; }
+.world-map-body { display: flex; gap: 16px; align-items: flex-start; min-width: 0; }
+.world-map-canvas { position: relative; flex: 1 1 auto; min-width: 0; aspect-ratio: 2 / 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #0a1420; }
 .world-map-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.world-map-clocks { flex: 0 0 240px; width: 240px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; align-self: stretch; }
+.world-map-clocks-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); margin-bottom: 10px; }
+.world-map-clocks table { width: 100%; border-collapse: collapse; }
+.world-map-clocks th { text-align: left; font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-faint); padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.world-map-clocks th:last-child, .world-map-clocks td:last-child { text-align: right; }
+.world-map-clocks td { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-dim); vertical-align: middle; white-space: nowrap; }
+.world-map-clocks tr:last-child td { border-bottom: none; }
+.world-map-clocks-flag { width: 14px; height: 10px; object-fit: cover; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.world-map-clocks-time { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.world-map-clocks-date { font-weight: 400; font-size: 9.5px; color: var(--text-faint); }
+.world-map-clocks-tz { color: var(--accent); font-weight: 600; font-size: 10.5px; cursor: help; }
 .sun-marker { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: radial-gradient(circle, #fff6d6 0%, #ffd25c 55%, rgba(255,210,92,0) 75%); box-shadow: 0 0 10px 3px rgba(255,210,92,0.65); pointer-events: none; }
 .world-map-pin { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .world-map-pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(217,142,84,0.45), 0 1px 4px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #1b1f26; transition: transform 0.12s; }
@@ -181,6 +193,8 @@ body.light .world-map-modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 @media (max-width: 640px) {
   .world-map-modal { padding: 14px; }
   .world-map-tooltip { min-width: 160px; }
+  .world-map-body { flex-direction: column; }
+  .world-map-clocks { width: 100%; flex-basis: auto; }
 }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-faint); }
 .empty-state .icon { font-size: 32px; margin-bottom: 12px; }
