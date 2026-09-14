@@ -65,7 +65,7 @@ export default function WorldMapModal({ onClose }) {
   }, [])
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000)
+    const t = setInterval(() => setNow(new Date()), 10_000) // matches the sidebar World Clock's cadence
     return () => clearInterval(t)
   }, [])
 
