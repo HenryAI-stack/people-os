@@ -12,6 +12,7 @@ import Accomplishments from './pages/Accomplishments.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
 import Settings from './pages/Settings.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
+import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from './lib/worldClock.js'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -105,12 +106,9 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
 }
 
 // ── World Clock ───────────────────────────────────────────────────────────────
-const CLOCKS = [
-  { city: 'Warsaw',      country: 'PL', tz: 'Europe/Warsaw',       offset: null    },
-  { city: 'Chicago',     country: 'US', tz: 'America/Chicago',     offset: '−7h'   },
-  { city: 'Bangalore',   country: 'IN', tz: 'Asia/Kolkata',        offset: '+3.5h' },
-  { city: 'Mexico City', country: 'MX', tz: 'America/Mexico_City', offset: '−8h'   },
-]
+function flagUrl(code) {
+  return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`
+}
 
 function WorldClock({ collapsed }) {
   const [now, setNow] = useState(new Date())
@@ -119,27 +117,6 @@ function WorldClock({ collapsed }) {
     const t = setInterval(() => setNow(new Date()), 10000)
     return () => clearInterval(t)
   }, [])
-
-  function fmtTime(tz) {
-    return now.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-  function fmtDate(tz) {
-    return now.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' })
-  }
-  function flagUrl(code) {
-    return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`
-  }
-  function fmtTzAbbr(tz) {
-    return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
-      .formatToParts(now).find((p) => p.type === 'timeZoneName')?.value || ''
-  }
-  function fmtTzFull(tz) {
-    // Use Intl long name, with override for common browser inconsistencies
-    const overrides = { 'India Standard Time': 'Indian Standard Time' }
-    const raw = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'long' })
-      .formatToParts(now).find((p) => p.type === 'timeZoneName')?.value || ''
-    return overrides[raw] || raw
-  }
 
   if (collapsed) return null
 
@@ -164,10 +141,10 @@ function WorldClock({ collapsed }) {
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
-              {fmtTime(c.tz)}
+              {fmtTime(now, c.tz)}
             </div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(c.tz)}</div>
-            <div title={fmtTzFull(c.tz)} style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px', cursor: 'help' }}>{fmtTzAbbr(c.tz)}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(now, c.tz)}</div>
+            <div title={fmtTzFull(now, c.tz)} style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px', cursor: 'help' }}>{fmtTzAbbr(now, c.tz)}</div>
           </div>
         </div>
       ))}

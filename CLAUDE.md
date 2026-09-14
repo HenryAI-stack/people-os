@@ -142,6 +142,9 @@ src/
                         day/night shading
     worldContinents.js Hand-simplified [lon, lat] continent polygons WorldMapModal draws
                         inline as its base map — no external image/network dependency
+    worldClock.js      CLOCKS (Warsaw/Chicago/Bangalore/Mexico City) + fmtTime/fmtDate/
+                        fmtTzAbbr/fmtTzFull, shared by App.jsx's sidebar widget and
+                        WorldMapModal's clocks table so both list the same cities
     imageUtils.js      Client-side avatar photo resizing before storing as base64
     settings.js        Browser-local (localStorage) user settings — currently just
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
@@ -164,9 +167,11 @@ src/
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
-                        day/night terminator + a pin per active direct report's resolved
-                        location, hover tooltip with photo/name; pins sharing a city cluster
-                        into one badge. The base map itself is drawn inline from
+                        day/night terminator + a dashed solar-noon meridian line through the
+                        sun position, a pin per active direct report's resolved location
+                        (hover tooltip with photo/name; pins sharing a city cluster into one
+                        badge), and a clocks table (same cities as `worldClock.js`'s CLOCKS)
+                        alongside the map. The base map itself is drawn inline from
                         `src/lib/worldContinents.js`'s hand-simplified continent polygons —
                         deliberately not an external image. An earlier version hotlinked a
                         Wikimedia map image; that rendered as a black rectangle for at least
