@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { directReportsStore } from '../lib/dataStore.js'
 import { getCoords, flagUrl } from '../lib/locationFlag.js'
 import { getSubsolarPoint, terminatorLat } from '../lib/sunPosition.js'
-import { CONTINENTS } from '../lib/worldContinents.js'
+import { LAND_POLYGONS } from '../lib/worldContinents.js'
 import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from '../lib/worldClock.js'
 import { Avatar } from '../pages/DirectReports.jsx'
 
@@ -11,10 +11,16 @@ function toPercent(lat, lon) {
   return { left: ((lon + 180) / 360) * 100, top: ((90 - lat) / 180) * 100 }
 }
 
-function polygonPoints(points) {
-  return points.map(([lon, lat]) => {
-    const { left, top } = toPercent(lat, lon)
-    return `${left},${top}`
+// Builds one <path> `d` per polygon covering all of its rings (outer boundary +
+// any holes) — paired with fill-rule="evenodd" so holes (e.g. the Caspian/Aral
+// Sea inside Asia) render as open water instead of solid land.
+function polygonPath(rings) {
+  return rings.map((ring) => {
+    const pts = ring.map(([lon, lat]) => {
+      const { left, top } = toPercent(lat, lon)
+      return `${left},${top}`
+    })
+    return `M ${pts.join(' L ')} Z`
   }).join(' ')
 }
 
@@ -107,8 +113,8 @@ export default function WorldMapModal({ onClose }) {
                   return <line key={`lat${lat}`} x1={0} y1={y} x2={100} y2={y} stroke={lat === 0 ? 'rgba(255,255,255,0.16)' : undefined} />
                 })}
               </g>
-              <g fill="#3a5548" stroke="#557066" strokeWidth="0.2">
-                {CONTINENTS.map((c) => <polygon key={c.name} points={polygonPoints(c.points)} />)}
+              <g fill="#3a5548" stroke="#557066" strokeWidth="0.1">
+                {LAND_POLYGONS.map((rings, i) => <path key={i} fillRule="evenodd" d={polygonPath(rings)} />)}
               </g>
               <path d={nightPath} fill="rgba(6,10,25,0.55)" filter="url(#terminator-soften)" />
               {/* Solar noon meridian — the longitude directly under the sun right now. */}
