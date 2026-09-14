@@ -82,15 +82,19 @@ Browser (React SPA)
   convention:
   - Per-row "Sync to Outlook" is a one-way push, same as before.
   - "Sync with Outlook" (was "Sync all to Outlook") is now a full two-way reconciliation:
-    for each linked follow-up it compares the task's `lastModifiedDateTime` against the
-    record's `msSyncedAt` (the timestamp of the last successful sync, stored on the
-    record) to decide whether to **pull** (Outlook changed since, local didn't — overwrite
-    local `text`/`dueDate`/`done` from the task) or **push** (the default — local wins,
-    including when both sides changed since there's no merge UI); Outlook tasks with no
-    matching local record get **imported** as new follow-ups (`sourceType: 'outlook'`).
-    `msSyncedAt` is always set to "now" at write time, not the task's timestamp — `dataStore.
-    upsert` always re-stamps `updatedAt` to "now" too, and if `msSyncedAt` used the (older)
-    task timestamp instead, the record would look locally-changed on the very next sync.
+    for each linked follow-up it compares the task's `lastModifiedDateTime` directly
+    against the record's own `updatedAt` — whichever side actually wrote more recently
+    wins. Newer task → **pull** (overwrite local `text`/`dueDate`/`done` from the task).
+    Otherwise → **push** (also covers brand-new follow-ups, a task deleted in Outlook, and
+    no-op re-pushes when nothing changed). Outlook tasks with no matching local record get
+    **imported** as new follow-ups (`sourceType: 'outlook'`).
+    A first version tracked a separate `msSyncedAt` "last synced" timestamp instead of
+    comparing `updatedAt` directly — don't reintroduce that. It captured `msSyncedAt` in JS
+    *before* awaiting `followUpsStore.upsert`, but upsert does a GitHub round-trip before
+    stamping `updatedAt`, so `updatedAt` always ended up later than `msSyncedAt` by however
+    long that round-trip took. Every follow-up then looked "changed locally since last
+    sync" on every run, which silently made push always win over pull — sync only ever
+    appeared to work one-way. Comparing real timestamps directly has no such gap.
   - Deleting a follow-up (`handleDelete`) also best-effort deletes its linked Outlook task,
     so it doesn't reappear as an "imported" follow-up on the next sync.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
