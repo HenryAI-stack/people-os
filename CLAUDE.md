@@ -136,6 +136,8 @@ src/
                         URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
     sunPosition.js     Approximate subsolar point + terminator latitude, for WorldMapModal's
                         day/night shading
+    worldContinents.js Hand-simplified [lon, lat] continent polygons WorldMapModal draws
+                        inline as its base map — no external image/network dependency
     imageUtils.js      Client-side avatar photo resizing before storing as base64
     settings.js        Browser-local (localStorage) user settings — currently just
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
@@ -160,7 +162,12 @@ src/
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
                         day/night terminator + a pin per active direct report's resolved
                         location, hover tooltip with photo/name; pins sharing a city cluster
-                        into one badge
+                        into one badge. The base map itself is drawn inline from
+                        `src/lib/worldContinents.js`'s hand-simplified continent polygons —
+                        deliberately not an external image. An earlier version hotlinked a
+                        Wikimedia map image; that rendered as a black rectangle for at least
+                        one user on a restrictive/corporate network, so don't reintroduce an
+                        external image dependency here.
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
 .github/workflows/
