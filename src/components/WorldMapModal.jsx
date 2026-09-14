@@ -2,15 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { directReportsStore } from '../lib/dataStore.js'
 import { getCoords } from '../lib/locationFlag.js'
 import { getSubsolarPoint, terminatorLat } from '../lib/sunPosition.js'
+import { CONTINENTS } from '../lib/worldContinents.js'
 import { Avatar } from '../pages/DirectReports.jsx'
 
-// Plain equirectangular (2:1) world map, same projection the pin/terminator
-// math below assumes — swap image only for another 2:1 equirectangular map.
-const MAP_IMG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Equirectangular_projection_SW.jpg/1000px-Equirectangular_projection_SW.jpg'
-
+// Plain equirectangular (2:1) projection — lon/lat map straight to x%/y%.
 function toPercent(lat, lon) {
   return { left: ((lon + 180) / 360) * 100, top: ((90 - lat) / 180) * 100 }
 }
+
+function polygonPoints(points) {
+  return points.map(([lon, lat]) => {
+    const { left, top } = toPercent(lat, lon)
+    return `${left},${top}`
+  }).join(' ')
+}
+
+const GRATICULE_LONS = [-180, -150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180]
+const GRATICULE_LATS = [-60, -30, 0, 30, 60]
 
 // Groups people onto the same pin when they resolve to (roughly) the same
 // city, so a support-center location shows one pin instead of a stack.
@@ -73,13 +81,28 @@ export default function WorldMapModal({ onClose }) {
           <button className="world-map-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="world-map-canvas">
-          <img src={MAP_IMG} alt="World map" className="world-map-img" draggable={false} />
           <svg className="world-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
             <defs>
               <filter id="terminator-soften" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="1.4" />
               </filter>
             </defs>
+            {/* Self-drawn base map — no external image, so it never depends on a
+                network request succeeding (see CLAUDE.md: an earlier hotlinked
+                image broke on restrictive corporate networks). */}
+            <g stroke="rgba(255,255,255,0.08)" strokeWidth="0.15">
+              {GRATICULE_LONS.map((lon) => {
+                const x = ((lon + 180) / 360) * 100
+                return <line key={`lon${lon}`} x1={x} y1={0} x2={x} y2={100} />
+              })}
+              {GRATICULE_LATS.map((lat) => {
+                const y = ((90 - lat) / 180) * 100
+                return <line key={`lat${lat}`} x1={0} y1={y} x2={100} y2={y} stroke={lat === 0 ? 'rgba(255,255,255,0.16)' : undefined} />
+              })}
+            </g>
+            <g fill="#33473d" stroke="#44594c" strokeWidth="0.2">
+              {CONTINENTS.map((c) => <polygon key={c.name} points={polygonPoints(c.points)} />)}
+            </g>
             <path d={nightPath} fill="rgba(6,10,25,0.55)" filter="url(#terminator-soften)" />
           </svg>
           <div className="sun-marker" style={{ left: `${sunPos.left}%`, top: `${sunPos.top}%` }} title="Sun position" />
