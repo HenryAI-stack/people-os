@@ -139,7 +139,7 @@ export default function WorldMapModal({ onClose }) {
                     <div className={`world-map-tooltip${top > 60 ? ' flip-up' : ''}${left > 70 ? ' flip-left' : ''}`}>
                       {pin.people.map((p) => (
                         <div key={p.id} className="world-map-tooltip-row">
-                          <Avatar photo={p.photo} name={p.name} size={30} />
+                          <Avatar photo={p.photo} name={p.name} size={22} />
                           <div className="world-map-tooltip-text">
                             <div className="name">{p.name}</div>
                             <div className="loc">{p.location}</div>

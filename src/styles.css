@@ -173,19 +173,20 @@ body.light .world-map-modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .world-map-clocks td { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-dim); vertical-align: middle; white-space: nowrap; }
 .world-map-clocks tr:last-child td { border-bottom: none; }
 .world-map-clocks-flag { width: 14px; height: 10px; object-fit: cover; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
-.world-map-clocks-time { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.world-map-clocks .world-map-clocks-time { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
 .world-map-clocks-date { font-weight: 400; font-size: 9.5px; color: var(--text-faint); }
-.world-map-clocks-tz { color: var(--accent); font-weight: 600; font-size: 10.5px; cursor: help; }
+.world-map-clocks .world-map-clocks-tz { color: #c47a3a; font-weight: 600; font-size: 8.5px; cursor: help; }
 .sun-marker { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: radial-gradient(circle, #fff6d6 0%, #ffd25c 55%, rgba(255,210,92,0) 75%); box-shadow: 0 0 10px 3px rgba(255,210,92,0.65); pointer-events: none; }
 .world-map-pin { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .world-map-pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(217,142,84,0.45), 0 1px 4px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #1b1f26; transition: transform 0.12s; }
 .world-map-pin:hover .world-map-pin-dot, .world-map-pin.hover .world-map-pin-dot { transform: scale(1.35); }
-.world-map-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-width: 190px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); z-index: 5; display: flex; flex-direction: column; gap: 6px; }
+.world-map-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 170px; max-height: 200px; overflow-y: auto; box-shadow: 0 6px 24px rgba(0,0,0,0.35); z-index: 5; display: flex; flex-direction: column; gap: 3px; }
 .world-map-tooltip.flip-up { bottom: auto; top: calc(100% + 8px); }
 .world-map-tooltip.flip-left { left: auto; right: 0; transform: none; }
-.world-map-tooltip-row { display: flex; align-items: center; gap: 8px; }
-.world-map-tooltip-text .name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
-.world-map-tooltip-text .loc { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+.world-map-tooltip-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; }
+.world-map-tooltip-row:hover { background: var(--bg-card); }
+.world-map-tooltip-text .name { font-size: 11.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.world-map-tooltip-text .loc { font-size: 10px; color: var(--text-faint); white-space: nowrap; }
 .world-map-legend { display: flex; align-items: center; gap: 18px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
 .world-map-legend .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .world-map-legend .swatch-night { background: rgba(6,10,25,0.75); }
