@@ -140,8 +140,19 @@ src/
                         URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
     sunPosition.js     Approximate subsolar point + terminator latitude, for WorldMapModal's
                         day/night shading
-    worldContinents.js Hand-simplified [lon, lat] continent polygons WorldMapModal draws
-                        inline as its base map — no external image/network dependency
+    worldContinents.js `LAND_POLYGONS` — real coastlines WorldMapModal draws inline as its
+                        base map (no external image/network dependency). One-time generated
+                        from `world-atlas`'s `land-110m.json` (Natural Earth 1:110m, public
+                        domain) via `topojson-client`, flattened to plain [lon, lat] rings;
+                        `world-atlas`/`topojson-client` are NOT runtime deps, only used to
+                        produce this static file (`npm install --no-save world-atlas
+                        topojson-client`, then `topojson.feature(...)` on `land-110m.json`'s
+                        `land` object — see git history for the exact one-off script if this
+                        ever needs regenerating at a different resolution). Each entry is one
+                        polygon's rings (`[outer, ...holes]`) — WorldMapModal draws it as a
+                        single `<path fill-rule="evenodd">` so holes (e.g. the Caspian/Aral
+                        Sea inside Asia) render as open water. Don't flatten rings into
+                        independent filled shapes again — that silently paints holes as land.
     worldClock.js      CLOCKS (Warsaw/Chicago/Bangalore/Mexico City) + fmtTime/fmtDate/
                         fmtTzAbbr/fmtTzFull, shared by App.jsx's sidebar widget and
                         WorldMapModal's clocks table so both list the same cities
@@ -172,8 +183,9 @@ src/
                         (hover tooltip with photo/name; pins sharing a city cluster into one
                         badge), and a clocks table (same cities as `worldClock.js`'s CLOCKS)
                         alongside the map. The base map itself is drawn inline from
-                        `src/lib/worldContinents.js`'s hand-simplified continent polygons —
-                        deliberately not an external image. An earlier version hotlinked a
+                        `src/lib/worldContinents.js`'s real coastline data (Natural Earth,
+                        generated once — see that file's header) — deliberately not an
+                        external image. An earlier version hotlinked a
                         Wikimedia map image; that rendered as a black rectangle for at least
                         one user on a restrictive/corporate network, so don't reintroduce an
                         external image dependency here.
