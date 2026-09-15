@@ -16,16 +16,16 @@
 const APP_OWNER = 'HenryAI-stack'
 const APP_REPO  = 'people-os'
 const WORKFLOW_FILE = 'accomplishments-email.yml'
+const SCHEDULE_WORKFLOW_FILE = 'schedule-email.yml'
 const REF = 'main'
 
 const TOKEN = import.meta.env.VITE_GH_ACTIONS_TOKEN
 
-/** Fires the accomplishments email workflow for the given YYYY-MM month. */
-export async function sendAccomplishmentsEmailNow(monthKey) {
+async function dispatchWorkflow(workflowFile, inputs) {
   if (!TOKEN) throw new Error('VITE_GH_ACTIONS_TOKEN is not set. See INSTALLATION.md to enable manual sending.')
 
   const res = await fetch(
-    `https://api.github.com/repos/${APP_OWNER}/${APP_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
+    `https://api.github.com/repos/${APP_OWNER}/${APP_REPO}/actions/workflows/${workflowFile}/dispatches`,
     {
       method: 'POST',
       headers: {
@@ -33,15 +33,32 @@ export async function sendAccomplishmentsEmailNow(monthKey) {
         Accept: 'application/vnd.github+json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ref: REF, inputs: { force: 'true', month: monthKey } }),
+      body: JSON.stringify({ ref: REF, inputs }),
     }
   )
 
   if (res.status === 401 || res.status === 403) throw new Error('GitHub Actions token is missing, expired, or lacks the "Actions: write" permission on this repo.')
-  if (res.status === 404) throw new Error('Workflow not found — make sure accomplishments-email.yml is on the main branch.')
+  if (res.status === 404) throw new Error(`Workflow not found — make sure ${workflowFile} is on the main branch.`)
   if (!res.ok) throw new Error(`Could not start the workflow (${res.status}): ${await res.text()}`)
   // 204 No Content on success — GitHub's dispatch API doesn't return a run id.
 }
 
-/** Link to watch the run in the GitHub Actions UI. */
+/** Fires the accomplishments email workflow for the given YYYY-MM month. */
+export async function sendAccomplishmentsEmailNow(monthKey) {
+  await dispatchWorkflow(WORKFLOW_FILE, { force: 'true', month: monthKey })
+}
+
+/** Fires the work-schedule email workflow (PDF + Excel attached) for the given
+ * YYYY-MM month — see scripts/send-schedule-email.mjs and
+ * .github/workflows/schedule-email.yml. Unlike the accomplishments email this
+ * has no cron; it only ever runs when this is called (the "Send via Email"
+ * button on WorkSchedule.jsx). */
+export async function sendScheduleEmailNow(monthKey) {
+  await dispatchWorkflow(SCHEDULE_WORKFLOW_FILE, { month: monthKey })
+}
+
+/** Link to watch the accomplishments-email run in the GitHub Actions UI. */
 export const ACTIONS_URL = `https://github.com/${APP_OWNER}/${APP_REPO}/actions/workflows/${WORKFLOW_FILE}`
+
+/** Link to watch the schedule-email run in the GitHub Actions UI. */
+export const SCHEDULE_ACTIONS_URL = `https://github.com/${APP_OWNER}/${APP_REPO}/actions/workflows/${SCHEDULE_WORKFLOW_FILE}`

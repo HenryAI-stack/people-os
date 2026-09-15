@@ -3,17 +3,20 @@ import { getDaysInMonth, getHoliday } from './holidays.js'
 
 // Fills mirror the app's own on-screen colors (--accent for an on-shift chip,
 // --warn/--bad tints for weekend/holiday cells in styles.css) rather than the
-// arbitrary palette in the reference sheet this was modeled on.
-const FILL_SHIFT   = 'FFF3D9BE' // light --accent tint — on shift this day
-const FILL_HOLIDAY = 'FFF3C7C2' // light --bad tint — public holiday, not on shift
-const FILL_DAYOFF  = 'FFEDEFF2' // neutral — day off, not on shift
+// arbitrary palette in the reference sheet this was modeled on. Exported (with
+// dayCode and EMPLOYEE_COLORS below) so scripts/send-schedule-email.mjs can
+// render an identically-colored PDF without duplicating this classification
+// logic — only the ARGB-to-RGB-hex conversion differs between the two renderers.
+export const FILL_SHIFT   = 'FFF3D9BE' // light --accent tint — on shift this day
+export const FILL_HOLIDAY = 'FFF3C7C2' // light --bad tint — public holiday, not on shift
+export const FILL_DAYOFF  = 'FFEDEFF2' // neutral — day off, not on shift
 const HEADER_FILL  = 'FF497A7C'
 const TITLE_COLOR  = 'FF1F2937'
 
 // Cycling categorical palette for the "Employee name" cell only — purely to make
 // adjacent rows easier to tell apart at a glance. Deliberately pastel/light so it
 // never competes with the S/D/H fills used on the day cells further right.
-const EMPLOYEE_COLORS = [
+export const EMPLOYEE_COLORS = [
   'FFDCE6F1', 'FFE2EFDA', 'FFFCE4D6', 'FFEAD1DC',
   'FFD9E1F2', 'FFDDEBF7', 'FFFFF2CC', 'FFE1D5E7',
 ]
@@ -34,7 +37,7 @@ function thinBorder(color = 'FFFFFFFF') {
  *   they aren't on shift
  * - 'D' (day off) otherwise — including weekends and cleared assignments
  */
-function dayCode(dateStr, center, personId, assignmentMap) {
+export function dayCode(dateStr, center, personId, assignmentMap) {
   const onShift = (assignmentMap[`${dateStr}|${center.id}`] || [])
     .some((a) => a.personId === personId && !a.cleared)
   if (onShift) return ['S', FILL_SHIFT]
@@ -154,6 +157,22 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
   footer.font = { italic: true, size: 9, color: { argb: 'FF666666' } }
 }
 
+/** Populates an existing (caller-constructed) ExcelJS workbook with one sheet
+ * per support center — one row per person, S/D/H letter codes matching the
+ * on-screen colors, a legend, and a weekday+date header row. Split out from
+ * downloadScheduleExcel so scripts/send-schedule-email.mjs can build the exact
+ * same workbook server-side (for emailing) without duplicating this layout
+ * logic — that script constructs its own ExcelJS.Workbook (a plain top-level
+ * import works fine in Node) and passes it in here. */
+export function buildScheduleWorkbook(workbook, month, people, schedule) {
+  for (const center of CENTERS) {
+    const centerPeople = people.filter((p) => getCenter(p) === center.id)
+    if (!centerPeople.length) continue
+    buildCenterSheet(workbook, center, centerPeople, month, schedule)
+  }
+  return workbook
+}
+
 /** Builds and downloads the monthly schedule as a multi-sheet .xlsx — one sheet
  * per support center, styled to match the app's on-screen shift/day-off/holiday
  * colors, with a legend, weekday+date header row, and one row per person.
@@ -166,11 +185,7 @@ export async function downloadScheduleExcel(month, people, schedule) {
   workbook.creator = 'PeopleOS'
   workbook.created = new Date()
 
-  for (const center of CENTERS) {
-    const centerPeople = people.filter((p) => getCenter(p) === center.id)
-    if (!centerPeople.length) continue
-    buildCenterSheet(workbook, center, centerPeople, month, schedule)
-  }
+  buildScheduleWorkbook(workbook, month, people, schedule)
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })

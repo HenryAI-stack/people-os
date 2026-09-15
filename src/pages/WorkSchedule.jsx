@@ -5,6 +5,7 @@ import { CENTERS, getCenter, generateSchedule } from '../lib/scheduleGenerator.j
 import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
+import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
 
 const TEAM_NAME = '24/7 Core Operations'
 
@@ -52,6 +53,10 @@ export default function WorkSchedule() {
   const [dragSrc,     setDragSrc]     = useState(null)  // { date, center }
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [toast, setToast] = useState('')
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 4000) }
 
   // Auto-save 1.5s after any change to the schedule
   useEffect(() => {
@@ -203,6 +208,20 @@ export default function WorkSchedule() {
     finally { setExportingExcel(false) }
   }
 
+  // ── Send via Email ───────────────────────────────────────────────────────
+  // Fires schedule-email.yml (GitHub Actions), which rebuilds the same PDF +
+  // Excel server-side (from the saved schedule) and emails both as attachments
+  // via Resend — the actual send always happens server-side so no mail key
+  // ships in the browser bundle. See src/lib/githubActions.js.
+  async function handleSendEmail() {
+    setSendingEmail(true); setError('')
+    try {
+      await sendScheduleEmailNow(month)
+      showToast(`📧 Schedule email for ${month} queued — check your inbox in a minute.`)
+    } catch (e) { setError(e.message) }
+    finally { setSendingEmail(false) }
+  }
+
   // ── Derived data ─────────────────────────────────────────────────────────
   const days = useMemo(() => getDaysInMonth(month), [month])
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people])
@@ -276,6 +295,12 @@ export default function WorkSchedule() {
           {schedule && (
             <button className="btn" onClick={handleExportExcel} disabled={exportingExcel} style={{ fontSize:13 }}>
               {exportingExcel ? '⏳ Exporting…' : '📊 Export Excel'}
+            </button>
+          )}
+          {schedule && (
+            <button className="btn" onClick={handleSendEmail} disabled={sendingEmail} style={{ fontSize:13 }}
+              title={`Email the ${month} schedule (PDF + Excel) to maximilian.bielecki@ul.com`}>
+              {sendingEmail ? '⏳ Queuing…' : '📧 Send via Email'}
             </button>
           )}
         </div>
@@ -431,6 +456,13 @@ export default function WorkSchedule() {
               <button className="btn primary" onClick={saveComment}>Save</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="no-print" style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-card)', border: '1px solid var(--good)', color: 'var(--good)', borderRadius: 10, padding: '11px 20px', fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 100, maxWidth: '90vw' }}>
+          {toast}{' '}
+          <a href={SCHEDULE_ACTIONS_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--good)', textDecoration: 'underline' }}>View run →</a>
         </div>
       )}
     </div>
