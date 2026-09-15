@@ -132,7 +132,23 @@ Browser (React SPA)
   center's country), else `'D'` (day off, including weekends and cleared assignments) — no
   `'V'`/vacation code, since this app has no leave-tracking data to draw one from. The date
   header row (day 1, day 2, …) uses real `Date` objects with `numFmt: 'd-mmm'`, not text, so
-  they render as "1-Nov" while staying genuine dates.
+  they render as "1-Nov" while staying genuine dates. Day columns are 7 chars wide, not the
+  ~5.5 that fits just the S/D/H letter — narrower than that and Excel renders the `d-mmm`
+  header as `####` instead of truncating. Each person's "Employee name" cell also gets a
+  distinct fill from a small cycling pastel palette (`EMPLOYEE_COLORS`), purely so adjacent
+  rows are easier to tell apart — it never touches the S/D/H day-cell fills further right.
+  `getDaysInMonth()` (in `holidays.js`, used here and by `scheduleGenerator.js`) used to build
+  its month via a LOCAL-timezone `Date` constructor round-tripped through `.toISOString()`
+  (UTC), which shifted every date back by one day in any positive-UTC-offset timezone — the
+  export visibly ran "30 Sep – 30 Oct" instead of "1–31 Oct" for a browser in, e.g., CET. Fixed
+  by building the day list from pure string/number arithmetic with no `Date`/ISO round-trip at
+  all; the small remaining `Date` usages in `scheduleExcel.js` itself (`monthLabel`, the
+  weekday-abbreviation label) pass `timeZone: 'UTC'` for the same reason. If you touch date
+  logic anywhere in the work-schedule feature, prefer `Date.UTC()`/`getUTC*()` (or
+  `timeZone: 'UTC'`, or plain string parsing) over local-timezone `Date` methods — see the same
+  fix applied to `isWeekend`/`getDaysInMonth` in `holidays.js`, `dow`/`addOneDay`/`prevDay` in
+  `scheduleGenerator.js`, and `fmtDate`/`fmtDay`/`fmtWeekday`/month-header labels in
+  `WorkSchedule.jsx`.
 
 ## Directory layout
 

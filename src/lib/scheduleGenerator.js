@@ -12,15 +12,21 @@ export function getCenter(person) {
   return CENTERS.find((c) => c.locationKeys.some((k) => loc.includes(k)))?.id || null
 }
 
-function dow(d) { return new Date(d).getDay() } // 0=Sun,1=Mon…6=Sat
+// All UTC-based (Date.UTC in, getUTC*/.toISOString() out) so this never drifts
+// a day in either direction depending on the browser's timezone offset — see
+// getDaysInMonth in holidays.js for the bug this pattern used to cause.
+function dow(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0=Sun,1=Mon…6=Sat
+}
 function isSunday(d) { return dow(d) === 0 }
 function addOneDay(dateStr) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + 1)
-  return d.toISOString().slice(0, 10)
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
 }
 function prevDay(dateStr) {
-  const d = new Date(dateStr); d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
 function makeAssignment(dateStr, center, person, we, hol) {

@@ -9,15 +9,20 @@ import { flagUrl } from '../lib/locationFlag.js'
 const TEAM_NAME = '24/7 Core Operations'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+// dateStr is a plain 'YYYY-MM-DD' calendar date with no timezone of its own.
+// `new Date(dateStr)` parses it as UTC midnight, so every read-back below
+// passes timeZone:'UTC' (or avoids Date entirely) rather than using the
+// browser's local getters/formatting — otherwise the displayed day can shift
+// by one depending on the viewer's UTC offset.
 function fmtDate(dateStr) {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' })
 }
 function fmtDay(dateStr) {
-  return new Date(dateStr).getDate()
+  return Number(dateStr.split('-')[2])
 }
 function fmtWeekday(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short' })
+  return new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short', timeZone:'UTC' })
 }
 function prevMonth(ym) {
   const [y, m] = ym.split('-').map(Number)
@@ -246,7 +251,7 @@ export default function WorkSchedule() {
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <button className="btn ghost" onClick={() => setMonth(prevMonth(month))}>‹</button>
           <span style={{ fontWeight:600, fontSize:15, minWidth:90, textAlign:'center' }}>
-            {new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'})}
+            {new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}
           </span>
           <button className="btn ghost" onClick={() => setMonth(nextMonth(month))}>›</button>
           <button className="btn ghost" onClick={() => setMonth(todayMonth())} style={{ fontSize:12 }}>Today</button>
@@ -332,7 +337,7 @@ export default function WorkSchedule() {
               {/* Print header per center */}
               <div className="print-only ws-print-header">
                 <h2><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label} — {c.hours}</h2>
-                <p>{new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</p>
+                <p>{new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}</p>
               </div>
 
               <div className="ws-calendar">
@@ -342,7 +347,7 @@ export default function WorkSchedule() {
                 ))}
 
                 {/* Empty cells before first day */}
-                {Array.from({ length: (new Date(days[0]).getDay()+6)%7 }).map((_,i) => (
+                {Array.from({ length: (new Date(days[0]).getUTCDay()+6)%7 }).map((_,i) => (
                   <div key={`empty-${i}`} className="ws-day-cell ws-day-empty" />
                 ))}
 
