@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule } from '../lib/scheduleGenerator.js'
+import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 
@@ -45,6 +46,7 @@ export default function WorkSchedule() {
   const autoSaveTimer = useRef(null)
   const [dragSrc,     setDragSrc]     = useState(null)  // { date, center }
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   // Auto-save 1.5s after any change to the schedule
   useEffect(() => {
@@ -188,6 +190,14 @@ export default function WorkSchedule() {
   // ── Print / PDF ───────────────────────────────────────────────────────────
   function handlePrint() { window.print() }
 
+  // ── Excel export ─────────────────────────────────────────────────────────
+  async function handleExportExcel() {
+    setExportingExcel(true); setError('')
+    try { await downloadScheduleExcel(month, people, schedule) }
+    catch (e) { setError(e.message) }
+    finally { setExportingExcel(false) }
+  }
+
   // ── Derived data ─────────────────────────────────────────────────────────
   const days = useMemo(() => getDaysInMonth(month), [month])
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people])
@@ -258,6 +268,11 @@ export default function WorkSchedule() {
           )}
           {schedule && <button className="btn ghost danger" onClick={handleDelete} disabled={saving} style={{ fontSize:13 }}>🗑️ Delete</button>}
           {schedule && <button className="btn" onClick={handlePrint} style={{ fontSize:13 }}>🖨️ Print PDF</button>}
+          {schedule && (
+            <button className="btn" onClick={handleExportExcel} disabled={exportingExcel} style={{ fontSize:13 }}>
+              {exportingExcel ? '⏳ Exporting…' : '📊 Export Excel'}
+            </button>
+          )}
         </div>
       </div>
 

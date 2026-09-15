@@ -24,6 +24,8 @@ accomplishments summary (server-side, via Resend).
 - `crypto-js` — AES-256 encryption of every record before it leaves the browser (passphrase
   mode: `CryptoJS.AES.encrypt(json, secret)`)
 - `date-fns`
+- `exceljs` — builds the Work Schedule's `.xlsx` export; dynamically imported (own chunk),
+  never in the main bundle
 - No CSS framework — plain `src/styles.css` with CSS custom properties for theming
 - No test runner and no linter are configured in this repo
 - One Node script under `scripts/` (`send-accomplishments-email.mjs`) runs in CI only, not
@@ -117,6 +119,20 @@ Browser (React SPA)
   next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
   person; weekend burden balanced across months via the `fairnessSnapshot` persisted on the
   schedule record.
+- **Excel export**: `src/lib/scheduleExcel.js`'s `downloadScheduleExcel(month, people,
+  schedule)` builds a multi-sheet `.xlsx` (one sheet per center, named e.g. `Warsaw` —
+  matches `CENTERS[].id`) via `exceljs`, styled to mirror the app's own on-screen colors
+  (`--accent`-tint for on-shift, `--bad`-tint for holiday, neutral for day off) rather than
+  the arbitrary palette in the reference sheet this was modeled on. `exceljs` is ~270KB
+  gzipped, so it's **dynamically imported** inside that function (`await import('exceljs')`)
+  instead of statically at the top of the file — it lands in its own chunk that only
+  downloads when someone actually clicks "Export Excel" on `WorkSchedule.jsx`, rather than
+  bloating every page's bundle. Per person per day: `'S'` (on shift — a non-cleared
+  assignment exists for that date/center/person), else `'H'` (public holiday for that
+  center's country), else `'D'` (day off, including weekends and cleared assignments) — no
+  `'V'`/vacation code, since this app has no leave-tracking data to draw one from. The date
+  header row (day 1, day 2, …) uses real `Date` objects with `numFmt: 'd-mmm'`, not text, so
+  they render as "1-Nov" while staying genuine dates.
 
 ## Directory layout
 
@@ -135,6 +151,8 @@ src/
     msGraph.js         Microsoft Graph push of follow-ups to Microsoft To Do
     githubActions.js   Fires the accomplishments-email workflow via workflow_dispatch
     scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule
+    scheduleExcel.js   downloadScheduleExcel() — multi-sheet .xlsx export of the work
+                       schedule via exceljs (dynamically imported, its own chunk)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
     locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image
                         URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
