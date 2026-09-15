@@ -27,7 +27,10 @@ const {
 } = process.env
 
 const BRANCH = BRANCH_RAW || 'main'
-const TO_EMAIL = ACCOMPLISHMENTS_EMAIL_TO || 'maximilian.bielecki@ul.com'
+// Resend's shared onboarding@resend.dev sender can only send to the Resend
+// account's own verified address until a domain is verified — see the 403
+// this hits if ACCOMPLISHMENTS_EMAIL_TO points anywhere else.
+const TO_EMAIL = ACCOMPLISHMENTS_EMAIL_TO || 'henry.ai.server@gmail.com'
 const FROM_EMAIL = ACCOMPLISHMENTS_EMAIL_FROM || 'PeopleOS <onboarding@resend.dev>'
 const TIMEZONE = 'Europe/Vienna'
 
