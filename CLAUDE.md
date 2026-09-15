@@ -26,10 +26,14 @@ accomplishments summary (server-side, via Resend).
 - `date-fns`
 - `exceljs` — builds the Work Schedule's `.xlsx` export; dynamically imported (own chunk),
   never in the main bundle
+- `pdfkit` — builds the Work Schedule email's `.pdf` attachment; only ever imported from
+  `scripts/send-schedule-email.mjs` (a CI-only script), so despite being a normal
+  `dependencies` entry it never reaches the browser bundle at all
 - No CSS framework — plain `src/styles.css` with CSS custom properties for theming
 - No test runner and no linter are configured in this repo
-- One Node script under `scripts/` (`send-accomplishments-email.mjs`) runs in CI only, not
-  bundled into the app; it depends on `crypto-js` and Node 22's global `fetch`
+- Two Node scripts under `scripts/` (`send-accomplishments-email.mjs`,
+  `send-schedule-email.mjs`) run in CI only, not bundled into the app; they depend on
+  `crypto-js`/`exceljs`/`pdfkit` and Node 22's global `fetch`
 
 ## Architecture
 
@@ -149,6 +153,41 @@ Browser (React SPA)
   fix applied to `isWeekend`/`getDaysInMonth` in `holidays.js`, `dow`/`addOneDay`/`prevDay` in
   `scheduleGenerator.js`, and `fmtDate`/`fmtDay`/`fmtWeekday`/month-header labels in
   `WorkSchedule.jsx`.
+- **Work-schedule email**: unlike accomplishments, there's no cron — the "📧 Send via Email"
+  button on `WorkSchedule.jsx` (`handleSendEmail`, next to Print PDF/Export Excel) calls
+  `sendScheduleEmailNow(month)` in `src/lib/githubActions.js`, which fires
+  `.github/workflows/schedule-email.yml` (`workflow_dispatch` only) on demand. That workflow
+  runs `scripts/send-schedule-email.mjs`, which re-reads `direct-reports.json` and
+  `schedules.json` from the data repo, decrypts them, and emails **both** a `.pdf` and a
+  `.xlsx` of the schedule (one page/sheet per center) as attachments via Resend — to a
+  hardcoded `maximilian.bielecki@ul.com` (`SCHEDULE_EMAIL_TO` env var in the workflow,
+  mirroring `ACCOMPLISHMENTS_EMAIL_TO`'s pattern). The recipient isn't configurable from the
+  UI; change the workflow's `SCHEDULE_EMAIL_TO` line to redirect it.
+  The `.xlsx` reuses the exact same rendering code as the "Export Excel" button: `scheduleExcel.js`
+  exports `buildScheduleWorkbook(workbook, month, people, schedule)` — the sheet-building half of
+  what used to be all inside `downloadScheduleExcel` — plus `dayCode`, `FILL_SHIFT`,
+  `FILL_HOLIDAY`, `FILL_DAYOFF`, and `EMPLOYEE_COLORS`, so the email script (which constructs
+  its own `ExcelJS.Workbook` via a plain top-level `import ExcelJS from 'exceljs'`, no dynamic
+  import needed — that's only a browser-bundle-size concern) never duplicates the sheet layout
+  or the S/D/H classification logic; `downloadScheduleExcel` itself now just constructs the
+  workbook, calls `buildScheduleWorkbook`, and handles the browser download.
+  The `.pdf` has no browser equivalent to reuse (the "Print PDF" button just calls
+  `window.print()` on the on-screen calendar) — `send-schedule-email.mjs` draws it from
+  scratch with `pdfkit` (one A4-landscape page per center, drawn manually with `doc.rect`/
+  `doc.text` — no table plugin), importing `dayCode`/`FILL_*`/`EMPLOYEE_COLORS` from
+  `scheduleExcel.js` so its colors and S/D/H codes exactly match the Excel/on-screen versions.
+  `pdfkit` is a normal `dependencies` entry (like `crypto-js`) even though only this CI-only
+  script imports it — since nothing under `src/` ever imports it, Vite never bundles it into
+  the browser build.
+  One pdfkit gotcha hit while building this: placing text at exactly
+  `pageHeight - marginBottom` (the writable area's precise bottom edge) makes pdfkit think the
+  text doesn't fit and silently insert a blank extra page, even though the coordinates were
+  passed explicitly — the footer is drawn a few points higher (`pageHeight - 32`) with
+  `{ lineBreak: false }` to avoid it. If you add more per-page text near a page edge, stay
+  clear of that exact boundary.
+  `scripts/send-schedule-email.mjs` can otherwise import `scheduleGenerator.js`/`holidays.js`/
+  `scheduleExcel.js` directly (no reimplementation needed, unlike `dataStore.js`/`crypto.js`)
+  because none of those three modules touch `import.meta.env` or any browser global.
 
 ## Directory layout
 
@@ -165,10 +204,12 @@ src/
     ai.js              chat() helper — the only LLM call site (OpenRouter)
     autoTags.js        Prompts on top of ai.js: tags / takeaways / follow-up topics
     msGraph.js         Microsoft Graph push of follow-ups to Microsoft To Do
-    githubActions.js   Fires the accomplishments-email workflow via workflow_dispatch
+    githubActions.js   Fires the accomplishments-email and schedule-email workflows via
+                       workflow_dispatch
     scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule
-    scheduleExcel.js   downloadScheduleExcel() — multi-sheet .xlsx export of the work
-                       schedule via exceljs (dynamically imported, its own chunk)
+    scheduleExcel.js   buildScheduleWorkbook() (shared with scripts/send-schedule-email.mjs)
+                       + downloadScheduleExcel() — multi-sheet .xlsx export of the work
+                       schedule via exceljs (dynamically imported, its own chunk, browser only)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
     locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image
                         URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
@@ -225,9 +266,14 @@ src/
                         external image dependency here.
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
+  send-schedule-email.mjs   CI-only Node script; imports scheduleGenerator.js/holidays.js/
+                       scheduleExcel.js directly (they're import.meta.env-free) but still
+                       re-implements dataStore's read+decrypt like the script above; builds
+                       and emails a .pdf (via pdfkit) + .xlsx (via buildScheduleWorkbook)
 .github/workflows/
   deploy.yml               Build + deploy to GitHub Pages on push to main
   accomplishments-email.yml Thursday cron + manual dispatch for the monthly email
+  schedule-email.yml       Manual dispatch only — "📧 Send via Email" on WorkSchedule.jsx
 ```
 
 Data collections (each a JSON file in the **separate, private** data repo — default name
@@ -284,22 +330,23 @@ Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 13 build
 kept in sync with `import.meta.env.*` usage in `src/` and with `deploy.yml` (verified — no
 gaps in any direction). Production: the same names are stored as GitHub Actions repository
 secrets and injected at build time. `deploy.yml` is the definitive list of what the app build
-consumes; `accomplishments-email.yml` lists what the email job consumes (that job's
-`RESEND_API_KEY` and `ACCOMPLISHMENTS_EMAIL_TO` are server-side only and not in
-`.env.example`).
+consumes; `accomplishments-email.yml` and `schedule-email.yml` list what those two email jobs
+consume (`RESEND_API_KEY`, `ACCOMPLISHMENTS_EMAIL_TO`, and `SCHEDULE_EMAIL_TO` are server-side
+only and not in `.env.example`).
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID` | app build | Firebase project config (auth only) |
 | `VITE_ALLOWED_EMAIL` | app build (`auth.js`) | The single Google account allowed to log in |
-| `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`, `VITE_GITHUB_TOKEN`, `VITE_GITHUB_BRANCH` | app build + email job | Data-repo access — the PAT is bundled client-side, scope it narrowly |
-| `VITE_ENCRYPTION_SECRET` | app build + email job | AES passphrase for all records — never rotate once real data exists |
+| `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`, `VITE_GITHUB_TOKEN`, `VITE_GITHUB_BRANCH` | app build + both email jobs | Data-repo access — the PAT is bundled client-side, scope it narrowly |
+| `VITE_ENCRYPTION_SECRET` | app build + both email jobs | AES passphrase for all records — never rotate once real data exists |
 | `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
 | `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug |
 | `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Build-time fallback Graph token for Outlook / Microsoft To Do sync; expires ~1h. Normally set instead from the Settings page at runtime (`localStorage`, no rebuild needed) — see `src/lib/settings.js` |
-| `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button |
-| `RESEND_API_KEY` | email job only | Server-side Resend API key for the monthly email |
-| `ACCOMPLISHMENTS_EMAIL_TO` | email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
+| `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" and "Send via Email" buttons |
+| `RESEND_API_KEY` | both email jobs | Server-side Resend API key, shared by both the accomplishments and work-schedule emails |
+| `ACCOMPLISHMENTS_EMAIL_TO` | accomplishments email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
+| `SCHEDULE_EMAIL_TO` | schedule email job (workflow env) | Recipient of the work-schedule PDF+Excel email (currently hardcoded to `maximilian.bielecki@ul.com` in `schedule-email.yml`) |
 
 **Security note**: the data-repo PAT, encryption secret, OpenRouter key, Graph token, and
 Actions token all ship inside the client-side JS bundle. That's an accepted, documented
@@ -333,5 +380,6 @@ To exercise the monthly email script locally, set the env vars from the table ab
 Push to `main` → `.github/workflows/deploy.yml` builds with Node 22, injects the secrets
 above, and deploys `dist/` to GitHub Pages via `actions/deploy-pages`. There's no staging
 environment or preview-deploy step — `main` is production. The `accomplishments-email.yml`
-workflow is independent: a Thursday cron plus manual `workflow_dispatch` (also fired from the
-app via `githubActions.js`).
+and `schedule-email.yml` workflows are independent of deploy: the former is a Thursday cron
+plus manual `workflow_dispatch`, the latter `workflow_dispatch`-only — both fired from the
+app via `githubActions.js`.

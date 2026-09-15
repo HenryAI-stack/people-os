@@ -139,11 +139,12 @@ These get injected as environment variables on every build (see
 | `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, follow-up topics, and executive summaries, via [OpenRouter](https://openrouter.ai/keys). Put ≥ $10 of credit on the account — the free tier is capped at ~50 requests/day |
 | `VITE_OPENROUTER_MODEL`     | `google/gemini-2.5-flash`          | Optional. Overrides the default model in `src/lib/ai.js` — set it if that slug gets retired (error: "No endpoints found"). Current [model list](https://openrouter.ai/models) |
 | `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | Build-time fallback for Outlook / Microsoft To Do sync. Easier in practice: paste the token straight into the app's **Settings** page instead (saved to `localStorage`, no rebuild needed) — same short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token** |
-| `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" button — see the Monthly accomplishments email section below |
+| `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" and "Send via Email" (work schedule) buttons — see the two email sections below |
 
-> The monthly accomplishments email also needs `RESEND_API_KEY` (and reuses
-> `VITE_GITHUB_*` + `VITE_ENCRYPTION_SECRET`). It's a separate workflow with its
-> own setup — see **Optional — Monthly accomplishments email** below.
+> Both the monthly accomplishments email and the work-schedule email need
+> `RESEND_API_KEY` (and reuse `VITE_GITHUB_*` + `VITE_ENCRYPTION_SECRET`).
+> They're separate workflows with their own setup — see **Optional — Monthly
+> accomplishments email** and **Optional — Work-schedule email** below.
 
 ---
 
@@ -181,7 +182,7 @@ places. If you forked/renamed (i.e. your app repo is **not** literally
 | File | What to change |
 | ---- | -------------- |
 | `vite.config.js` | `base: '/people-os/'` → `'/YOUR-REPO/'` (must match the repo name exactly, with leading and trailing slash) |
-| `src/lib/githubActions.js` | `APP_OWNER` / `APP_REPO` constants — these tell the "Send this month's email" button which repo's workflow to dispatch |
+| `src/lib/githubActions.js` | `APP_OWNER` / `APP_REPO` constants — these tell the "Send this month's email" and "Send via Email" buttons which repo's workflows to dispatch |
 | `src/lib/ai.js` | `APP_URL` — cosmetic, just the label shown on OpenRouter's app-rankings dashboard |
 
 ```js
@@ -288,6 +289,29 @@ limitation as `VITE_GITHUB_TOKEN` (see Step 3 above) — but it can only
 start a run of a single workflow on a repo that's already public, nothing
 more. If you'd rather not add it, the button just shows an error telling
 you it's not configured; the scheduled Thursday send is unaffected either way.
+
+---
+
+## Optional — Work-schedule email
+
+The **Work Schedule** page has a **"📧 Send via Email"** button (next to
+Print PDF and Export Excel) that emails the currently-viewed month's saved
+schedule as **both a PDF and an Excel file**, one page/sheet per support
+center. Unlike the accomplishments email, there's no cron — it only ever
+runs when someone clicks the button.
+
+It reuses everything the accomplishments email already needs
+(`VITE_GITHUB_*`, `VITE_ENCRYPTION_SECRET`, `RESEND_API_KEY`,
+`VITE_GH_ACTIONS_TOKEN` — see the two sections above), so if you've already
+set those up there's nothing new to configure. It sends to a hardcoded
+`maximilian.bielecki@ul.com`; to change the recipient, edit the
+`SCHEDULE_EMAIL_TO` line in `.github/workflows/schedule-email.yml`.
+
+**Testing it:** Repo → Actions → "Work Schedule Email" → **Run workflow**.
+It defaults to the current month (Europe/Vienna); pass a specific `month`
+(e.g. `2026-08`) to send a different one. There must already be a **saved**
+schedule for that month (Work Schedule page → Generate → Save) — the
+workflow fails with a clear message otherwise.
 
 ---
 

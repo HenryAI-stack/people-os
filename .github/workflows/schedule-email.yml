@@ -1,0 +1,33 @@
+name: Work Schedule Email
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: 'Month to send, as YYYY-MM (leave blank for the current month, Europe/Vienna)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Send work schedule email
+        env:
+          VITE_GITHUB_OWNER:      ${{ secrets.VITE_GITHUB_OWNER }}
+          VITE_GITHUB_REPO:       ${{ secrets.VITE_GITHUB_REPO }}
+          VITE_GITHUB_TOKEN:      ${{ secrets.VITE_GITHUB_TOKEN }}
+          VITE_GITHUB_BRANCH:     ${{ secrets.VITE_GITHUB_BRANCH }}
+          VITE_ENCRYPTION_SECRET: ${{ secrets.VITE_ENCRYPTION_SECRET }}
+          RESEND_API_KEY:         ${{ secrets.RESEND_API_KEY }}
+          SCHEDULE_EMAIL_TO: maximilian.bielecki@ul.com
+          SCHEDULE_MONTH: ${{ inputs.month }}
+        run: node scripts/send-schedule-email.mjs
