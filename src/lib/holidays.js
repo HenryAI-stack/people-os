@@ -95,20 +95,33 @@ export function getHoliday(dateStr, countryCode) {
   return HOLIDAYS[countryCode]?.[dateStr] || null
 }
 
-/** Returns true if the date is a weekend (Sat or Sun). */
+/**
+ * Returns true if the date is a weekend (Sat or Sun).
+ * Uses Date.UTC + getUTCDay rather than `new Date(dateStr).getDay()`: a plain
+ * 'YYYY-MM-DD' string parses as UTC midnight, but .getDay() reads it back in
+ * the browser's LOCAL timezone — in any negative-UTC-offset timezone that
+ * rolls the date back to the previous day, silently misclassifying weekends.
+ */
 export function isWeekend(dateStr) {
-  const d = new Date(dateStr)
-  return d.getDay() === 0 || d.getDay() === 6
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return day === 0 || day === 6
 }
 
-/** Returns all days in a given YYYY-MM month as 'YYYY-MM-DD' strings. */
+/**
+ * Returns all days in a given YYYY-MM month as 'YYYY-MM-DD' strings.
+ * Built from pure string/number arithmetic — no Date/ISO round-trip — because
+ * `new Date(y, m-1, 1)` (LOCAL midnight) followed by `.toISOString()` (UTC)
+ * shifts every date back by a day in any positive-UTC-offset timezone (e.g.
+ * CET): local midnight Oct 1 is still Sep 30 in UTC. That bug produced a
+ * month that visibly ran "30 Sep – 30 Oct" instead of "1–31 Oct".
+ */
 export function getDaysInMonth(yearMonth) {
   const [y, m] = yearMonth.split('-').map(Number)
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate() // day 0 of next month = last day of this one
   const days = []
-  const date = new Date(y, m - 1, 1)
-  while (date.getMonth() === m - 1) {
-    days.push(date.toISOString().slice(0, 10))
-    date.setDate(date.getDate() + 1)
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
   }
   return days
 }

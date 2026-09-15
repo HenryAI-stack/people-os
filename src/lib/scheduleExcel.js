@@ -10,6 +10,14 @@ const FILL_DAYOFF  = 'FFEDEFF2' // neutral — day off, not on shift
 const HEADER_FILL  = 'FF497A7C'
 const TITLE_COLOR  = 'FF1F2937'
 
+// Cycling categorical palette for the "Employee name" cell only — purely to make
+// adjacent rows easier to tell apart at a glance. Deliberately pastel/light so it
+// never competes with the S/D/H fills used on the day cells further right.
+const EMPLOYEE_COLORS = [
+  'FFDCE6F1', 'FFE2EFDA', 'FFFCE4D6', 'FFEAD1DC',
+  'FFD9E1F2', 'FFDDEBF7', 'FFFFF2CC', 'FFE1D5E7',
+]
+
 function fill(argb) {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb } }
 }
@@ -71,7 +79,7 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
     assignmentMap[key].push(a)
   }
 
-  const monthLabel = new Date(`${month}-01`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(`${month}-01`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
   // Row 1 — title, merged across every day column (A..last day column)
   const lastCol = 1 + days.length
@@ -97,7 +105,7 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
     const col = i + 2
     const d = new Date(dateStr)
     const wd = weekdayRow.getCell(col)
-    wd.value = d.toLocaleDateString('en-GB', { weekday: 'short' })
+    wd.value = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })
     wd.font = { bold: true, size: 10 }
     wd.alignment = { horizontal: 'center' }
 
@@ -119,6 +127,7 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
     nameCell.value = person.name
     nameCell.font = { bold: true }
     nameCell.alignment = { horizontal: 'left', vertical: 'center', indent: 1 }
+    nameCell.fill = fill(EMPLOYEE_COLORS[i % EMPLOYEE_COLORS.length])
 
     days.forEach((dateStr, di) => {
       const [code, argb] = dayCode(dateStr, center, person.id, assignmentMap)
@@ -132,7 +141,11 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
   })
 
   sheet.getColumn(1).width = 25
-  for (let i = 2; i <= lastCol; i++) sheet.getColumn(i).width = 5.5
+  // 7 rather than the ~5.5 that fits the 1-char S/D/H code alone: Excel renders a
+  // numeric/date cell as '####' instead of truncating when the column is too
+  // narrow for its formatted value, and the 'd-mmm' header (e.g. "30-Sep") needs
+  // more room than the day letters below it.
+  for (let i = 2; i <= lastCol; i++) sheet.getColumn(i).width = 7
 
   const footerRow = 9 + people.length
   const footer = sheet.getCell(footerRow, 1)
