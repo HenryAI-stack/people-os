@@ -171,10 +171,11 @@ Browser (React SPA)
   `maximilian.bielecki@ul.com`. Sending to any other address requires verifying a domain at
   resend.com/domains and setting `SCHEDULE_EMAIL_FROM` to an address on that domain — until
   then, `SCHEDULE_EMAIL_TO` must stay `henry.ai.server@gmail.com`. The same restriction applies
-  to the accomplishments email (same account, same default sender) — its
-  `ACCOMPLISHMENTS_EMAIL_TO` default of `maximilian.bielecki@ul.com` has never actually been
-  exercised by a real send (every completed run so far hit the "not the last Thursday" early
-  exit), so it's untested and likely has the identical problem.
+  to the accomplishments email (same account, same default sender), so
+  `ACCOMPLISHMENTS_EMAIL_TO` in `accomplishments-email.yml` was fixed to
+  `henry.ai.server@gmail.com` too, before its first real send ever had the chance to hit the
+  same 403 (every completed cron run up to that point had hit the "not the last Thursday" early
+  exit, so the old `maximilian.bielecki@ul.com` default had never actually been exercised).
   The `.xlsx` reuses the exact same rendering code as the "Export Excel" button: `scheduleExcel.js`
   exports `buildScheduleWorkbook(workbook, month, people, schedule)` — the sheet-building half of
   what used to be all inside `downloadScheduleExcel` — plus `dayCode`, `FILL_SHIFT`,

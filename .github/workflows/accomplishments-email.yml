@@ -37,7 +37,12 @@ jobs:
           VITE_GITHUB_BRANCH:     ${{ secrets.VITE_GITHUB_BRANCH }}
           VITE_ENCRYPTION_SECRET: ${{ secrets.VITE_ENCRYPTION_SECRET }}
           RESEND_API_KEY:         ${{ secrets.RESEND_API_KEY }}
-          ACCOMPLISHMENTS_EMAIL_TO: maximilian.bielecki@ul.com
+          # Resend's shared onboarding@resend.dev sender can only send to the
+          # Resend account's own verified address until a domain is verified
+          # (resend.com/domains) — see schedule-email.yml's history for the 403
+          # this hits otherwise. Change this once a domain is verified and
+          # ACCOMPLISHMENTS_EMAIL_FROM uses it.
+          ACCOMPLISHMENTS_EMAIL_TO: henry.ai.server@gmail.com
           FORCE_SEND:  ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
           FORCE_MONTH: ${{ inputs.month }}
         run: node scripts/send-accomplishments-email.mjs
