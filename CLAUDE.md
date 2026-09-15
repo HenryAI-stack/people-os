@@ -160,9 +160,21 @@ Browser (React SPA)
   runs `scripts/send-schedule-email.mjs`, which re-reads `direct-reports.json` and
   `schedules.json` from the data repo, decrypts them, and emails **both** a `.pdf` and a
   `.xlsx` of the schedule (one page/sheet per center) as attachments via Resend — to a
-  hardcoded `maximilian.bielecki@ul.com` (`SCHEDULE_EMAIL_TO` env var in the workflow,
+  hardcoded `henry.ai.server@gmail.com` (`SCHEDULE_EMAIL_TO` env var in the workflow,
   mirroring `ACCOMPLISHMENTS_EMAIL_TO`'s pattern). The recipient isn't configurable from the
   UI; change the workflow's `SCHEDULE_EMAIL_TO` line to redirect it.
+  **That address is a hard requirement, not a preference**: with the default
+  `onboarding@resend.dev` sender (`FROM_EMAIL`/`SCHEDULE_EMAIL_FROM`), Resend rejects any
+  recipient other than the Resend account's own verified address with a 403
+  (`validation_error`, "You can only send testing emails to your own email address") — hit for
+  real the first time this workflow ran, when `SCHEDULE_EMAIL_TO` was still
+  `maximilian.bielecki@ul.com`. Sending to any other address requires verifying a domain at
+  resend.com/domains and setting `SCHEDULE_EMAIL_FROM` to an address on that domain — until
+  then, `SCHEDULE_EMAIL_TO` must stay `henry.ai.server@gmail.com`. The same restriction applies
+  to the accomplishments email (same account, same default sender) — its
+  `ACCOMPLISHMENTS_EMAIL_TO` default of `maximilian.bielecki@ul.com` has never actually been
+  exercised by a real send (every completed run so far hit the "not the last Thursday" early
+  exit), so it's untested and likely has the identical problem.
   The `.xlsx` reuses the exact same rendering code as the "Export Excel" button: `scheduleExcel.js`
   exports `buildScheduleWorkbook(workbook, month, people, schedule)` — the sheet-building half of
   what used to be all inside `downloadScheduleExcel` — plus `dayCode`, `FILL_SHIFT`,
@@ -346,7 +358,7 @@ only and not in `.env.example`).
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" and "Send via Email" buttons |
 | `RESEND_API_KEY` | both email jobs | Server-side Resend API key, shared by both the accomplishments and work-schedule emails |
 | `ACCOMPLISHMENTS_EMAIL_TO` | accomplishments email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
-| `SCHEDULE_EMAIL_TO` | schedule email job (workflow env) | Recipient of the work-schedule PDF+Excel email (currently hardcoded to `maximilian.bielecki@ul.com` in `schedule-email.yml`) |
+| `SCHEDULE_EMAIL_TO` | schedule email job (workflow env) | Recipient of the work-schedule PDF+Excel email (hardcoded to `henry.ai.server@gmail.com` in `schedule-email.yml` — the Resend account's own verified address; see the note under Work-schedule email above before changing it) |
 
 **Security note**: the data-repo PAT, encryption secret, OpenRouter key, Graph token, and
 Actions token all ship inside the client-side JS bundle. That's an accepted, documented

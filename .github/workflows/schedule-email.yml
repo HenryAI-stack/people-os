@@ -28,6 +28,10 @@ jobs:
           VITE_GITHUB_BRANCH:     ${{ secrets.VITE_GITHUB_BRANCH }}
           VITE_ENCRYPTION_SECRET: ${{ secrets.VITE_ENCRYPTION_SECRET }}
           RESEND_API_KEY:         ${{ secrets.RESEND_API_KEY }}
-          SCHEDULE_EMAIL_TO: maximilian.bielecki@ul.com
+          # Resend's shared onboarding@resend.dev sender can only send to the
+          # Resend account's own verified address until a domain is verified
+          # (resend.com/domains) — see the 403 in the first run's logs. Change
+          # this once a domain is verified and SCHEDULE_EMAIL_FROM uses it.
+          SCHEDULE_EMAIL_TO: henry.ai.server@gmail.com
           SCHEDULE_MONTH: ${{ inputs.month }}
         run: node scripts/send-schedule-email.mjs
