@@ -253,13 +253,20 @@ data, so the only new thing to set up is the email send.
 2. **Add the key as a repo secret**: Settings → Secrets and variables →
    Actions → New repository secret → name it `RESEND_API_KEY`.
 3. That's it for a quick start — Resend's shared `onboarding@resend.dev`
-   sender works out of the box **as long as the recipient is the email
-   address you signed up to Resend with** (`maximilian.bielecki@ul.com`).
-   If you ever want to send from your own address instead, verify a domain
-   in Resend and set an `ACCOMPLISHMENTS_EMAIL_FROM` secret/env
-   (e.g. `PeopleOS <accomplishments@yourdomain.com>`) in the workflow.
+   sender works out of the box **as long as the recipient is the exact
+   email address you signed up to Resend with**. Get this wrong and Resend
+   rejects the send with a 403 (`validation_error`) rather than silently
+   dropping it — that's exactly what happened here when
+   `ACCOMPLISHMENTS_EMAIL_TO`/`SCHEDULE_EMAIL_TO` were left at a plausible-
+   looking address (`maximilian.bielecki@ul.com`) that wasn't actually the
+   account's own verified address. If you ever want to send to a different
+   recipient, verify a domain in Resend and set an
+   `ACCOMPLISHMENTS_EMAIL_FROM`/`SCHEDULE_EMAIL_FROM` secret/env (e.g.
+   `PeopleOS <accomplishments@yourdomain.com>`) in the relevant workflow —
+   only then can `..._EMAIL_TO` point anywhere else.
 4. To change who receives the email, edit the `ACCOMPLISHMENTS_EMAIL_TO`
-   line directly in the workflow file.
+   line directly in the workflow file (only safe once a verified domain +
+   `..._EMAIL_FROM` are set up, per the note above).
 
 **Testing it:** Repo → Actions → "Accomplishments Email" → **Run workflow**.
 The manual trigger defaults to `force: true`, so it sends immediately for
@@ -304,8 +311,10 @@ It reuses everything the accomplishments email already needs
 (`VITE_GITHUB_*`, `VITE_ENCRYPTION_SECRET`, `RESEND_API_KEY`,
 `VITE_GH_ACTIONS_TOKEN` — see the two sections above), so if you've already
 set those up there's nothing new to configure. It sends to a hardcoded
-`maximilian.bielecki@ul.com`; to change the recipient, edit the
-`SCHEDULE_EMAIL_TO` line in `.github/workflows/schedule-email.yml`.
+`SCHEDULE_EMAIL_TO` in `.github/workflows/schedule-email.yml`, currently the
+Resend account's own verified address — see the Resend-recipient note in
+step 3 of the accomplishments section above before changing it to anything
+else, or you'll hit the same 403 this did on its first real run.
 
 **Testing it:** Repo → Actions → "Work Schedule Email" → **Run workflow**.
 It defaults to the current month (Europe/Vienna); pass a specific `month`

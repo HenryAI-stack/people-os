@@ -41,7 +41,10 @@ const {
 } = process.env
 
 const BRANCH = BRANCH_RAW || 'main'
-const TO_EMAIL = SCHEDULE_EMAIL_TO || 'maximilian.bielecki@ul.com'
+// Resend's shared onboarding@resend.dev sender can only send to the Resend
+// account's own verified address until a domain is verified — see the 403
+// this hits if SCHEDULE_EMAIL_TO points anywhere else.
+const TO_EMAIL = SCHEDULE_EMAIL_TO || 'henry.ai.server@gmail.com'
 const FROM_EMAIL = SCHEDULE_EMAIL_FROM || 'PeopleOS <onboarding@resend.dev>'
 const TEAM_NAME = '24/7 Core Operations' // must match WorkSchedule.jsx's TEAM_NAME
 const TIMEZONE = 'Europe/Vienna'

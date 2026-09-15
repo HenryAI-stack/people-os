@@ -299,7 +299,7 @@ export default function WorkSchedule() {
           )}
           {schedule && (
             <button className="btn" onClick={handleSendEmail} disabled={sendingEmail} style={{ fontSize:13 }}
-              title={`Email the ${month} schedule (PDF + Excel) to maximilian.bielecki@ul.com`}>
+              title={`Email the ${month} schedule (PDF + Excel) — recipient set by SCHEDULE_EMAIL_TO in schedule-email.yml`}>
               {sendingEmail ? '⏳ Queuing…' : '📧 Send via Email'}
             </button>
           )}
