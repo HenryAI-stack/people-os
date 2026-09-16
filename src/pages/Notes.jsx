@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { notesStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
-const EMPTY = { title: '', body: '', pinned: false }
+const EMPTY = { title: '', body: '', pinned: false, archived: false }
 
 export default function Notes() {
   const [items,   setItems]   = useState([])
@@ -10,6 +10,7 @@ export default function Notes() {
   const [error,   setError]   = useState('')
   const [query,   setQuery]   = useState('')
   const [editing, setEditing] = useState(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   async function load() {
     setLoading(true); setError('')
@@ -22,9 +23,11 @@ export default function Notes() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
-    const list = items.filter((n) => (n.title + ' ' + n.body).toLowerCase().includes(q))
+    const list = items.filter((n) =>
+      !!n.archived === showArchived && (n.title + ' ' + n.body).toLowerCase().includes(q)
+    )
     return [...list].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
-  }, [items, query])
+  }, [items, query, showArchived])
 
   async function handleSave(record) {
     await notesStore.upsert(record)
@@ -44,23 +47,37 @@ export default function Notes() {
     catch (e) { setError('Could not update note: ' + e.message) }
   }
 
+  async function toggleArchive(note) {
+    try { await notesStore.upsert({ ...note, archived: !note.archived }); await load() }
+    catch (e) { setError('Could not update note: ' + e.message) }
+  }
+
   return (
     <>
       <div className="page-header"><h1>Notes</h1><p>A scratchpad for anything that doesn't fit elsewhere.</p></div>
       <div className="toolbar">
         <input className="search-input" placeholder="Search notes…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button className="btn ghost" onClick={() => setShowArchived((s) => !s)}>
+          {showArchived ? '📁 Active notes' : '🗄️ Archived'}
+        </button>
         <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ New note</button>
       </div>
       {error && <div style={{ color:'var(--bad)', fontSize:13, marginBottom:16, padding:'10px 14px', background:'rgba(217,113,106,0.1)', borderRadius:8 }}>⚠️ {error}</div>}
       {loading && <div className="empty-state">Loading…</div>}
-      {!loading && filtered.length === 0 && !error && <div className="empty-state"><div className="icon">📝</div>No notes yet.</div>}
+      {!loading && filtered.length === 0 && !error && (
+        <div className="empty-state">
+          <div className="icon">📝</div>
+          {showArchived ? 'No archived notes.' : 'No notes yet.'}
+        </div>
+      )}
       <div className="grid cols-2">
         {filtered.map((n) => (
           <div className="card" key={n.id}>
             <div className="row-title">{n.pinned ? '📌 ' : ''}{n.title || '(untitled)'}</div>
             <p style={{ fontSize:13.5, color:'var(--text-dim)', whiteSpace:'pre-wrap', margin:'8px 0 14px' }}>{n.body}</p>
             <div style={{ display:'flex', gap:8 }}>
-              <button className="btn ghost" onClick={() => togglePin(n)}>{n.pinned ? 'Unpin' : 'Pin'}</button>
+              {!showArchived && <button className="btn ghost" onClick={() => togglePin(n)}>{n.pinned ? 'Unpin' : 'Pin'}</button>}
+              <button className="btn ghost" onClick={() => toggleArchive(n)}>{n.archived ? 'Unarchive' : 'Archive'}</button>
               <button className="btn ghost" onClick={() => setEditing({ ...n })}>Edit</button>
               <button className="btn ghost danger" onClick={() => handleDelete(n.id)}>Delete</button>
             </div>
