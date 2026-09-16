@@ -103,6 +103,14 @@ Browser (React SPA)
     appeared to work one-way. Comparing real timestamps directly has no such gap.
   - Deleting a follow-up (`handleDelete`) also best-effort deletes its linked Outlook task,
     so it doesn't reappear as an "imported" follow-up on the next sync.
+- **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
+  `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
+  switches the whole page between the active list and the archived list (`!!n.archived ===
+  showArchived`, so records without the field at all — anything created before this existed —
+  read as `archived: false` and show up in the active list as before); the Pin button is
+  hidden while viewing archived notes since pin ordering only matters for the active list.
+  Archiving/unarchiving is just `notesStore.upsert({ ...note, archived: !note.archived })`,
+  the same pattern `togglePin` already used.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`
@@ -257,7 +265,7 @@ src/
                         (per-row one-way push, or "Sync with Outlook" for a full two-way
                         reconciliation across every follow-up);
                         exports `urgencyLabel`
-    Notes.jsx          Freeform scratchpad
+    Notes.jsx          Freeform scratchpad; pin, archive/unarchive, search
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
     Settings.jsx       Browser-local settings — currently the Microsoft Graph token form
