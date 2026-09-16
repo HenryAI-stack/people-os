@@ -21,6 +21,8 @@ accomplishments summary (server-side, via Resend).
 - `react-router-dom` v6, mounted with `HashRouter` in `src/main.jsx` (required — GitHub Pages
   has no server-side routing)
 - `firebase` v10 — **Authentication only**, not used for data storage
+- `@azure/msal-browser` — Microsoft Graph auth for Outlook / Microsoft To Do sync (silent
+  token refresh from a cached refresh token; see `src/lib/msalAuth.js`)
 - `crypto-js` — AES-256 encryption of every record before it leaves the browser (passphrase
   mode: `CryptoJS.AES.encrypt(json, secret)`)
 - `date-fns`
@@ -78,11 +80,21 @@ Browser (React SPA)
   a proxy, …) is a change to `ai.js` alone. (Note: GitHub Models was retired 2026-07-30 —
   don't reach for it.)
 - **Outlook / Microsoft To Do sync**: `src/lib/msGraph.js` talks to a "PeopleOS Follow-ups"
-  task list via Microsoft Graph, using a short-lived Graph Explorer token (expires ~1h).
-  `src/lib/settings.js`'s `getMsGraphToken()` reads it from `localStorage` (set via the
-  Settings page's paste-a-token form — the normal way to refresh it, since it doesn't
-  require a rebuild) and falls back to the build-time `VITE_MS_GRAPH_TOKEN` env var if
-  nothing is stored locally. msGraph.js itself is just Graph API calls
+  task list via Microsoft Graph. Auth is `src/lib/msalAuth.js`, a thin wrapper around
+  `@azure/msal-browser` (Authorization Code + PKCE, public client, no client secret in the
+  bundle): `msalConnect()` does a one-time interactive popup sign-in against an Entra ID app
+  registration (`VITE_MS_GRAPH_CLIENT_ID`, `Tasks.ReadWrite` delegated scope — see
+  INSTALLATION.md), and `getGraphAccessToken()` (used internally by msGraph.js's
+  `authHeaders()`) calls MSAL's `acquireTokenSilent()` first, which redeems the cached
+  refresh token for a new access token with no user interaction — MSAL persists that refresh
+  token in `localStorage` itself (`cacheLocation: 'localStorage'`), so this survives reloads
+  and works unattended for as long as the refresh token stays valid (~90 days, sliding on
+  each use). It only falls back to an interactive `acquireTokenPopup()` when silent
+  acquisition throws `InteractionRequiredAuthError` (never signed in, or the refresh token
+  itself finally went stale). This replaced an earlier design where a Graph Explorer access
+  token (expires in ~1h) had to be copy-pasted into the Settings page by hand every time it
+  expired — don't reintroduce that; the whole point of the MSAL flow is that it doesn't need
+  routine manual refreshing. msGraph.js itself is just Graph API calls
   (`syncFollowUpToOutlook` create/update, `listOutlookTasks`, `deleteOutlookTask`) — the
   reconciliation logic lives in `FollowUps.jsx`, per the "page components own their data"
   convention:
@@ -245,9 +257,9 @@ src/
                         fmtTzAbbr/fmtTzFull, shared by App.jsx's sidebar widget and
                         WorldMapModal's clocks table so both list the same cities
     imageUtils.js      Client-side avatar photo resizing before storing as base64
-    settings.js        Browser-local (localStorage) user settings — currently just
-                        getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
-                        written by the Settings page
+    msalAuth.js        MSAL.js wrapper (silent-refresh Microsoft Graph auth) — msalConnect/
+                        msalDisconnect/msalGetAccount (used by Settings.jsx) and
+                        getGraphAccessToken (used internally by msGraph.js)
   pages/
     Dashboard.jsx      Team stats, upcoming anniversaries, recent activity
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
@@ -260,9 +272,9 @@ src/
     Notes.jsx          Freeform scratchpad
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
-    Settings.jsx       Browser-local settings — currently the Microsoft Graph token form
-                        (backs msGraph.js via settings.js), with instructions for generating
-                        one from Graph Explorer
+    Settings.jsx       Browser-local settings — currently just "Connect Microsoft Account"
+                        (msalAuth.js's interactive sign-in) / "Disconnect", backing
+                        msGraph.js's Outlook sync
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
@@ -328,18 +340,16 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 - Anniversary-date math is duplicated (`nextAnniversary` in `Dashboard.jsx` vs.
   `getNextAnniversary` in `PersonDetail.jsx`) with slightly different return shapes. If you
   touch one, check whether the other needs the same fix.
-- `msGraph.js` and `githubActions.js` both rely on tokens that are either short-lived
-  (the Microsoft Graph token, ~1h) or narrowly scoped (`VITE_GH_ACTIONS_TOKEN` —
-  "Actions: write" on this repo only). Both features degrade to a clear error string when
-  the token is absent or expired; that's intended. The Graph token is the one exception to
-  "env vars are build-time only": it's normally set at runtime from the Settings page
-  (`localStorage`, via `settings.js`), specifically so refreshing the ~1h-lived token doesn't
-  need a rebuild+redeploy. `VITE_MS_GRAPH_TOKEN` still works as a build-time fallback when
-  nothing is stored locally.
+- `msGraph.js` and `githubActions.js` both rely on tokens that are either short-lived (the
+  Microsoft Graph access token, ~1h, silently renewed by `msalAuth.js` — see above) or
+  narrowly scoped (`VITE_GH_ACTIONS_TOKEN` — "Actions: write" on this repo only). Both
+  features degrade to a clear error string when no token is available (Graph: never
+  connected, or the ~90-day refresh token finally expired; Actions: the env var is unset);
+  that's intended.
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 13 build vars and is
+Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 14 build vars and is
 kept in sync with `import.meta.env.*` usage in `src/` and with `deploy.yml` (verified — no
 gaps in any direction). Production: the same names are stored as GitHub Actions repository
 secrets and injected at build time. `deploy.yml` is the definitive list of what the app build
@@ -355,7 +365,8 @@ only and not in `.env.example`).
 | `VITE_ENCRYPTION_SECRET` | app build + both email jobs | AES passphrase for all records — never rotate once real data exists |
 | `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
 | `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug |
-| `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Build-time fallback Graph token for Outlook / Microsoft To Do sync; expires ~1h. Normally set instead from the Settings page at runtime (`localStorage`, no rebuild needed) — see `src/lib/settings.js` |
+| `VITE_MS_GRAPH_CLIENT_ID` | app build (`msalAuth.js`) | Application (client) ID of the Entra ID app registration powering Outlook / Microsoft To Do sync — see INSTALLATION.md |
+| `VITE_MS_GRAPH_TENANT_ID` | app build (`msalAuth.js`) | Optional; only needed if that app registration is restricted to a single tenant. Defaults to `common` |
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" and "Send via Email" buttons |
 | `RESEND_API_KEY` | both email jobs | Server-side Resend API key, shared by both the accomplishments and work-schedule emails |
 | `ACCOMPLISHMENTS_EMAIL_TO` | accomplishments email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
