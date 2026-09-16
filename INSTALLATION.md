@@ -138,8 +138,7 @@ These get injected as environment variables on every build (see
 | ---------------------------- | ----------------------------------- | --------------------- |
 | `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, follow-up topics, and executive summaries, via [OpenRouter](https://openrouter.ai/keys). Put ≥ $10 of credit on the account — the free tier is capped at ~50 requests/day |
 | `VITE_OPENROUTER_MODEL`     | `google/gemini-2.5-flash`          | Optional. Overrides the default model in `src/lib/ai.js` — set it if that slug gets retired (error: "No endpoints found"). Current [model list](https://openrouter.ai/models) |
-| `VITE_MS_GRAPH_CLIENT_ID`   | `3f8a1c2e-...`                      | Outlook / Microsoft To Do sync — Application (client) ID of an Entra ID app registration. See **Optional — Outlook / Microsoft To Do sync** below |
-| `VITE_MS_GRAPH_TENANT_ID`   | `common`                           | Optional. Only needed if that app registration is single-tenant instead of the default "any org + personal accounts" |
+| `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | Build-time fallback for Outlook / Microsoft To Do sync. Easier in practice: paste the token straight into the app's **Settings** page instead (saved to `localStorage`, no rebuild needed) — same short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token** |
 | `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" and "Send via Email" (work schedule) buttons — see the two email sections below |
 
 > Both the monthly accomplishments email and the work-schedule email need
@@ -322,41 +321,6 @@ It defaults to the current month (Europe/Vienna); pass a specific `month`
 (e.g. `2026-08`) to send a different one. There must already be a **saved**
 schedule for that month (Work Schedule page → Generate → Save) — the
 workflow fails with a clear message otherwise.
-
----
-
-## Optional — Outlook / Microsoft To Do sync
-
-The Follow-ups page can push/pull items to a **PeopleOS Follow-ups** list in Microsoft To
-Do. It authenticates via [MSAL.js](https://learn.microsoft.com/en-us/entra/identity-platform/msal-overview)
-against your own Entra ID (Azure AD) app registration: sign in once from the app's
-**Settings** page, and PeopleOS silently renews its own access token from the cached refresh
-token from then on — no rebuild, no manual token copy-paste every hour.
-
-1. Go to [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID** → **App
-   registrations** → **New registration**.
-2. Name it anything (e.g. `PeopleOS`). Under **Supported account types**, pick "Accounts in
-   any organizational directory and personal Microsoft accounts" unless you specifically want
-   to restrict sign-in to one work/school tenant.
-3. Under **Redirect URI**, choose platform **Single-page application** and add your deployed
-   app's URL, e.g. `https://<your-github-username>.github.io/people-os/` (must match
-   `vite.config.js`'s `base` exactly, trailing slash included). If you'll also test locally,
-   add `http://localhost:5173/people-os/` too.
-4. Register, then copy the **Application (client) ID** from the Overview page — this is
-   `VITE_MS_GRAPH_CLIENT_ID`.
-5. Go to **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated
-   permissions** → search **Tasks.ReadWrite** → Add. No admin consent is needed for a
-   single-user app — you consent yourself the first time you sign in.
-6. Add `VITE_MS_GRAPH_CLIENT_ID` as a repo secret (Settings → Secrets and variables →
-   Actions), same as the others. Leave `VITE_MS_GRAPH_TENANT_ID` unset unless you restricted
-   sign-in to one tenant in step 2.
-7. Redeploy, then open the app's **Settings** page and click **Connect Microsoft Account**.
-   That's a one-time interactive sign-in (a popup) — after that, sync just works until you
-   explicitly disconnect or don't open the app for a long stretch (MSAL's refresh token is
-   valid for up to ~90 days, refreshed on every use).
-
-Without `VITE_MS_GRAPH_CLIENT_ID` set, the Settings page says so and the "Sync to Outlook"
-actions show a clear error; everything else in the app works regardless.
 
 ---
 

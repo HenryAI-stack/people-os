@@ -1,42 +1,21 @@
-import { useEffect, useState } from 'react'
-import { msalConnect, msalDisconnect, msalGetAccount } from '../lib/msalAuth.js'
-
-const CLIENT_ID_SET = !!import.meta.env.VITE_MS_GRAPH_CLIENT_ID
+import { useState } from 'react'
+import { getMsGraphToken, setMsGraphToken } from '../lib/settings.js'
 
 export default function Settings() {
-  const [account, setAccount] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [busy,    setBusy]    = useState(false)
-  const [error,   setError]   = useState('')
+  const [token, setToken] = useState(() => getMsGraphToken())
+  const [show,  setShow]  = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    msalGetAccount().then(setAccount).finally(() => setLoading(false))
-  }, [])
-
-  async function handleConnect() {
-    setBusy(true)
-    setError('')
-    try {
-      const acct = await msalConnect()
-      setAccount(acct)
-    } catch (err) {
-      setError(err.message || 'Could not connect to Microsoft.')
-    } finally {
-      setBusy(false)
-    }
+  function handleSave(e) {
+    e.preventDefault()
+    setMsGraphToken(token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
-  async function handleDisconnect() {
-    setBusy(true)
-    setError('')
-    try {
-      await msalDisconnect()
-      setAccount(null)
-    } catch (err) {
-      setError(err.message || 'Could not disconnect.')
-    } finally {
-      setBusy(false)
-    }
+  function handleClear() {
+    setToken('')
+    setMsGraphToken('')
   }
 
   return (
@@ -47,43 +26,53 @@ export default function Settings() {
       </div>
 
       <div className="card" style={{ maxWidth: 640 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 6 }}>Microsoft account</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 6 }}>Microsoft Graph token</h3>
         <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
           Powers the "Sync to Outlook" buttons on the Follow-ups page — they push follow-ups
-          into a <strong>PeopleOS Follow-ups</strong> list in Microsoft To Do. Connect once and
-          PeopleOS silently renews its own access token in the background from then on — no
-          more copy-pasting a fresh token every hour or two.
+          into a <strong>PeopleOS Follow-ups</strong> list in Microsoft To Do. Graph Explorer
+          tokens expire after about an hour, so come back and paste a fresh one here whenever
+          sync starts failing with an expired-token error.
         </p>
+        <ol style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.8, paddingLeft: 20, margin: '0 0 18px' }}>
+          <li>
+            Open{' '}
+            <a href="https://developer.microsoft.com/graph/graph-explorer" target="_blank" rel="noreferrer">
+              Microsoft Graph Explorer
+            </a>{' '}
+            and sign in with your Outlook / Microsoft 365 account.
+          </li>
+          <li>Click your profile picture in the top right, then <strong>Access token</strong>, and copy the whole thing.</li>
+          <li>Paste it below and click Save. It only lives in this browser's local storage.</li>
+        </ol>
 
-        {!CLIENT_ID_SET ? (
-          <div style={{ color: 'var(--bad)', fontSize: 13.5, lineHeight: 1.6 }}>
-            <code>VITE_MS_GRAPH_CLIENT_ID</code> is not set in this build — Outlook sync is
-            disabled until an Entra ID app registration is created and its client ID is added
-            (see INSTALLATION.md).
+        <form onSubmit={handleSave}>
+          <div className="field">
+            <label>Access token</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type={show ? 'text' : 'password'}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Paste the Graph Explorer access token"
+                autoComplete="off"
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn ghost" onClick={() => setShow((s) => !s)}>
+                {show ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
-        ) : loading ? (
-          <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>Checking connection…</div>
-        ) : account ? (
-          <>
-            <div style={{ fontSize: 13.5, marginBottom: 14 }}>
-              Status: connected as <strong>{account.username}</strong>.
-            </div>
-            <button type="button" className="btn ghost danger" onClick={handleDisconnect} disabled={busy}>
-              {busy ? 'Disconnecting…' : 'Disconnect'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 13.5, color: 'var(--text-faint)', marginBottom: 14 }}>
-              Status: not connected — Outlook sync will show an error until you connect.
-            </div>
-            <button type="button" className="btn primary" onClick={handleConnect} disabled={busy}>
-              {busy ? 'Connecting…' : 'Connect Microsoft Account'}
-            </button>
-          </>
-        )}
+          <div className="modal-actions" style={{ marginTop: 4 }}>
+            <button type="button" className="btn ghost danger" onClick={handleClear} disabled={!token}>Clear</button>
+            <button type="submit" className="btn primary" disabled={!token}>{saved ? 'Saved ✓' : 'Save'}</button>
+          </div>
+        </form>
 
-        {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginTop: 12 }}>{error}</div>}
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-faint)' }}>
+          {token
+            ? <>Status: token set, ending in <code>{token.slice(-6)}</code>.</>
+            : 'Status: no token set — Outlook sync will show an error until one is added.'}
+        </div>
       </div>
     </>
   )
