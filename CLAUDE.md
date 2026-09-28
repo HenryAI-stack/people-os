@@ -111,6 +111,22 @@ Browser (React SPA)
   hidden while viewing archived notes since pin ordering only matters for the active list.
   Archiving/unarchiving is just `notesStore.upsert({ ...note, archived: !note.archived })`,
   the same pattern `togglePin` already used.
+- **Birthdays**: stored as a single `birthday` string on the direct report record — `'MM-DD'`
+  when only the day/month are known (the common case; most people don't share their birth
+  year with their manager), or `'YYYY-MM-DD'` when the year is known too. `src/lib/birthdays.js`
+  (`parseBirthday`/`formatBirthdayValue`/`nextBirthday`/`fmtBirthdayLabel`) is the single shared
+  implementation — deliberately **not** duplicated across pages the way anniversary math
+  already is (see the Known quirks note below); `DirectReports.jsx`'s `ReportForm`, `PersonDetail.jsx`,
+  and `Dashboard.jsx` all import from it. The add/edit form uses two `<select>`s (month, day)
+  plus an optional number input for the year, rather than a native `<input type="date">` —
+  HTML date inputs require a year, which defeats the point when the year is usually unknown.
+  `nextBirthday()` mirrors `nextAnniversary()`'s local-timezone-only approach (never round-trips
+  the stored value through a Date-string constructor, since month/day/year are already plain
+  numbers from `birthday.split('-')`) — see the work-schedule feature's `Date.UTC()` notes above
+  for the bug class this avoids. `Dashboard.jsx` gets a "🎈 Upcoming birthdays" section (distinct
+  emoji from anniversaries' 🎂, right below "🎂 Upcoming anniversaries"); `PersonDetail.jsx` shows
+  a "Birthday" chip plus a colored days-until badge (with `turning <age>` appended when the year
+  is known) next to the existing anniversary chip.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`
@@ -232,6 +248,9 @@ src/
                        + downloadScheduleExcel() — multi-sheet .xlsx export of the work
                        schedule via exceljs (dynamically imported, its own chunk, browser only)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
+    birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —
+                       shared by DirectReports.jsx (ReportForm), PersonDetail.jsx, and
+                       Dashboard.jsx, rather than duplicated the way anniversary math is
     locationFlag.js    Free-text location → ISO country code (getCountryCode) → flag image
                         URL, and → [lat, lon] city centroid (getCoords, used by WorldMapModal)
     sunPosition.js     Approximate subsolar point + terminator latitude, for WorldMapModal's
@@ -335,7 +354,8 @@ Data collections (each a JSON file in the **separate, private** data repo — de
   update this script to match.
 - Anniversary-date math is duplicated (`nextAnniversary` in `Dashboard.jsx` vs.
   `getNextAnniversary` in `PersonDetail.jsx`) with slightly different return shapes. If you
-  touch one, check whether the other needs the same fix.
+  touch one, check whether the other needs the same fix. Birthday math deliberately avoided
+  repeating this mistake — `src/lib/birthdays.js` is the one implementation both pages import.
 - `msGraph.js` and `githubActions.js` both rely on tokens that are either short-lived
   (the Microsoft Graph token, ~1h) or narrowly scoped (`VITE_GH_ACTIONS_TOKEN` —
   "Actions: write" on this repo only). Both features degrade to a clear error string when
