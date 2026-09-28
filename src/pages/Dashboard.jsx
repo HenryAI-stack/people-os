@@ -4,6 +4,7 @@ import { directReportsStore, interviewsStore, notesStore, followUpsStore } from 
 import { Avatar } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
+import { nextBirthday } from '../lib/birthdays.js'
 
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
@@ -79,6 +80,13 @@ export default function Dashboard() {
     .sort((a, b) => a.ann.daysUntil - b.ann.daysUntil)
     .slice(0, 3)
 
+  const upcomingBirthdays = reports
+    .filter((r) => r.birthday)
+    .map((r) => ({ ...r, bday: nextBirthday(r.birthday) }))
+    .filter((r) => r.bday !== null)
+    .sort((a, b) => a.bday.daysUntil - b.bday.daysUntil)
+    .slice(0, 3)
+
   return (
     <>
       <div className="page-header"><h1>Dashboard</h1><p>Your team, at a glance.</p></div>
@@ -132,6 +140,23 @@ export default function Dashboard() {
               </div>
             </div>
             <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>{daysLabel(r.ann.daysUntil)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="section-title">🎈 Upcoming birthdays</div>
+      {!loading && upcomingBirthdays.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No birthdays — add them on your <Link to="/direct-reports">direct reports</Link>.</div>}
+      <div className="list">
+        {upcomingBirthdays.map((r) => (
+          <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
+            <div className="row-main">
+              <Avatar photo={r.photo} name={r.name} size={34} />
+              <div>
+                <div className="row-title">{r.name}</div>
+                <div className="row-sub">{formatDate(r.bday.date)}{r.bday.turningAge != null && ` · turning ${r.bday.turningAge}`}{r.location && <> · {r.location}<FlagImg location={r.location} /></>}</div>
+              </div>
+            </div>
+            <span className={`badge ${urgencyClass(r.bday.daysUntil)}`}>{daysLabel(r.bday.daysUntil)}</span>
           </div>
         ))}
       </div>

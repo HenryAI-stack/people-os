@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { directReportsStore } from '../lib/dataStore'
 import { resizeImage } from '../lib/imageUtils'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
+import { parseBirthday, formatBirthdayValue } from '../lib/birthdays.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
-const EMPTY = { name:'', role:'', team:'', startDate:'', level:'', location:'', status:'active', email:'', notes:'', photo:'' }
+const EMPTY = { name:'', role:'', team:'', startDate:'', birthday:'', level:'', location:'', status:'active', email:'', notes:'', photo:'' }
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 export default function DirectReports() {
   const [items,   setItems]   = useState([])
@@ -142,15 +144,18 @@ function PhotoPicker({ value, onChange }) {
 
 export function ReportForm({ initial, onCancel, onSave }) {
   const [form,   setForm]   = useState({ ...initial })
+  const [bday,   setBday]   = useState(() => parseBirthday(initial.birthday) || { month:'', day:'', year:'' })
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
   const isNew = !initial.id
 
   function set(key, value) { setForm((f) => ({ ...f, [key]: value })) }
+  function setBdayField(key, value) { setBday((b) => ({ ...b, [key]: value ? Number(value) : '' })) }
 
   async function submit(e) {
     e.preventDefault(); setSaving(true); setError('')
-    try { await onSave(form) }
+    const payload = { ...form, birthday: formatBirthdayValue(bday) }
+    try { await onSave(payload) }
     catch (err) { setError(err.message || 'Save failed.'); setSaving(false) }
   }
 
@@ -166,6 +171,22 @@ export function ReportForm({ initial, onCancel, onSave }) {
         <div className="field"><label>Level / seniority</label><input value={form.level} onChange={(e) => set('level', e.target.value)} placeholder="e.g. Senior, L4, IC3" /></div>
         <div className="field"><label>Location</label><input value={form.location} onChange={(e) => set('location', e.target.value)} placeholder="e.g. Vienna, Austria" /></div>
         <div className="field"><label>Start date</label><input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></div>
+        <div className="field">
+          <label>Birthday</label>
+          <div style={{ display:'flex', gap:8 }}>
+            <select value={bday.month} onChange={(e) => setBdayField('month', e.target.value)} style={{ flex:2 }}>
+              <option value="">Month</option>
+              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={bday.day} onChange={(e) => setBdayField('day', e.target.value)} style={{ flex:1 }}>
+              <option value="">Day</option>
+              {Array.from({ length:31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <input type="number" placeholder="Year (optional)" value={bday.year}
+              onChange={(e) => setBdayField('year', e.target.value)} style={{ flex:1 }} />
+          </div>
+          <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>Year is optional — leave it blank if you don't know it.</span>
+        </div>
         <div className="field">
           <label>Status</label>
           <select value={form.status} onChange={(e) => set('status', e.target.value)}>

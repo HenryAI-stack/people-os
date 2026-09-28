@@ -4,6 +4,7 @@ import { directReportsStore, interviewsStore, followUpsStore } from '../lib/data
 import { Avatar, ReportForm } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
+import { nextBirthday, fmtBirthdayLabel } from '../lib/birthdays.js'
 import { generateTags, generateTakeaways, generateFollowUpTopics } from '../lib/autoTags.js'
 import { chat } from '../lib/ai.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
@@ -154,8 +155,9 @@ export default function PersonDetail() {
     ? new Date(person.aiSummaryDate).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
     : null
 
-  const ann = getNextAnniversary(person.startDate)
-  const fc  = getCountryCode(person.location)
+  const ann  = getNextAnniversary(person.startDate)
+  const bday = nextBirthday(person.birthday)
+  const fc   = getCountryCode(person.location)
 
   return (
     <>
@@ -179,6 +181,16 @@ export default function PersonDetail() {
                 {ann && (
                   <div style={{ fontSize:12, color:ann.days<=30?'var(--warn)':'var(--text-faint)', background:ann.days<=30?'rgba(217,178,94,0.12)':'var(--bg)', border:'1px solid var(--border)', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
                     🎂 {ann.years}{ann.ord} ann. · {ann.label}
+                  </div>
+                )}
+              </div>
+            )}
+            {person.birthday && (
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <Chip label="Birthday" value={fmtBirthdayLabel(person.birthday)} />
+                {bday && (
+                  <div style={{ fontSize:12, color:bday.daysUntil<=30?'var(--warn)':'var(--text-faint)', background:bday.daysUntil<=30?'rgba(217,178,94,0.12)':'var(--bg)', border:'1px solid var(--border)', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
+                    🎈 {bday.daysUntil===0?'Today!':bday.daysUntil===1?'Tomorrow':`In ${bday.daysUntil} days`}{bday.turningAge!=null && ` · turning ${bday.turningAge}`}
                   </div>
                 )}
               </div>
