@@ -9,6 +9,16 @@ const EMPTY = {
   summary: '', takeaways: '', tags: '',
 }
 
+// Seeded so the title autocomplete is useful on day one (before any history
+// exists) — merged with whatever titles have actually been used, in
+// InterviewForm's titleSuggestions below.
+const DEFAULT_TITLE_SUGGESTIONS = ['Weekly']
+
+function todayDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const TYPE_LABEL = {
   '1:1': '1:1',
   skip_level: 'Skip-level',
@@ -97,7 +107,7 @@ export default function Interviews() {
           <option value="all">All types</option>
           {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <button className="btn primary" onClick={() => setEditing({ ...EMPTY })}>+ Log entry</button>
+        <button className="btn primary" onClick={() => setEditing({ ...EMPTY, date: todayDate() })}>+ Log entry</button>
       </div>
 
       {loading && <div className="empty-state">Loading…</div>}
@@ -190,6 +200,7 @@ export default function Interviews() {
           key={editing.id || 'new'}
           initial={editing}
           reports={reports}
+          items={items}
           onCancel={() => setEditing(null)}
           onSave={handleSave}
         />
@@ -198,7 +209,7 @@ export default function Interviews() {
   )
 }
 
-function InterviewForm({ initial, reports, onCancel, onSave }) {
+function InterviewForm({ initial, reports, items, onCancel, onSave }) {
   const [form,        setForm]        = useState({ ...initial })
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
@@ -248,6 +259,11 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
     catch (err) { setError(err.message || 'Save failed.'); setSaving(false) }
   }
 
+  const titleSuggestions = useMemo(() => {
+    const historical = items.map((i) => i.title).filter(Boolean)
+    return [...new Set([...DEFAULT_TITLE_SUGGESTIONS, ...historical])]
+  }, [items])
+
   const isOther = form.personId === '__other__'
   const selectValue = form.personId ||
     (form.person && reports.find((r) => r.name.trim().toLowerCase() === form.person.trim().toLowerCase())?.id) ||
@@ -265,7 +281,10 @@ function InterviewForm({ initial, reports, onCancel, onSave }) {
 
         <div className="field">
           <label>Title</label>
-          <input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" />
+          <input required list="interview-title-suggestions" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Weekly" />
+          <datalist id="interview-title-suggestions">
+            {titleSuggestions.map((t) => <option key={t} value={t} />)}
+          </datalist>
         </div>
         <div className="field">
           <label>Type</label>

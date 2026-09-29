@@ -127,6 +127,18 @@ Browser (React SPA)
   emoji from anniversaries' 🎂, right below "🎂 Upcoming anniversaries"); `PersonDetail.jsx` shows
   a "Birthday" chip plus a colored days-until badge (with `turning <age>` appended when the year
   is known) next to the existing anniversary chip.
+- **New-interview defaults**: there are two separate "log a new interview" entry points — the
+  standalone `InterviewForm` in `Interviews.jsx` ("+ Log entry") and the one inside
+  `PersonDetail.jsx` ("+ Add interview", used from a person's profile) — genuinely two different
+  components, not a shared one (per the "page components own their data" convention). Both
+  independently default a brand-new entry's Date field to today (a page-local `todayDate()` in
+  each file, `getFullYear()`/`getMonth()`/`getDate()` — local getters, matching `todayMonth()`'s
+  existing pattern elsewhere in the app; **not** `toISOString()`, which reads the UTC date and
+  can be off by a day depending on the browser's timezone) and offer the Title field as an
+  `<input list=…>` + `<datalist>` autocomplete (no library — plain HTML) seeded with `['Weekly']`
+  merged with whatever titles have actually been used before (org-wide in `Interviews.jsx`, this
+  person's own history in `PersonDetail.jsx`), deduped via `Set`. Editing an existing interview is
+  untouched — only new entries get the today-date default.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`

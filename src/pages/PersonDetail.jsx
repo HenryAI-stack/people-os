@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { directReportsStore, interviewsStore, followUpsStore } from '../lib/dataStore'
 import { Avatar, ReportForm } from './DirectReports.jsx'
@@ -15,6 +15,16 @@ const INTERVIEW_TYPES = {
 }
 
 const EMPTY_INTERVIEW = { title:'', type:'1:1', person:'', date:'', summary:'', takeaways:'', tags:'' }
+
+// Seeded so the title autocomplete is useful even for a report with no
+// interview history yet — merged with this person's actual past titles in
+// InterviewForm's titleSuggestions below.
+const DEFAULT_TITLE_SUGGESTIONS = ['Weekly']
+
+function todayDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // ── Anniversary helper ───────────────────────────────────────────────────────
 function getNextAnniversary(startDateStr) {
@@ -282,7 +292,7 @@ export default function PersonDetail() {
       )}
 
       {/* Add interview modal */}
-      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name }} title="Log interview" previousInterviews={interviews} personName={person.name} onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
+      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name, date:todayDate() }} title="Log interview" previousInterviews={interviews} personName={person.name} onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
 
       {/* Edit interview modal */}
       {editingIv && <InterviewForm key={editingIv.id} initial={editingIv} title="Edit interview" previousInterviews={interviews} personName={person.name} onCancel={() => setEditingIv(null)} onSave={handleSaveInterview} />}
@@ -358,6 +368,11 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
     setForm((f) => ({ ...f, takeaways: f.takeaways ? f.takeaways + '\n• ' + s : '• ' + s }))
   }
 
+  const titleSuggestions = useMemo(() => {
+    const historical = previousInterviews.map((i) => i.title).filter(Boolean)
+    return [...new Set([...DEFAULT_TITLE_SUGGESTIONS, ...historical])]
+  }, [previousInterviews])
+
   async function submit(e) {
     e.preventDefault(); setSaving(true); setError('')
     try { await onSave(form) }
@@ -396,7 +411,13 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
           </div>
         )}
 
-        <div className="field"><label>Title</label><input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 1:1 — career growth chat" /></div>
+        <div className="field">
+          <label>Title</label>
+          <input required list="person-interview-title-suggestions" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Weekly" />
+          <datalist id="person-interview-title-suggestions">
+            {titleSuggestions.map((t) => <option key={t} value={t} />)}
+          </datalist>
+        </div>
         <div className="field">
           <label>Type</label>
           <select value={form.type} onChange={(e) => set('type', e.target.value)}>
