@@ -72,7 +72,12 @@ Browser (React SPA)
   rather than a generic "empty response".
   `src/lib/autoTags.js` builds on it for auto interview tags, key takeaways, and
   follow-up-topic suggestions (used from `Interviews.jsx` and `PersonDetail.jsx`);
-  `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the executive summary.
+  `PersonDetail.jsx`'s `generateAISummary` calls `chat` directly for the executive summary, and
+  `Accomplishments.jsx`'s `improveAccomplishmentText` likewise calls `chat` directly (a "✦ AI
+  improve" button next to the Accomplishment textarea in `AccomplishmentForm`, enabled once
+  there's any text, rewrites it into a polished one-or-two-sentence entry and replaces the
+  textarea content in place) — both one-off, single-page AI calls live in their own page file
+  rather than `autoTags.js`, which is reserved for prompts actually shared across pages.
   All best-effort with try/catch and user-facing error strings; the takeaway/topic parsers
   still strip any "thinking" preamble a model may emit. Swapping provider (Azure AI Foundry,
   a proxy, …) is a change to `ai.js` alone. (Note: GitHub Models was retired 2026-07-30 —

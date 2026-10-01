@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { accomplishmentsStore, directReportsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 import { sendAccomplishmentsEmailNow, ACTIONS_URL } from '../lib/githubActions.js'
+import { chat } from '../lib/ai.js'
 
 const EMPTY = {
   month: '', date: '', text: '',
@@ -30,6 +31,22 @@ function fmtMonth(ym) {
 function fmtDate(dateStr) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+// One-off AI call specific to this page (not shared elsewhere), so it lives
+// here rather than in autoTags.js — same precedent as PersonDetail.jsx's own
+// generateAISummary calling chat() directly.
+async function improveAccomplishmentText(text) {
+  const prompt =
+    `Rewrite the following accomplishment note so it reads as a polished, concise, ` +
+    `professional entry suitable for a monthly summary email to leadership. Keep it ` +
+    `factual — don't invent details that aren't in the original. Use active voice, start ` +
+    `with a strong verb, and keep it to one or two sentences.\n` +
+    `Reply with ONLY the improved text — no quotes, no explanation, no intro.\n\n` +
+    `Original: ${text}`
+
+  const improved = await chat(prompt, { maxTokens: 150 })
+  return improved.trim().replace(/^["']|["']$/g, '') // strip stray wrapping quotes some models add
 }
 
 export default function Accomplishments() {
@@ -192,12 +209,21 @@ export default function Accomplishments() {
 }
 
 function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
-  const [form,   setForm]   = useState({ ...initial })
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState('')
+  const [form,      setForm]      = useState({ ...initial })
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+  const [improving, setImproving] = useState(false)
   const isNew = !initial.id
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+
+  async function handleImprove() {
+    if (!form.text.trim()) return
+    setImproving(true); setError('')
+    try { set('text', await improveAccomplishmentText(form.text)) }
+    catch (err) { setError('AI improve: ' + (err.message || 'Failed — try again.')) }
+    finally { setImproving(false) }
+  }
 
   function handlePersonChange(e) {
     const r = reports.find((r) => r.id === e.target.value)
@@ -222,7 +248,16 @@ function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
     <DraggableModal title={isNew ? 'Add accomplishment' : 'Edit accomplishment'} onClose={onCancel}>
       <form onSubmit={submit}>
         {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 14, padding: '10px 12px', background: 'rgba(217,113,106,0.1)', borderRadius: 8 }}>⚠️ {error}</div>}
-        <div className="field"><label>Accomplishment</label><textarea required value={form.text} onChange={(e) => set('text', e.target.value)} placeholder="What was achieved?" style={{ minHeight: 80 }} /></div>
+        <div className="field">
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Accomplishment
+            <button type="button" onClick={handleImprove} disabled={improving || !form.text.trim()}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'pointer', opacity: !form.text.trim() ? 0.45 : 1 }}>
+              {improving ? '⏳ Improving…' : '✦ AI improve'}
+            </button>
+          </label>
+          <textarea required value={form.text} onChange={(e) => set('text', e.target.value)} placeholder="What was achieved?" style={{ minHeight: 80 }} />
+        </div>
         <div className="field"><label>Date</label><input type="date" required value={form.date} onChange={handleDateChange} /></div>
 
         <div className="field">
