@@ -128,10 +128,15 @@ Browser (React SPA)
   `nextBirthday()` mirrors `nextAnniversary()`'s local-timezone-only approach (never round-trips
   the stored value through a Date-string constructor, since month/day/year are already plain
   numbers from `birthday.split('-')`) — see the work-schedule feature's `Date.UTC()` notes above
-  for the bug class this avoids. `Dashboard.jsx` gets a "🎈 Upcoming birthdays" section (distinct
-  emoji from anniversaries' 🎂, right below "🎂 Upcoming anniversaries"); `PersonDetail.jsx` shows
-  a "Birthday" chip plus a colored days-until badge (with `turning <age>` appended when the year
-  is known) next to the existing anniversary chip.
+  for the bug class this avoids. `PersonDetail.jsx` shows a "Birthday" chip plus a colored
+  days-until badge (with `turning <age>` appended when the year is known) next to the existing
+  anniversary chip. On `Dashboard.jsx`, anniversaries and birthdays share one "🎉 Anniversaries &
+  birthdays" section laid out as two side-by-side columns (`.grid.cols-2`, which stacks to one
+  column under 760px), rendered via a shared `EventRow`. Each column lists the next 3 upcoming,
+  preceded by one greyed-out row (`opacity: 0.5`) for the most recent one that already passed —
+  `lastBirthday()` in `birthdays.js` and a Dashboard-local `prevAnniversary()` (which skips
+  anyone with no full year of tenure yet). "Today" counts as upcoming, not past. In the half-width
+  columns, location shows as just the flag next to the name, not the full location text.
 - **New-interview defaults**: there are two separate "log a new interview" entry points — the
   standalone `InterviewForm` in `Interviews.jsx` ("+ Log entry") and the one inside
   `PersonDetail.jsx` ("+ Add interview", used from a person's profile) — genuinely two different
@@ -304,7 +309,8 @@ src/
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
                         written by the Settings page
   pages/
-    Dashboard.jsx      Team stats, upcoming anniversaries, recent activity
+    Dashboard.jsx      Team stats, 1:1s overdue, anniversaries | birthdays (two columns,
+                       last-passed row greyed + next 3), recent activity
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
     Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log

@@ -4,7 +4,7 @@ import { directReportsStore, interviewsStore, notesStore, followUpsStore } from 
 import { Avatar } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
-import { nextBirthday } from '../lib/birthdays.js'
+import { nextBirthday, lastBirthday } from '../lib/birthdays.js'
 import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
 
 function nextAnniversary(startDateStr) {
@@ -17,6 +17,27 @@ function nextAnniversary(startDateStr) {
   const years = candidate.getFullYear() - start.getFullYear()
   const daysUntil = Math.round((candidate - today) / 86400000)
   return { date: candidate, years, daysUntil }
+}
+
+// Most recent anniversary strictly before today. Splits the 'YYYY-MM-DD' string rather than
+// parsing it with new Date(str), which reads it as UTC midnight.
+function prevAnniversary(startDateStr) {
+  const [y, m, d] = (startDateStr || '').split('-').map(Number)
+  if (!y || !m || !d) return null
+  const today = new Date(); today.setHours(0,0,0,0)
+  let candidate = new Date(today.getFullYear(), m - 1, d)
+  if (candidate >= today) candidate = new Date(today.getFullYear() - 1, m - 1, d)
+  const years = candidate.getFullYear() - y
+  if (years < 1) return null
+  const daysAgo = Math.round((today - candidate) / 86400000)
+  return { date: candidate, years, daysAgo }
+}
+
+function pastLabel(d) {
+  if (d === 1) return 'Yesterday'
+  if (d <= 14) return `${d} days ago`
+  if (d <= 60) return `${Math.round(d/7)} weeks ago`
+  return `${Math.round(d/30)} months ago`
 }
 
 function formatDate(date) {
@@ -46,6 +67,26 @@ function FlagImg({ location }) {
   const c = getCountryCode(location)
   if (!c) return null
   return <img src={flagUrl(c)} alt={c} style={{ width:20, height:15, objectFit:'cover', borderRadius:2, verticalAlign:'middle', marginLeft:4 }} />
+}
+
+const COLUMN_HEADING = { fontSize:12.5, fontWeight:600, color:'var(--text-dim)', marginBottom:8 }
+
+// Shared row for the anniversaries/birthdays columns. `past` = the greyed-out "most recent" row.
+// Half-width columns are tight, so location shows as just the flag next to the name.
+function EventRow({ person, sub, badge, badgeCls = '', past = false, onClick }) {
+  return (
+    <div className="row-card" onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
+      title={past ? 'Most recent — already passed' : undefined}>
+      <div className="row-main" style={{ minWidth:0 }}>
+        <Avatar photo={person.photo} name={person.name} size={34} />
+        <div style={{ minWidth:0 }}>
+          <div className="row-title">{person.name}<FlagImg location={person.location} /></div>
+          <div className="row-sub">{sub}</div>
+        </div>
+      </div>
+      <span className={`badge ${badgeCls}`} style={{ flexShrink:0, whiteSpace:'nowrap' }}>{badge}</span>
+    </div>
+  )
 }
 
 export default function Dashboard() {
@@ -94,6 +135,13 @@ export default function Dashboard() {
     .filter((r) => r.bday !== null)
     .sort((a, b) => a.bday.daysUntil - b.bday.daysUntil)
     .slice(0, 3)
+
+  const mostRecent = (list, fn) => list
+    .map((r) => ({ ...r, past: fn(r) }))
+    .filter((r) => r.past)
+    .sort((a, b) => a.past.daysAgo - b.past.daysAgo)[0] || null
+  const lastAnn  = mostRecent(reports.filter((r) => r.startDate), (r) => prevAnniversary(r.startDate))
+  const lastBday = mostRecent(reports.filter((r) => r.birthday),  (r) => lastBirthday(r.birthday))
 
   return (
     <>
@@ -155,38 +203,40 @@ export default function Dashboard() {
         })}
       </div>
 
-      <div className="section-title">🎂 Upcoming anniversaries</div>
-      {!loading && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
-      <div className="list">
-        {upcomingAnniversaries.map((r) => (
-          <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
-            <div className="row-main">
-              <Avatar photo={r.photo} name={r.name} size={34} />
-              <div>
-                <div className="row-title">{r.name}</div>
-                <div className="row-sub">{ordinal(r.ann.years)} anniversary · {formatDate(r.ann.date)}{r.location && <> · {r.location}<FlagImg location={r.location} /></>}</div>
-              </div>
-            </div>
-            <span className={`badge ${urgencyClass(r.ann.daysUntil)}`}>{daysLabel(r.ann.daysUntil)}</span>
+      <div className="section-title">🎉 Anniversaries & birthdays</div>
+      <div className="grid cols-2" style={{ alignItems:'start' }}>
+        <div>
+          <div style={COLUMN_HEADING}>🎂 Anniversaries</div>
+          {!loading && !lastAnn && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
+          <div className="list">
+            {lastAnn && (
+              <EventRow person={lastAnn} past onClick={() => navigate(`/direct-reports/${lastAnn.id}`)}
+                sub={`${ordinal(lastAnn.past.years)} anniversary · ${formatDate(lastAnn.past.date)}`}
+                badge={pastLabel(lastAnn.past.daysAgo)} />
+            )}
+            {upcomingAnniversaries.map((r) => (
+              <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
+                sub={`${ordinal(r.ann.years)} anniversary · ${formatDate(r.ann.date)}`}
+                badge={daysLabel(r.ann.daysUntil)} badgeCls={urgencyClass(r.ann.daysUntil)} />
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div className="section-title">🎈 Upcoming birthdays</div>
-      {!loading && upcomingBirthdays.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No birthdays — add them on your <Link to="/direct-reports">direct reports</Link>.</div>}
-      <div className="list">
-        {upcomingBirthdays.map((r) => (
-          <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
-            <div className="row-main">
-              <Avatar photo={r.photo} name={r.name} size={34} />
-              <div>
-                <div className="row-title">{r.name}</div>
-                <div className="row-sub">{formatDate(r.bday.date)}{r.bday.turningAge != null && ` · turning ${r.bday.turningAge}`}{r.location && <> · {r.location}<FlagImg location={r.location} /></>}</div>
-              </div>
-            </div>
-            <span className={`badge ${urgencyClass(r.bday.daysUntil)}`}>{daysLabel(r.bday.daysUntil)}</span>
+        </div>
+        <div>
+          <div style={COLUMN_HEADING}>🎈 Birthdays</div>
+          {!loading && !lastBday && upcomingBirthdays.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No birthdays — add them on your <Link to="/direct-reports">direct reports</Link>.</div>}
+          <div className="list">
+            {lastBday && (
+              <EventRow person={lastBday} past onClick={() => navigate(`/direct-reports/${lastBday.id}`)}
+                sub={`${formatDate(lastBday.past.date)}${lastBday.past.age != null ? ` · turned ${lastBday.past.age}` : ''}`}
+                badge={pastLabel(lastBday.past.daysAgo)} />
+            )}
+            {upcomingBirthdays.map((r) => (
+              <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
+                sub={`${formatDate(r.bday.date)}${r.bday.turningAge != null ? ` · turning ${r.bday.turningAge}` : ''}`}
+                badge={daysLabel(r.bday.daysUntil)} badgeCls={urgencyClass(r.bday.daysUntil)} />
+            ))}
           </div>
-        ))}
+        </div>
       </div>
 
       <div className="section-title">Recent conversations</div>
