@@ -53,6 +53,19 @@ export function nextBirthday(birthdayStr, today = new Date()) {
   return { date: candidate, daysUntil, turningAge }
 }
 
+/** Most recent occurrence strictly before today (today's own birthday counts as upcoming). */
+export function lastBirthday(birthdayStr, today = new Date()) {
+  const parsed = parseBirthday(birthdayStr)
+  if (!parsed) return null
+  const { month, day, year } = parsed
+  const t = new Date(today); t.setHours(0, 0, 0, 0)
+  let candidate = new Date(t.getFullYear(), month - 1, day)
+  if (candidate >= t) candidate = new Date(t.getFullYear() - 1, month - 1, day)
+  const daysAgo = Math.round((t - candidate) / 86400000)
+  const age = year != null ? candidate.getFullYear() - year : null
+  return { date: candidate, daysAgo, age }
+}
+
 /** e.g. "5 Oct" or "5 Oct 1990" — year only shown when known. */
 export function fmtBirthdayLabel(birthdayStr) {
   const parsed = parseBirthday(birthdayStr)
