@@ -178,6 +178,19 @@ Browser (React SPA)
   next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
   person; weekend burden balanced across months via the `fairnessSnapshot` persisted on the
   schedule record.
+- **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
+  "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so
+  every `CENTERS` entry now carries a `tz` (IANA name). `src/lib/onDuty.js`'s
+  `getShiftTimeline(schedules, now)` builds concrete shift instances for each center for its own
+  local yesterday/today/tomorrow, converts start/end to absolute instants via `Intl` offsets (no
+  timezone library; a two-pass `zonedToUtc` handles DST), attaches non-cleared assignments by
+  `date|center` (date = that center's local date, so Mexico City's evening shift belongs to its own
+  calendar day), and returns `{ current[], previous, next, hasSchedule }`. `current` is an array
+  because coverage isn't seamless all year: in Warsaw winter time there's a real 1-hour gap after
+  Bangalore and a 1-hour Warsaw/Mexico overlap — the "On duty now" card says "gap in coverage" (and
+  when the next shift starts) rather than hiding it. `Dashboard.jsx` shows Before (greyed) / On duty
+  now (accent border) / Up next cards, each with the center's local hours plus the same window in
+  the viewer's own browser time, and re-evaluates every 60s. Empty shifts show "No one scheduled".
 - **Excel export**: `src/lib/scheduleExcel.js`'s `downloadScheduleExcel(month, people,
   schedule)` builds a multi-sheet `.xlsx` (one sheet per center, named e.g. `Warsaw` —
   matches `CENTERS[].id`) via `exceljs`, styled to mirror the app's own on-screen colors
@@ -279,6 +292,8 @@ src/
                        + downloadScheduleExcel() — multi-sheet .xlsx export of the work
                        schedule via exceljs (dynamically imported, its own chunk, browser only)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
+    onDuty.js          getShiftTimeline — who's on 24/7 duty now / before / next, from saved
+                       schedules + each center's local shift hours (Dashboard)
     cadence.js         lastOneOnOne/cadenceBadge/isOverdue — 1:1 cadence derived from
                        interviews, used by Dashboard.jsx and DirectReports.jsx
     birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —
@@ -309,7 +324,7 @@ src/
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
                         written by the Settings page
   pages/
-    Dashboard.jsx      Team stats, 1:1s overdue, anniversaries | birthdays (two columns,
+    Dashboard.jsx      Team stats, 24/7 on duty (before/now/next), 1:1s overdue, anniversaries | birthdays (two columns,
                        last-passed row greyed + next 3), recent activity
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
