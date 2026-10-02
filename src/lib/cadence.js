@@ -2,7 +2,7 @@
 // Matching mirrors PersonDetail.jsx: personId, or a case-insensitive name match for
 // interviews logged before personId existed.
 
-export const CADENCE_DAYS = 7
+export const CADENCE_DAYS = 14
 
 function daysSince(dateStr, today) {
   const [y, m, d] = dateStr.split('-').map(Number)
