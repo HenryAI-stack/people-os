@@ -145,10 +145,10 @@ Browser (React SPA)
   person's own history in `PersonDetail.jsx`), deduped via `Set`. Editing an existing interview is
   untouched — only new entries get the today-date default.
 - **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
-  (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 7`) finds each person's most recent
+  (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 14`, i.e. a fortnightly rhythm) finds each person's most recent
   interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
   `PersonDetail.jsx`, so older name-only interviews still count; other types like performance
-  reviews don't). Badge is green ≤7 days, amber ≤14, red beyond that or "No 1:1 yet". Shown only
+  reviews don't). Badge is green ≤14 days, amber ≤28, red beyond that (bands are 1× and 2× `CADENCE_DAYS`) or "No 1:1 yet". Shown only
   for `status === 'active'` people (nobody on leave gets nagged): a badge on each
   `DirectReports.jsx` roster row (which now loads `interviewsStore` too), and a "🗣️ 1:1s overdue"
   section on `Dashboard.jsx` (never-had-one first, then most overdue, top 5). Date math splits the
