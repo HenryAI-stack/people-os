@@ -1,9 +1,10 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 
+// `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
 export const CENTERS = [
-  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
-  { id: 'Bangalore',   label: 'Bangalore, India',     country: 'IN', hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
-  { id: 'Mexico City', label: 'Mexico City, Mexico',  country: 'MX', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
+  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', tz: 'Europe/Warsaw',       hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
+  { id: 'Bangalore',   label: 'Bangalore, India',     country: 'IN', tz: 'Asia/Kolkata',        hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
+  { id: 'Mexico City', label: 'Mexico City, Mexico',  country: 'MX', tz: 'America/Mexico_City', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
 ]
 
 export function getCenter(person) {

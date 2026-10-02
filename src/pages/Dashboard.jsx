@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { directReportsStore, interviewsStore, notesStore, followUpsStore } from '../lib/dataStore'
+import { directReportsStore, interviewsStore, notesStore, followUpsStore, schedulesStore } from '../lib/dataStore'
+import { getShiftTimeline, fmtDuration } from '../lib/onDuty.js'
 import { Avatar } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
@@ -89,27 +90,94 @@ function EventRow({ person, sub, badge, badgeCls = '', past = false, onClick }) 
   )
 }
 
+function fmtShiftDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' })
+}
+
+function fmtViewerTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+}
+
+function ShiftBlock({ shift, now, kind, photoById }) {
+  const rel = kind === 'now'      ? `ends in ${fmtDuration(shift.end - now)}`
+            : kind === 'previous' ? `ended ${fmtDuration(now - shift.end)} ago`
+            :                       `starts in ${fmtDuration(shift.start - now)}`
+  return (
+    <div style={{ marginTop:8 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:6, fontWeight:600, fontSize:14 }}>
+        <img src={flagUrl(shift.center.country)} alt={shift.center.country} style={{ width:20, height:15, objectFit:'cover', borderRadius:2 }} />
+        {shift.center.id}
+      </div>
+      <div style={{ fontSize:12, color:'var(--text-dim)', margin:'3px 0 8px' }}>
+        <div>{fmtShiftDay(shift.date)} · {shift.center.hours} local</div>
+        <div style={{ color:'var(--text-faint)' }}>{fmtViewerTime(shift.start)}–{fmtViewerTime(shift.end)} your time · {rel}</div>
+      </div>
+      {shift.people.length === 0
+        ? <div style={{ fontSize:13, color:'var(--bad)' }}>No one scheduled</div>
+        : shift.people.map((p) => (
+            <div key={p.personId} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+              <Avatar photo={photoById[p.personId]} name={p.personName} size={26} />
+              <span style={{ fontSize:13.5 }}>{p.personName}</span>
+            </div>
+          ))}
+    </div>
+  )
+}
+
+const DUTY_LABEL = { previous:'Before', now:'On duty now', next:'Up next' }
+
+function ShiftCard({ kind, shifts, now, photoById, nextShift, onClick }) {
+  const isNow = kind === 'now'
+  return (
+    <div className="card" onClick={onClick}
+      style={{ cursor:'pointer', opacity: kind === 'previous' ? 0.55 : 1, borderColor: isNow ? 'var(--accent)' : undefined }}>
+      <div style={{ fontSize:11.5, fontWeight:700, letterSpacing:'0.5px', textTransform:'uppercase', color: isNow ? 'var(--accent)' : 'var(--text-faint)' }}>
+        {isNow && shifts.length > 0 && '● '}{DUTY_LABEL[kind]}
+      </div>
+      {shifts.length > 0
+        ? shifts.map((s) => <ShiftBlock key={`${s.center.id}|${s.date}`} shift={s} now={now} kind={kind} photoById={photoById} />)
+        : <div style={{ fontSize:13, color:'var(--text-dim)', marginTop:8 }}>
+            {isNow
+              ? <>No shift running right now — a gap in coverage.{nextShift && <> {nextShift.center.id} starts in {fmtDuration(nextShift.start - now)}.</>}</>
+              : '—'}
+          </div>}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [reports,    setReports]    = useState([])
   const [interviews, setInterviews] = useState([])
   const [notes,      setNotes]      = useState([])
   const [followUps,  setFollowUps]  = useState([])
+  const [schedules,  setSchedules]  = useState([])
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
+  const [now,        setNow]        = useState(() => new Date())
   const navigate = useNavigate()
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [r, i, n, f] = await Promise.all([
+        const [r, i, n, f, s] = await Promise.all([
           directReportsStore.list(), interviewsStore.list(),
-          notesStore.list(), followUpsStore.list(),
+          notesStore.list(), followUpsStore.list(), schedulesStore.list(),
         ])
-        setReports([...r].sort((a, b) => a.name.localeCompare(b.name))); setInterviews(i); setNotes(n); setFollowUps(f)
+        setReports([...r].sort((a, b) => a.name.localeCompare(b.name))); setInterviews(i); setNotes(n); setFollowUps(f); setSchedules(s)
       } catch (e) { setError(e.message) }
       finally { setLoading(false) }
     })()
   }, [])
+
+  // Re-evaluate "on duty now" every minute so shift handovers show up without a reload.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  const duty = getShiftTimeline(schedules, now)
+  const photoById = Object.fromEntries(reports.map((r) => [r.id, r.photo]))
 
   const activeCount      = reports.filter((r) => r.status === 'active').length
   const last30           = interviews.filter((i) => isWithinDays(i.date, 30)).length
@@ -154,6 +222,20 @@ export default function Dashboard() {
         <div className="card stat-card"><div className="label">Logged conversations</div><div className="value">{loading ? '–' : interviews.length}</div><div className="sub">{loading ? '' : `${last30} in the last 30 days`}</div></div>
         <div className="card stat-card"><div className="label">Notes saved</div><div className="value">{loading ? '–' : notes.length}</div><div className="sub">{loading ? '' : `${notes.filter((n) => n.pinned).length} pinned`}</div></div>
       </div>
+
+      <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
+        🌍 24/7 on duty
+        <Link to="/work-schedule" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>Work schedule →</Link>
+      </div>
+      {!loading && !duty.hasSchedule
+        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No work schedule saved yet — <Link to="/work-schedule">generate one</Link> to see who's on duty.</div>
+        : (
+          <div className="grid cols-3" style={{ alignItems:'start', marginBottom:28 }}>
+            <ShiftCard kind="previous" shifts={duty.previous ? [duty.previous] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
+            <ShiftCard kind="now" shifts={duty.current} now={now} photoById={photoById} nextShift={duty.next} onClick={() => navigate('/work-schedule')} />
+            <ShiftCard kind="next" shifts={duty.next ? [duty.next] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
+          </div>
+        )}
 
       {/* Follow-ups alert */}
       {(() => {
