@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { directReportsStore } from '../lib/dataStore'
+import { directReportsStore, interviewsStore } from '../lib/dataStore'
+import { lastOneOnOne, cadenceBadge } from '../lib/cadence.js'
 import { resizeImage } from '../lib/imageUtils'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { parseBirthday, formatBirthdayValue } from '../lib/birthdays.js'
@@ -11,6 +12,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 export default function DirectReports() {
   const [items,   setItems]   = useState([])
+  const [interviews, setInterviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
   const [query,   setQuery]   = useState('')
@@ -19,7 +21,10 @@ export default function DirectReports() {
 
   async function load() {
     setLoading(true); setError('')
-    try { setItems(await directReportsStore.list()) }
+    try {
+      const [r, iv] = await Promise.all([directReportsStore.list(), interviewsStore.list()])
+      setItems(r); setInterviews(iv)
+    }
     catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -85,6 +90,11 @@ export default function DirectReports() {
                     </div>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    {p.status === 'active' && (() => {
+                      const last = lastOneOnOne(p, interviews)
+                      const b = cadenceBadge(last)
+                      return <span className={`badge ${b.cls}`} title={last ? `Last 1:1 on ${last.date}` : 'No 1:1 logged yet'}>{b.label}</span>
+                    })()}
                     <span className={`badge ${p.status==='active'?'good':'warn'}`}>{p.status}</span>
                     <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...p }) }}>Edit</button>
                     <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}>Remove</button>

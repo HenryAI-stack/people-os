@@ -144,6 +144,15 @@ Browser (React SPA)
   merged with whatever titles have actually been used before (org-wide in `Interviews.jsx`, this
   person's own history in `PersonDetail.jsx`), deduped via `Set`. Editing an existing interview is
   untouched — only new entries get the today-date default.
+- **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
+  (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 7`) finds each person's most recent
+  interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
+  `PersonDetail.jsx`, so older name-only interviews still count; other types like performance
+  reviews don't). Badge is green ≤7 days, amber ≤14, red beyond that or "No 1:1 yet". Shown only
+  for `status === 'active'` people (nobody on leave gets nagged): a badge on each
+  `DirectReports.jsx` roster row (which now loads `interviewsStore` too), and a "🗣️ 1:1s overdue"
+  section on `Dashboard.jsx` (never-had-one first, then most overdue, top 5). Date math splits the
+  `'YYYY-MM-DD'` string into numbers and uses local `Date` construction — no ISO-string parsing.
 - **Monthly accomplishments email**: `.github/workflows/accomplishments-email.yml` runs
   `scripts/send-accomplishments-email.mjs` every Thursday 07:00 UTC; the script only actually
   sends on the **last Thursday of the month** (Europe/Vienna), reading `accomplishments.json`
@@ -265,6 +274,8 @@ src/
                        + downloadScheduleExcel() — multi-sheet .xlsx export of the work
                        schedule via exceljs (dynamically imported, its own chunk, browser only)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
+    cadence.js         lastOneOnOne/cadenceBadge/isOverdue — 1:1 cadence derived from
+                       interviews, used by Dashboard.jsx and DirectReports.jsx
     birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —
                        shared by DirectReports.jsx (ReportForm), PersonDetail.jsx, and
                        Dashboard.jsx, rather than duplicated the way anniversary math is
