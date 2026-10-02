@@ -5,6 +5,7 @@ import { Avatar } from './DirectReports.jsx'
 import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { nextBirthday } from '../lib/birthdays.js'
+import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
 
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
@@ -80,6 +81,13 @@ export default function Dashboard() {
     .sort((a, b) => a.ann.daysUntil - b.ann.daysUntil)
     .slice(0, 3)
 
+  const activeReports = reports.filter((r) => r.status === 'active')
+  const overdueOneOnOnes = activeReports
+    .map((r) => ({ ...r, last: lastOneOnOne(r, interviews) }))
+    .filter((r) => isOverdue(r.last))
+    .sort((a, b) => (b.last ? b.last.daysAgo : Infinity) - (a.last ? a.last.daysAgo : Infinity))
+    .slice(0, 5)
+
   const upcomingBirthdays = reports
     .filter((r) => r.birthday)
     .map((r) => ({ ...r, bday: nextBirthday(r.birthday) }))
@@ -126,6 +134,26 @@ export default function Dashboard() {
           </>
         )
       })()}
+
+      <div className="section-title">🗣️ 1:1s overdue <span style={{ marginLeft:6, fontWeight:400, color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontSize:12 }}>no 1:1 in the last {CADENCE_DAYS} days</span></div>
+      {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}
+      <div className="list">
+        {overdueOneOnOnes.map((r) => {
+          const b = cadenceBadge(r.last)
+          return (
+            <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
+              <div className="row-main">
+                <Avatar photo={r.photo} name={r.name} size={34} />
+                <div>
+                  <div className="row-title">{r.name}</div>
+                  <div className="row-sub">{r.last ? `Last 1:1 on ${r.last.date}` : 'No 1:1 logged yet'}{r.role && ` · ${r.role}`}</div>
+                </div>
+              </div>
+              <span className={`badge ${b.cls}`}>{b.label}</span>
+            </div>
+          )
+        })}
+      </div>
 
       <div className="section-title">🎂 Upcoming anniversaries</div>
       {!loading && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
