@@ -265,26 +265,6 @@ export default function Dashboard() {
         )
       })()}
 
-      <div className="section-title">🗣️ 1:1s overdue <span style={{ marginLeft:6, fontWeight:400, color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontSize:12 }}>no 1:1 in the last {CADENCE_DAYS} days</span></div>
-      {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}
-      <div className="list">
-        {overdueOneOnOnes.map((r) => {
-          const b = cadenceBadge(r.last)
-          return (
-            <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
-              <div className="row-main">
-                <Avatar photo={r.photo} name={r.name} size={34} />
-                <div>
-                  <div className="row-title">{r.name}</div>
-                  <div className="row-sub">{r.last ? `Last 1:1 on ${r.last.date}` : 'No 1:1 logged yet'}{r.role && ` · ${r.role}`}</div>
-                </div>
-              </div>
-              <span className={`badge ${b.cls}`}>{b.label}</span>
-            </div>
-          )
-        })}
-      </div>
-
       <div className="section-title">🎉 Anniversaries & birthdays</div>
       <div className="grid cols-2" style={{ alignItems:'start' }}>
         <div>
@@ -319,6 +299,26 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="section-title">🗣️ 1:1s overdue <span style={{ marginLeft:6, fontWeight:400, color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontSize:12 }}>no 1:1 in the last {CADENCE_DAYS} days</span></div>
+      {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}
+      <div className="list">
+        {overdueOneOnOnes.map((r) => {
+          const b = cadenceBadge(r.last)
+          return (
+            <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
+              <div className="row-main">
+                <Avatar photo={r.photo} name={r.name} size={34} />
+                <div>
+                  <div className="row-title">{r.name}</div>
+                  <div className="row-sub">{r.last ? `Last 1:1 on ${r.last.date}` : 'No 1:1 logged yet'}{r.role && ` · ${r.role}`}</div>
+                </div>
+              </div>
+              <span className={`badge ${b.cls}`}>{b.label}</span>
+            </div>
+          )
+        })}
       </div>
 
       <div className="section-title">Recent conversations</div>
