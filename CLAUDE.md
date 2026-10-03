@@ -166,7 +166,8 @@ Browser (React SPA)
   trigger that same workflow on demand (`workflow_dispatch` with `force: true`), so the
   Resend key never ships in the browser bundle.
 - **Work-schedule generator**: `src/lib/scheduleGenerator.js` builds a monthly homeoffice/
-  office rota for three support centers (`CENTERS`: Warsaw, Bangalore, Mexico City), matching
+  office rota for three support centers (`CENTERS`: Bangalore, Warsaw, Mexico City — array order is the
+  display order everywhere: tabs, default tab, print view, Excel sheets, PDF pages), matching
   people to a center by free-text `location`. Holiday awareness and month/weekend helpers
   come from `src/lib/holidays.js` (`getHoliday`, `isWeekend`, `getDaysInMonth`; hardcoded
   PL/IN/MX holiday tables for 2024–2027). Key rota rules, encoded in `generateSchedule`:

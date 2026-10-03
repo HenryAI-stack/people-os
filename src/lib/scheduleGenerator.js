@@ -1,9 +1,11 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 
 // `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
+// Array order = display order everywhere (Work Schedule tabs/default tab, print view, Excel sheets,
+// PDF pages) — Bangalore → Warsaw → Mexico City, i.e. the follow-the-sun shift sequence.
 export const CENTERS = [
-  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', tz: 'Europe/Warsaw',       hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
   { id: 'Bangalore',   label: 'Bangalore, India',     country: 'IN', tz: 'Asia/Kolkata',        hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
+  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', tz: 'Europe/Warsaw',       hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
   { id: 'Mexico City', label: 'Mexico City, Mexico',  country: 'MX', tz: 'America/Mexico_City', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
 ]
 
