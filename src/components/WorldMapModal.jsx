@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useDraggable } from './DraggableModal.jsx'
 import { directReportsStore } from '../lib/dataStore.js'
 import { getCoords, flagUrl } from '../lib/locationFlag.js'
 import { getSubsolarPoint, terminatorLat } from '../lib/sunPosition.js'
@@ -60,6 +61,7 @@ export default function WorldMapModal({ onClose }) {
   const [people, setPeople] = useState([])
   const [now, setNow] = useState(new Date())
   const [hoverKey, setHoverKey] = useState(null)
+  const drag = useDraggable() // header is the drag handle, like every DraggableModal
 
   useEffect(() => {
     directReportsStore.list().then(setPeople).catch(() => setPeople([]))
@@ -86,8 +88,8 @@ export default function WorldMapModal({ onClose }) {
   // sidebar, and faded (opacity < 1) Dashboard rows painted on top of it.
   return createPortal(
     <div className="overlay world-map-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className="world-map-modal">
-        <div className="world-map-header">
+      <div className="world-map-modal" style={drag.style}>
+        <div className="world-map-header" {...drag.handleProps} title="Drag to move">
           <h2>🌍 World Map</h2>
           <button className="world-map-close" onClick={onClose} aria-label="Close">✕</button>
         </div>

@@ -11,13 +11,18 @@ import { useCallback, useRef, useState } from 'react'
  *     </form>
  *   </DraggableModal>
  */
-export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
+/**
+ * Drag-by-handle behaviour shared by DraggableModal and WorldMapModal.
+ * Spread `handleProps` on the handle and apply `style` (a translate) to the moving element.
+ * Mousedowns on buttons inside the handle (e.g. a close ×) are ignored so they still click.
+ */
+export function useDraggable() {
   const [pos, setPos]  = useState({ x: 0, y: 0 })
   const dragging       = useRef(false)
   const start          = useRef({})
 
   const onMouseDown = useCallback((e) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || e.target.closest('button')) return
     dragging.current = true
     start.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y }
 
@@ -38,6 +43,15 @@ export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
     e.preventDefault()
   }, [pos])
 
+  return {
+    handleProps: { onMouseDown, style: { cursor: 'grab', userSelect: 'none' } },
+    style: { transform: `translate(${pos.x}px, ${pos.y}px)` },
+  }
+}
+
+export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
+  const { handleProps, style } = useDraggable()
+
   return (
     <div
       className="overlay"
@@ -45,11 +59,11 @@ export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
     >
       <div
         className="modal"
-        style={{ maxWidth, transform: `translate(${pos.x}px, ${pos.y}px)` }}
+        style={{ maxWidth, ...style }}
       >
         <h2
-          onMouseDown={onMouseDown}
-          style={{ cursor: 'grab', userSelect: 'none', marginBottom: 18 }}
+          onMouseDown={handleProps.onMouseDown}
+          style={{ ...handleProps.style, marginBottom: 18 }}
         >
           {title}
         </h2>

@@ -386,6 +386,10 @@ src/
                         main-content element — e.g. the Dashboard's greyed "last passed"
                         anniversary/birthday rows and "Before" duty card — painted on top of it.
                         Portal any future overlay launched from the sidebar the same way.
+                        Draggable by its header via `useDraggable()` (exported from
+                        `DraggableModal.jsx`, the same hook DraggableModal itself uses) — it
+                        isn't a DraggableModal because of its wide custom layout. The hook
+                        ignores mousedowns on buttons inside the handle, so the × still clicks.
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
   send-schedule-email.mjs   CI-only Node script; imports scheduleGenerator.js/holidays.js/
@@ -410,6 +414,8 @@ Data collections (each a JSON file in the **separate, private** data repo — de
   introducing one.
 - **Forms use `DraggableModal`.** Add/edit forms across the app render inside
   `<DraggableModal title=... onClose=...>`; reuse it rather than building a new modal shell.
+  A modal that genuinely needs its own shell (e.g. `WorldMapModal`) should still be draggable
+  via the exported `useDraggable()` hook rather than a copy of the drag logic.
 - **Cross-page exports are normal here.** `DirectReports.jsx` exports `Avatar` and
   `ReportForm`; `FollowUps.jsx` exports `urgencyLabel`. `Dashboard.jsx`, `PersonDetail.jsx`,
   and `WorkSchedule.jsx` import these directly. It's a small app — don't over-abstract this
