@@ -379,7 +379,13 @@ src/
                         external image. An earlier version hotlinked a
                         Wikimedia map image; that rendered as a black rectangle for at least
                         one user on a restrictive/corporate network, so don't reintroduce an
-                        external image dependency here.
+                        external image dependency here. It renders via `createPortal(…,
+                        document.body)`: it's opened from inside the sidebar, which is
+                        `position: sticky` (= its own stacking context), so rendered in place its
+                        z-index only ranked it within the sidebar and any faded (`opacity < 1`)
+                        main-content element — e.g. the Dashboard's greyed "last passed"
+                        anniversary/birthday rows and "Before" duty card — painted on top of it.
+                        Portal any future overlay launched from the sidebar the same way.
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
   send-schedule-email.mjs   CI-only Node script; imports scheduleGenerator.js/holidays.js/
