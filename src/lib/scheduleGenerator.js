@@ -32,6 +32,19 @@ function prevDay(dateStr) {
   return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
+// 40h/week cap: shifts are 8h, so at most 5 shifts per person per Mon–Sun week.
+export const SHIFT_HOURS = 8
+export const MAX_WEEKLY_HOURS = 40
+const MAX_SHIFTS_PER_WEEK = MAX_WEEKLY_HOURS / SHIFT_HOURS
+
+/** Monday ('YYYY-MM-DD') of the Mon–Sun week containing dateStr — UTC-based like the helpers above. */
+export function weekStart(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7))
+  return t.toISOString().slice(0, 10)
+}
+
 function makeAssignment(dateStr, center, person, we, hol) {
   return {
     date: dateStr, center: center.id,
@@ -56,9 +69,12 @@ function makeAssignment(dateStr, center, person, we, hol) {
  *    calendar day. This is a hard rule: if every remaining candidate is
  *    blocked, the day is left short-staffed rather than breaking the rule.
  * 4. Each person works 20–21 days (160–168 h/month)
+ * 4a. Hard cap of 40h (5 shifts) per person per Mon–Sun week. Weeks that straddle
+ *    the month boundary also count the previous month's shifts (`prevAssignments`).
+ *    Like Rule 3, a day is left short-staffed rather than breaking the cap.
  * 5. Weekend/holiday burden balanced across months
  */
-export function generateSchedule(yearMonth, people, fairness = {}) {
+export function generateSchedule(yearMonth, people, fairness = {}, prevAssignments = []) {
   const days    = getDaysInMonth(yearMonth)
   const byCenter = {}
   for (const c of CENTERS) byCenter[c.id] = []
@@ -82,6 +98,16 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
       return blockedOn[dateStr]?.has(personId) || false
     }
 
+    // Rule 4a: shifts per person per week, seeded with last month's shifts in a straddling week.
+    const weekCount = {}
+    const wk = (personId, dateStr) => `${personId}|${weekStart(dateStr)}`
+    for (const a of prevAssignments) {
+      if (!a.cleared && pool.some((p) => p.id === a.personId)) weekCount[wk(a.personId, a.date)] = (weekCount[wk(a.personId, a.date)] || 0) + 1
+    }
+    function canWork(personId, dateStr) {
+      return !isBlocked(personId, dateStr) && (weekCount[wk(personId, dateStr)] || 0) < MAX_SHIFTS_PER_WEEK
+    }
+
     function blockNextDay(personId, dateStr) {
       const next = addOneDay(dateStr)
       if (!blockedOn[next]) blockedOn[next] = new Set()
@@ -93,6 +119,7 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
       const hol = getHoliday(dateStr, center.country)
       allAssignments.push(makeAssignment(dateStr, center, person, we, hol))
       used[person.id]++
+      weekCount[wk(person.id, dateStr)] = (weekCount[wk(person.id, dateStr)] || 0) + 1
       // Rule 3: block next day after Sunday or holiday
       if (isSunday(dateStr) || !!hol) blockNextDay(person.id, dateStr)
     }
@@ -121,11 +148,11 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
         const lb = (fairness[b.id]?.weekendTotal || 0) + specialUsed[b.id]
         return la - lb || used[a.id] - used[b.id]
       })
-      const free = ranked.filter((p) => !isBlocked(p.id, dateStr))
+      const free = ranked.filter((p) => canWork(p.id, dateStr))
       const pick =
         free.find((p) => !workedDayBefore(p.id, dateStr)) // rotate + no back-to-back
         || free[0]                                        // back-to-back only if nobody else is free
-        // else: everyone hard-blocked (Rule 3) → leave the day unassigned
+        // else: everyone hard-blocked (Rule 3) or at 40h (Rule 4a) → leave the day unassigned
       if (pick) {
         assign(dateStr, pick)
         specialUsed[pick.id]++
@@ -144,8 +171,8 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
         allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
       )
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
-               || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
+      const pick = sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr))
       if (pick) { assign(dateStr, pick) }
     }
 
@@ -156,8 +183,8 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
       )
       if (alreadyOn.size >= 2) continue
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      const pick = sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr) && used[p.id] <= target)
-               || sorted.find((p) => !alreadyOn.has(p.id) && !isBlocked(p.id, dateStr))
+      const pick = sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr))
       if (pick) { assign(dateStr, pick) }
     }
 
@@ -165,15 +192,13 @@ export function generateSchedule(yearMonth, people, fairness = {}) {
     for (const person of pool) {
       let gap = (target + 1) - used[person.id]  // allow up to 21 days
       if (gap <= 0) continue
-      const available = trueWeekdays.filter((d) =>
-        !isBlocked(person.id, d) &&
-        !allAssignments.find((a) => a.date === d && a.center === center.id && a.personId === person.id)
-      )
+      const onDay = (d) => allAssignments.some((a) => a.date === d && a.center === center.id && a.personId === person.id)
+      const available = trueWeekdays.filter((d) => canWork(person.id, d) && !onDay(d))
+      // Re-check the week cap at assignment time — earlier top-ups in this loop can fill a week.
+      const tryAssign = (d) => { if (gap > 0 && canWork(person.id, d) && !onDay(d)) { assign(d, person); gap-- } }
       const step = Math.max(1, Math.floor(available.length / gap))
-      for (let i = 0; i < available.length && gap > 0; i += step) {
-        assign(available[i], person)
-        gap--
-      }
+      for (let i = 0; i < available.length && gap > 0; i += step) tryAssign(available[i])
+      for (const d of available) tryAssign(d) // fill whatever the spread pass had to skip
     }
   }
 

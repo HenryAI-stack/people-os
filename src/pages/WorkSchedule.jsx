@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
-import { CENTERS, getCenter, generateSchedule } from '../lib/scheduleGenerator.js'
+import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
@@ -102,7 +102,8 @@ export default function WorkSchedule() {
       const prev = schedules.find((s) => s.month === prevMonth(month))
       const fairness = prev?.fairnessSnapshot || {}
 
-      const { assignments, fairnessSnapshot } = generateSchedule(month, people, fairness)
+      // Last month's shifts let the 40h/week cap see weeks that straddle the month boundary.
+      const { assignments, fairnessSnapshot } = generateSchedule(month, people, fairness, prev?.assignments || [])
       const record = {
         id:                `schedule-${month}`,
         month,
@@ -181,6 +182,21 @@ export default function WorkSchedule() {
             ? { ...a, personId: toPerson.id, personName: toPerson.name, cleared: false }
             : a
         ),
+    }))
+  }
+
+  // Add a person to a day (empty day, or an extra person on a short-staffed one). Same fields
+  // the generator's makeAssignment writes; drops any cleared entry they had that day.
+  function addAssignment(date, center, person) {
+    const hol = getHoliday(date, CENTERS.find((x) => x.id === center)?.country || '')
+    const we  = isWeekend(date)
+    setSchedule((prev) => ({
+      ...prev,
+      assignments: [
+        ...prev.assignments.filter((a) => !(a.date === date && a.center === center && a.personId === person.id && a.cleared)),
+        { date, center, personId: person.id, personName: person.name, isWeekend: we, isHoliday: !!hol,
+          holidayName: hol || '', dayOffGranted: we || !!hol, cleared: false, comment: '' },
+      ],
     }))
   }
 
@@ -263,8 +279,10 @@ export default function WorkSchedule() {
     const s = {}
     for (const a of (schedule?.assignments || [])) {
       if (a.cleared) continue
-      if (!s[a.personId]) s[a.personId] = { total:0, weekend:0, holiday:0 }
+      if (!s[a.personId]) s[a.personId] = { total:0, weekend:0, holiday:0, weeks:{} }
       s[a.personId].total++
+      const w = weekStart(a.date)
+      s[a.personId].weeks[w] = (s[a.personId].weeks[w] || 0) + 1
       if (a.isWeekend) s[a.personId].weekend++
       if (a.isHoliday) s[a.personId].holiday++
     }
@@ -279,7 +297,7 @@ export default function WorkSchedule() {
       {/* ── Header ── */}
       <div className="page-header no-print">
         <h1>Work Schedule — {TEAM_NAME}</h1>
-        <p>Monthly scheduling for all OPS centers. Click a name to swap or remove, drag to move, click 💬 to comment.</p>
+        <p>Monthly scheduling for all OPS centers. Click a name to swap or remove, click an empty day or + to assign, drag to move, click 💬 to comment.</p>
       </div>
 
       {/* ── Controls ── */}
@@ -355,15 +373,20 @@ export default function WorkSchedule() {
           {/* ── Stats row ── */}
           <div className="ws-stats no-print">
             {(centerPeople[activeCenter]||[]).map((p) => {
-              const s = stats[p.id] || { total:0, weekend:0, holiday:0 }
+              const s = stats[p.id] || { total:0, weekend:0, holiday:0, weeks:{} }
               const prev = schedule.fairnessSnapshot?.[p.id]
-              const hrs  = s.total * 8
-              const over = hrs > 168
+              const hrs  = s.total * SHIFT_HOURS
+              const maxWeek = Math.max(0, ...Object.values(s.weeks)) * SHIFT_HOURS
+              const over = maxWeek > MAX_WEEKLY_HOURS
+              const weekTitle = Object.entries(s.weeks).sort().map(([w, n]) => `Week of ${w}: ${n * SHIFT_HOURS}h`).join('\n')
               return (
                 <div key={p.id} className="ws-stat-chip" style={{ borderColor: over ? 'var(--bad)' : undefined }}>
                   <Avatar photo={p.photo} name={p.name} size={22} />
                   <strong>{p.name}</strong>
-                  <span style={{ color: over ? 'var(--bad)' : undefined }} title={`${s.total} days × 8h`}>{hrs}h</span>
+                  <span title={`${s.total} days × ${SHIFT_HOURS}h`}>{hrs}h</span>
+                  <span style={{ color: over ? 'var(--bad)' : 'var(--text-faint)', fontSize:11 }} title={weekTitle || 'No shifts'}>
+                    {over ? '⚠ ' : ''}max {maxWeek}h/wk
+                  </span>
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
                   {s.weekend > 0 && <span style={{ color:'var(--warn)' }} title="Weekend days">🏖️{s.weekend}</span>}
                   {s.holiday > 0 && <span style={{ color:'var(--bad)' }} title="Holiday days">📅{s.holiday}</span>}
@@ -408,10 +431,15 @@ export default function WorkSchedule() {
                       <div className="ws-day-num">
                         {fmtDay(dateStr)}
                         {hol && <span className="ws-hol-label" title={hol}>🗓️</span>}
+                        <button className="ws-add-btn no-print" title="Assign someone to this day"
+                          onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: null })}>+</button>
                       </div>
                       {(() => {
                         const dayAssignments = assignmentMap[`${dateStr}|${c.id}`] || []
-                        if (dayAssignments.length === 0) return <div className="ws-chip ws-chip-empty">—</div>
+                        if (dayAssignments.length === 0) return (
+                          <div className="ws-chip ws-chip-empty" style={{ cursor:'pointer' }} title="Click to assign someone"
+                            onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: null })}>—</div>
+                        )
                         return dayAssignments.map((a) => a.cleared ? (
                           <div key={a.personId} className="ws-chip ws-chip-cleared"
                             onClick={() => restoreAssignment(dateStr, c.id, a.personId)}>
@@ -451,7 +479,7 @@ export default function WorkSchedule() {
                 <span className="ws-legend-item ws-holiday-sample">Public holiday</span>
                 <span className="ws-legend-item">💤 Day-off credit</span>
                 <span className="ws-legend-item">💬 Has comment</span>
-                <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Click a name to swap or remove · drag to move</span>
+                <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Click a name to swap or remove · click an empty day or + to assign · drag to move</span>
               </div>
             </div>
           ))}
@@ -467,7 +495,11 @@ export default function WorkSchedule() {
           assignments={schedule?.assignments || []}
           stats={stats}
           onClose={() => setShiftModal(null)}
-          onSwap={(toPerson) => { swapAssignment(shiftModal.date, shiftModal.center, shiftModal.personId, toPerson); setShiftModal(null) }}
+          onSwap={(toPerson) => {
+            if (shiftModal.personId) swapAssignment(shiftModal.date, shiftModal.center, shiftModal.personId, toPerson)
+            else addAssignment(shiftModal.date, shiftModal.center, toPerson)
+            setShiftModal(null)
+          }}
           onRemove={() => { clearAssignment(shiftModal.date, shiftModal.center, shiftModal.personId); setShiftModal(null) }}
         />
       )}
@@ -512,8 +544,11 @@ const daysLabel = (n) => `${n} ${n === 1 ? 'day' : 'days'} this month`
 
 function ShiftModal({ shift, center, candidates, assignments, stats, onClose, onSwap, onRemove }) {
   const [toId, setToId] = useState('')
-  const current = assignments.find((a) => a.date === shift.date && a.center === shift.center && a.personId === shift.personId)
-  if (!current || !center) return null
+  // personId null = assign mode (empty day or "+"): no current person, no remove button.
+  const current = shift.personId
+    ? assignments.find((a) => a.date === shift.date && a.center === shift.center && a.personId === shift.personId)
+    : null
+  if ((shift.personId && !current) || !center) return null
 
   const sameDay = (a) => a.date === shift.date && a.center === shift.center && !a.cleared
   const onThisDay = new Set(assignments.filter(sameDay).map((a) => a.personId))
@@ -535,7 +570,7 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
   const tag = hol ? `🗓️ ${hol}` : isWeekend(shift.date) ? 'Weekend' : null
 
   return (
-    <DraggableModal title="Change shift" onClose={onClose} maxWidth={440}>
+    <DraggableModal title={current ? 'Change shift' : 'Assign shift'} onClose={onClose} maxWidth={440}>
       <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--text-dim)', marginBottom:14, flexWrap:'wrap' }}>
         <img className="ws-tab-flag" src={flagUrl(center.country)} alt={center.country} />
         <strong style={{ color:'var(--text)' }}>{center.label}</strong>
@@ -543,27 +578,26 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
         {tag && <span className="badge warn" style={{ fontSize:11 }}>{tag}</span>}
       </div>
 
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'1px solid var(--border)', borderRadius:8, marginBottom:16 }}>
+      {current && <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'1px solid var(--border)', borderRadius:8, marginBottom:16 }}>
         <Avatar photo={candidates.find((p) => p.id === current.personId)?.photo} name={current.personName} size={32} />
         <div>
           <div style={{ fontWeight:600, fontSize:14 }}>{current.personName}</div>
           <div style={{ fontSize:12, color:'var(--text-faint)' }}>Currently on this shift · {daysLabel(stats[current.personId]?.total || 0)}</div>
         </div>
-      </div>
+      </div>}
 
       <div className="field">
-        <label>Swap with</label>
+        <label>{current ? 'Swap with' : 'Assign'}</label>
         {options.length === 0
-          ? <div style={{ fontSize:13, color:'var(--text-faint)' }}>No other team members at this center.</div>
+          ? <div style={{ fontSize:13, color:'var(--text-faint)' }}>No {current ? 'other ' : ''}team members at this center.</div>
           : (
             <select value={toId} onChange={(e) => setToId(e.target.value)} autoFocus>
-              <option value="">— Select a replacement —</option>
+              <option value="">{current ? '— Select a replacement —' : '— Select a person —'}</option>
               {options.map((p) => {
                 const busy = onThisDay.has(p.id)
                 return (
                   <option key={p.id} value={p.id} disabled={busy}>
-                    {p.name} — {daysLabel(stats[p.id]?.total || 0)}
-                    {busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}
+                    {p.name}{busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}
                   </option>
                 )
               })}
@@ -576,11 +610,11 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
         )}
       </div>
 
-      <div className="modal-actions" style={{ justifyContent:'space-between' }}>
-        <button className="btn ghost danger" onClick={onRemove} title="Mark as removed — can be restored with ↩">🚫 Remove from this day</button>
+      <div className="modal-actions" style={{ justifyContent: current ? 'space-between' : 'flex-end' }}>
+        {current && <button className="btn ghost danger" onClick={onRemove} title="Mark as removed — can be restored with ↩">🚫 Remove from this day</button>}
         <div style={{ display:'flex', gap:10 }}>
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={!toPerson} onClick={() => onSwap(toPerson)}>Swap</button>
+          <button className="btn primary" disabled={!toPerson} onClick={() => onSwap(toPerson)}>{current ? 'Swap' : 'Assign'}</button>
         </div>
       </div>
     </DraggableModal>
