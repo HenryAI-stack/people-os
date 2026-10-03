@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { directReportsStore } from '../lib/dataStore.js'
 import { getCoords, flagUrl } from '../lib/locationFlag.js'
 import { getSubsolarPoint, terminatorLat } from '../lib/sunPosition.js'
@@ -80,7 +81,10 @@ export default function WorldMapModal({ onClose }) {
   const pins = useMemo(() => groupByLocation(people), [people])
   const sunPos = useMemo(() => toPercent(subsolar.lat, subsolar.lon), [subsolar])
 
-  return (
+  // Portaled to <body>: it's opened from inside the sidebar, which is position:sticky and therefore
+  // its own stacking context — rendered in place, the overlay's z-index only ranked it within the
+  // sidebar, and faded (opacity < 1) Dashboard rows painted on top of it.
+  return createPortal(
     <div className="overlay world-map-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className="world-map-modal">
         <div className="world-map-header">
@@ -194,6 +198,7 @@ export default function WorldMapModal({ onClose }) {
           <span>{pins.reduce((n, p) => n + p.people.length, 0)} of {people.filter((p) => p.status === 'active').length} active reports mapped</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
