@@ -6,6 +6,7 @@ import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
+import { DraggableModal } from '../components/DraggableModal.jsx'
 
 const TEAM_NAME = '24/7 Core Operations'
 
@@ -52,6 +53,7 @@ export default function WorkSchedule() {
   const autoSaveTimer = useRef(null)
   const [dragSrc,     setDragSrc]     = useState(null)  // { date, center }
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
+  const [shiftModal,  setShiftModal]  = useState(null)  // { date, center, personId } — click-to-swap/remove
   const [exportingExcel, setExportingExcel] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [toast, setToast] = useState('')
@@ -167,6 +169,21 @@ export default function WorkSchedule() {
     }))
   }
 
+  // Replace one person's shift with another person (same date + center). Any *cleared* entry the
+  // replacement already had on that day is dropped, so they don't end up listed twice.
+  function swapAssignment(date, center, fromId, toPerson) {
+    setSchedule((prev) => ({
+      ...prev,
+      assignments: prev.assignments
+        .filter((a) => !(a.date === date && a.center === center && a.personId === toPerson.id && a.cleared))
+        .map((a) =>
+          a.date === date && a.center === center && a.personId === fromId
+            ? { ...a, personId: toPerson.id, personName: toPerson.name, cleared: false }
+            : a
+        ),
+    }))
+  }
+
   function openComment(date, center, personId) {
     const a = schedule?.assignments.find((x) => x.date === date && x.center === center && x.personId === personId)
     setCommentModal({ date, center, personId, text: a?.comment || '' })
@@ -262,7 +279,7 @@ export default function WorkSchedule() {
       {/* ── Header ── */}
       <div className="page-header no-print">
         <h1>Work Schedule — {TEAM_NAME}</h1>
-        <p>Monthly scheduling for all OPS centers. Drag to reassign, click 💬 to comment.</p>
+        <p>Monthly scheduling for all OPS centers. Click a name to swap or remove, drag to move, click 💬 to comment.</p>
       </div>
 
       {/* ── Controls ── */}
@@ -404,7 +421,9 @@ export default function WorkSchedule() {
                         ) : (
                           <div key={a.personId} className="ws-chip"
                             draggable
-                            onDragStart={() => onDragStart(dateStr, c.id, a.personId)}>
+                            onDragStart={() => onDragStart(dateStr, c.id, a.personId)}
+                            onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: a.personId })}
+                            title="Click to swap or remove · drag to move">
                             <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={18} />
                             <span className="ws-chip-name">{a.personName}</span>
                             <div className="ws-chip-actions">
@@ -432,11 +451,25 @@ export default function WorkSchedule() {
                 <span className="ws-legend-item ws-holiday-sample">Public holiday</span>
                 <span className="ws-legend-item">💤 Day-off credit</span>
                 <span className="ws-legend-item">💬 Has comment</span>
-                <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Drag to swap</span>
+                <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Click a name to swap or remove · drag to move</span>
               </div>
             </div>
           ))}
         </>
+      )}
+
+      {/* ── Swap / remove modal ── */}
+      {shiftModal && (
+        <ShiftModal
+          shift={shiftModal}
+          center={CENTERS.find((x) => x.id === shiftModal.center)}
+          candidates={centerPeople[shiftModal.center] || []}
+          assignments={schedule?.assignments || []}
+          stats={stats}
+          onClose={() => setShiftModal(null)}
+          onSwap={(toPerson) => { swapAssignment(shiftModal.date, shiftModal.center, shiftModal.personId, toPerson); setShiftModal(null) }}
+          onRemove={() => { clearAssignment(shiftModal.date, shiftModal.center, shiftModal.personId); setShiftModal(null) }}
+        />
       )}
 
       {/* ── Comment modal ── */}
@@ -466,5 +499,90 @@ export default function WorkSchedule() {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Swap / remove modal ──────────────────────────────────────────────────────
+function prevDateStr(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
+}
+
+const daysLabel = (n) => `${n} ${n === 1 ? 'day' : 'days'} this month`
+
+function ShiftModal({ shift, center, candidates, assignments, stats, onClose, onSwap, onRemove }) {
+  const [toId, setToId] = useState('')
+  const current = assignments.find((a) => a.date === shift.date && a.center === shift.center && a.personId === shift.personId)
+  if (!current || !center) return null
+
+  const sameDay = (a) => a.date === shift.date && a.center === shift.center && !a.cleared
+  const onThisDay = new Set(assignments.filter(sameDay).map((a) => a.personId))
+
+  // Mirrors the generator's rest rule: working a Sunday or public holiday earns the next day off.
+  const prev = prevDateStr(shift.date)
+  const [py, pm, pd] = prev.split('-').map(Number)
+  const prevWasSunday  = new Date(Date.UTC(py, pm - 1, pd)).getUTCDay() === 0
+  const prevHoliday    = getHoliday(prev, center.country)
+  const restDay = new Set(
+    prevWasSunday || prevHoliday
+      ? assignments.filter((a) => a.date === prev && a.center === shift.center && !a.cleared).map((a) => a.personId)
+      : []
+  )
+
+  const options  = candidates.filter((p) => p.id !== shift.personId)
+  const toPerson = options.find((p) => p.id === toId)
+  const hol = getHoliday(shift.date, center.country)
+  const tag = hol ? `🗓️ ${hol}` : isWeekend(shift.date) ? 'Weekend' : null
+
+  return (
+    <DraggableModal title="Change shift" onClose={onClose} maxWidth={440}>
+      <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--text-dim)', marginBottom:14, flexWrap:'wrap' }}>
+        <img className="ws-tab-flag" src={flagUrl(center.country)} alt={center.country} />
+        <strong style={{ color:'var(--text)' }}>{center.label}</strong>
+        <span>· {fmtDate(shift.date)} · {center.hours}</span>
+        {tag && <span className="badge warn" style={{ fontSize:11 }}>{tag}</span>}
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'1px solid var(--border)', borderRadius:8, marginBottom:16 }}>
+        <Avatar photo={candidates.find((p) => p.id === current.personId)?.photo} name={current.personName} size={32} />
+        <div>
+          <div style={{ fontWeight:600, fontSize:14 }}>{current.personName}</div>
+          <div style={{ fontSize:12, color:'var(--text-faint)' }}>Currently on this shift · {daysLabel(stats[current.personId]?.total || 0)}</div>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Swap with</label>
+        {options.length === 0
+          ? <div style={{ fontSize:13, color:'var(--text-faint)' }}>No other team members at this center.</div>
+          : (
+            <select value={toId} onChange={(e) => setToId(e.target.value)} autoFocus>
+              <option value="">— Select a replacement —</option>
+              {options.map((p) => {
+                const busy = onThisDay.has(p.id)
+                return (
+                  <option key={p.id} value={p.id} disabled={busy}>
+                    {p.name} — {daysLabel(stats[p.id]?.total || 0)}
+                    {busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}
+                  </option>
+                )
+              })}
+            </select>
+          )}
+        {toPerson && restDay.has(toPerson.id) && (
+          <div style={{ fontSize:12, color:'var(--warn)', marginTop:6 }}>
+            ⚠ {toPerson.name} worked the {prevHoliday ? `holiday (${prevHoliday})` : 'Sunday'} before — the schedule rules give them this day off. You can still swap.
+          </div>
+        )}
+      </div>
+
+      <div className="modal-actions" style={{ justifyContent:'space-between' }}>
+        <button className="btn ghost danger" onClick={onRemove} title="Mark as removed — can be restored with ↩">🚫 Remove from this day</button>
+        <div style={{ display:'flex', gap:10 }}>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={!toPerson} onClick={() => onSwap(toPerson)}>Swap</button>
+        </div>
+      </div>
+    </DraggableModal>
   )
 }
