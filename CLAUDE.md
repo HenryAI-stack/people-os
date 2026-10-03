@@ -179,6 +179,16 @@ Browser (React SPA)
   next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
   person; weekend burden balanced across months via the `fairnessSnapshot` persisted on the
   schedule record.
+- **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
+  `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
+  each labelled with their days this month; anyone already on that day is disabled, and anyone who
+  worked the Sunday/holiday before is flagged "⚠ rest day" (mirrors the generator's rest rule;
+  still allowed, it's the manager's call) — plus "Remove from this day" (sets `cleared: true`,
+  restorable with ↩, same as the chip's ✕). `swapAssignment()` rewrites the assignment's
+  `personId`/`personName` in place (date/center/flags/comment kept) and drops any *cleared* entry
+  the replacement already had that day, so nobody is listed twice. Drag-and-drop (move to another
+  day), ✕ and 💬 still work as before; their buttons `stopPropagation` so they don't open the modal.
+  Edits don't recompute the saved `fairnessSnapshot` (same as drag-and-drop always behaved).
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
   "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so
   every `CENTERS` entry now carries a `tz` (IANA name). `src/lib/onDuty.js`'s
