@@ -177,17 +177,33 @@ Browser (React SPA)
   preference skips whoever worked the day before (so a Saturday worker isn't also given the
   Sunday) unless nobody else is free; working a Sunday or holiday hard-blocks that person the
   next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
-  person; weekend burden balanced across months via the `fairnessSnapshot` persisted on the
+  person; **hard cap of 40h per person per Mon–Sun week** (`MAX_WEEKLY_HOURS = 40`, 8h shifts →
+  5 shifts/week; `weekStart()` exported) — also enforced on the special-day and top-up steps, and
+  seeded with last month's shifts (`generateSchedule`'s 4th param `prevAssignments`, passed by
+  `WorkSchedule.jsx`'s `handleGenerate`) so a week straddling the month boundary still caps at 40h.
+  Like the rest rule, the cap leaves a day short-staffed rather than breaking it: with only 2
+  people at a center (≈53 shifts needed/month vs 2×40h/week) some weekdays get 1 person instead of
+  2 — 3+ people per center covers everything. Before the cap, the generator routinely handed out
+  48h weeks. Weekend burden balanced across months via the `fairnessSnapshot` persisted on the
   schedule record.
+  Schedules saved *before* the 2026-09-15 `getDaysInMonth` fix (see Excel export below) are
+  shifted by a day in CET — e.g. October stored as Sep 30–Oct 30, so Oct 31 shows empty. Fix by
+  assigning the empty day (click "—" / "+") or regenerating the month.
 - **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
-  each labelled with their days this month; anyone already on that day is disabled, and anyone who
+  plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who
   worked the Sunday/holiday before is flagged "⚠ rest day" (mirrors the generator's rest rule;
   still allowed, it's the manager's call) — plus "Remove from this day" (sets `cleared: true`,
   restorable with ↩, same as the chip's ✕). `swapAssignment()` rewrites the assignment's
   `personId`/`personName` in place (date/center/flags/comment kept) and drops any *cleared* entry
   the replacement already had that day, so nobody is listed twice. Drag-and-drop (move to another
   day), ✕ and 💬 still work as before; their buttons `stopPropagation` so they don't open the modal.
+  Clicking an empty day's "—", or the "+" that appears on hover in every day header, opens the
+  same modal in **assign mode** (`personId: null`: "Assign shift", no current person, no remove
+  button) → `addAssignment()` adds a full assignment record (same fields as the generator's
+  `makeAssignment`). Each stat chip shows month hours plus `max Nh/wk` (tooltip = per-week
+  breakdown); it turns red with ⚠ if any week exceeds `MAX_WEEKLY_HOURS` (e.g. after manual edits —
+  manual swaps/assigns aren't blocked by the cap, only flagged).
   Edits don't recompute the saved `fairnessSnapshot` (same as drag-and-drop always behaved).
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
   "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so

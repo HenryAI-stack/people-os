@@ -485,3 +485,9 @@ body.light .ws-chip { color: var(--accent); }
   }
   .ws-chip-actions button { display: none; }   /* keep the 💤 day-off marker, drop the controls */
 }
+
+/* "+" in each work-schedule day header — assign someone to that day */
+.ws-day-num { position: relative; }
+.ws-add-btn { margin-left: auto; float: right; background: none; border: none; color: var(--text-faint); font-size: 14px; line-height: 1; padding: 0 2px; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.ws-day-cell:hover .ws-add-btn { opacity: 1; }
+.ws-add-btn:hover { color: var(--accent); }
