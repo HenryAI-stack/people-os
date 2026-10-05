@@ -5,7 +5,7 @@ import { directReportsStore } from '../lib/dataStore.js'
 import { getCoords, flagUrl } from '../lib/locationFlag.js'
 import { getSubsolarPoint, terminatorLat } from '../lib/sunPosition.js'
 import { LAND_POLYGONS } from '../lib/worldContinents.js'
-import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from '../lib/worldClock.js'
+import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull, zonedToUtc, localDateStr, localTimeStr } from '../lib/worldClock.js'
 import { Avatar } from '../pages/DirectReports.jsx'
 
 // Plain equirectangular (2:1) projection — lon/lat map straight to x%/y%.
@@ -192,6 +192,7 @@ export default function WorldMapModal({ onClose }) {
                 ))}
               </tbody>
             </table>
+            <TimeConverter />
           </div>
         </div>
         <div className="world-map-legend">
@@ -202,5 +203,86 @@ export default function WorldMapModal({ onClose }) {
       </div>
     </div>,
     document.body
+  )
+}
+
+// ── Time converter (under the clocks table) ───────────────────────────────────
+// Enter a wall-clock date/time in one region; every other CLOCKS city shows the same instant in
+// its own local time. Conversion goes through zonedToUtc (Intl, DST-correct on both ends).
+const CONVERT_ORDER = ['India', 'Poland', 'Mexico', 'USA']
+
+function dayDiff(fromDateStr, toDateStr) {
+  const toUtc = (s) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d) }
+  return Math.round((toUtc(toDateStr) - toUtc(fromDateStr)) / 86400000)
+}
+
+function TimeConverter() {
+  const regions = CONVERT_ORDER.map((r) => CLOCKS.find((c) => c.region === r)).filter(Boolean)
+  const [region, setRegion] = useState('Poland')
+  const src = CLOCKS.find((c) => c.region === region)
+  const [date, setDate] = useState(() => localDateStr(src.tz, new Date()))
+  const [time, setTime] = useState(() => localTimeStr(src.tz, new Date()))
+
+  function setNow() {
+    const now = new Date()
+    setDate(localDateStr(src.tz, now))
+    setTime(localTimeStr(src.tz, now))
+  }
+
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time)
+  let instant = null
+  if (valid) {
+    const [y, m, d] = date.split('-').map(Number)
+    const [hh, mm] = time.split(':').map(Number)
+    instant = new Date(zonedToUtc(y, m, d, hh, mm, src.tz))
+  }
+  // A time skipped by a spring-forward DST change doesn't exist locally — say what it maps to.
+  const shifted = instant && (localTimeStr(src.tz, instant) !== time || localDateStr(src.tz, instant) !== date)
+
+  return (
+    <div className="tz-convert">
+      <div className="world-map-clocks-title">🔁 Convert a time</div>
+      <select value={region} onChange={(e) => setRegion(e.target.value)} aria-label="Region of the entered time">
+        {regions.map((c) => <option key={c.region} value={c.region}>{c.region} ({c.city})</option>)}
+      </select>
+      <div className="tz-convert-inputs">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Local time" />
+      </div>
+      <div className="tz-convert-meta">
+        <span title={instant ? fmtTzFull(instant, src.tz) : ''}>{instant ? fmtTzAbbr(instant, src.tz) : ''}</span>
+        <button type="button" className="tz-convert-now" onClick={setNow}>Now</button>
+      </div>
+      {shifted && (
+        <div className="tz-convert-note">That time is skipped by the daylight-saving change — shown as {localTimeStr(src.tz, instant)}.</div>
+      )}
+      {instant ? (
+        <table>
+          <tbody>
+            {CLOCKS.filter((c) => c.region !== region).map((c) => {
+              const diff = dayDiff(date, localDateStr(c.tz, instant))
+              return (
+                <tr key={c.city}>
+                  <td>
+                    <img src={flagUrl(c.country)} alt={c.country} className="world-map-clocks-flag" />
+                    {c.city}
+                  </td>
+                  <td className="world-map-clocks-time">
+                    {localTimeStr(c.tz, instant)}
+                    <div className="world-map-clocks-date">
+                      {fmtDate(instant, c.tz)}
+                      {diff !== 0 && <span className="tz-convert-day">{diff > 0 ? `+${diff}` : `−${-diff}`} day</span>}
+                    </div>
+                  </td>
+                  <td title={fmtTzFull(instant, c.tz)} className="world-map-clocks-tz">{fmtTzAbbr(instant, c.tz)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <div className="tz-convert-note">Enter a date and time.</div>
+      )}
+    </div>
   )
 }
