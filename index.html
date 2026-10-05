@@ -12,7 +12,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="PeopleOS" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- No apple-mobile-web-app-status-bar-style on purpose: "black-translucent" puts the page under
+         the status bar, and since iOS 26 the installed app then gets a Liquid Glass blur over its top
+         ~40pt (the first line looked blurry). The default style gives a solid status bar tinted from
+         theme-color (App.jsx switches it with the light/dark theme) and starts the page below it. -->
     <script>
       (function() {
         var r = sessionStorage.getItem('gh-pages-redirect');
