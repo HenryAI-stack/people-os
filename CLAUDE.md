@@ -84,7 +84,14 @@ Browser (React SPA)
   wrap: put action buttons in a `.row-actions` container (and the title+actions line of
   column-style rows in `.row-head`) so they drop to their own line on phones instead of
   squeezing the text. The Work Schedule month grid becomes a one-column day list
-  (`.ws-day-wd` weekday and `.ws-hol-name` holiday labels are phone-only). Inputs are forced
+  (`.ws-day-wd` weekday and `.ws-hol-name` holiday labels show only in list mode) — driven by
+  a **container query** (`@container wscal (max-width: 999px)` on `.ws-center-block`), not the
+  760px media query, so it also kicks in on ~1280px laptops with the sidebar expanded, where
+  the 7 columns would be too narrow to show names. The grid itself is
+  `repeat(7, minmax(0, 1fr))` (plain `1fr` refused to shrink below the name chips and pushed
+  Sunday off-screen), and `.main:has(.ws-calendar)` lifts `.main`'s 1100px max-width on that page
+  so the grid gets the full window. Print resets the container (`container-type: normal`) and
+  always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
   content clear of the notch and home indicator.
 - **Data**: `src/lib/dataStore.js` is the entire persistence layer. `makeStore(filename)`

@@ -373,7 +373,7 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 /* Calendar grid — 7 columns (Mon–Sun) */
 .ws-calendar {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr)); /* minmax(0,…): plain 1fr won't shrink below the name chips, pushing Sunday off the edge */
   gap: 4px;
   margin-bottom: 12px;
 }
@@ -493,7 +493,10 @@ body.light .ws-chip { color: var(--accent); }
 
 .hidden-screen { display: none; }
 
-.ws-center-block { margin-bottom: 32px; }
+.ws-center-block { margin-bottom: 32px; container: wscal / inline-size; } /* see the day-list @container rule */
+/* The month grid needs every pixel: lift .main's 1100px reading-width cap on the Work Schedule page. */
+.main:has(.ws-calendar) { max-width: none; }
+.ws-controls > * { flex-wrap: wrap; }
 
 /* ── Print styles ── */
 .print-only { display: none; }
@@ -524,6 +527,7 @@ body.light .ws-chip { color: var(--accent); }
     flex-direction: column;
   }
   .ws-center-block:last-of-type { break-after: auto; }
+  .ws-center-block { container-type: normal; } /* print always uses the 7-column grid */
 
   .ws-print-header { flex: 0 0 auto; }
   .ws-print-header h2 { font-size: 15px; margin: 0 0 2px; }
@@ -566,11 +570,14 @@ body.light .ws-chip { color: var(--accent); }
 .ws-day-cell:hover .ws-add-btn { opacity: 1; }
 .ws-add-btn:hover { color: var(--accent); }
 
-/* Work schedule on phones: the 7-column month grid becomes a one-column day list
-   (weekday + date on the left, people on the right); headers and leading blanks are hidden. */
+/* Work schedule day list: whenever the calendar itself is under 1000px wide (phones, narrow
+   windows, ~1280px laptops with the sidebar expanded) the 7-column month grid — whose sub-140px
+   columns truncate every name to "Arju…" — becomes a one-column day list (weekday + date on the left, people on the
+   right); headers and leading blanks are hidden. A container query, not a media query, so it
+   follows the calendar's real width rather than the viewport's. */
 .ws-day-wd, .ws-hol-name { display: none; }
-@media (max-width: 760px) {
-  .ws-calendar { grid-template-columns: 1fr; gap: 6px; }
+@container wscal (max-width: 999px) {
+  .ws-calendar { grid-template-columns: 1fr; gap: 6px; max-width: 760px; }
   .ws-calendar .ws-day-header, .ws-calendar .ws-day-empty { display: none; }
   .ws-day-cell { min-height: 0; display: grid; grid-template-columns: 64px 1fr 30px; column-gap: 8px; row-gap: 0; padding: 8px; align-items: start; }
   /* date column spans every chip row (chips auto-place into column 2); spare spanned rows are 0px */
@@ -582,5 +589,4 @@ body.light .ws-chip { color: var(--accent); }
   .ws-chip { grid-column: 2; padding: 8px 10px; font-size: 13px; margin-bottom: 5px; }
   .ws-chip:last-child { margin-bottom: 0; }
   .ws-clear-btn, .ws-comment-btn { font-size: 14px; padding: 4px 7px; }
-  .ws-controls > * { flex-wrap: wrap; }
 }

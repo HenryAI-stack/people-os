@@ -455,7 +455,7 @@ export default function WorkSchedule() {
                             onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: a.personId })}
                             title="Click to swap or remove · drag to move">
                             <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={18} />
-                            <span className="ws-chip-name">{a.personName}</span>
+                            <span className="ws-chip-name" title={a.personName}>{a.personName}</span>
                             <div className="ws-chip-actions">
                               {a.dayOffGranted && <span title="Day-off credit">💤</span>}
                               <button className="ws-comment-btn"
