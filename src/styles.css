@@ -236,6 +236,18 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
    notch / home indicator when installed (index.html sets viewport-fit=cover). */
 .mobile-topbar, .sidebar-backdrop { display: none; }
 
+/* Installed on iOS/iPadOS, the status bar (clock, battery) is translucent — index.html sets
+   black-translucent + viewport-fit=cover — and drawn over the top env(safe-area-inset-top) of
+   the page. This applies at every width (an iPad gets the desktop layout), so: a fixed dark strip
+   behind the status bar (its text is always white, so it stays readable in light mode) and
+   content pushed below it. env() is 0 in a normal browser tab and on Android, so nothing changes
+   there. The phone layout below handles its own top bar the same way. */
+body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: #1b1f26; z-index: 100; pointer-events: none; }
+.sidebar { padding-top: env(safe-area-inset-top); }
+.main { padding-top: calc(32px + env(safe-area-inset-top)); }
+.login-screen { border-top: env(safe-area-inset-top) solid #1b1f26; }
+.overlay { padding-top: max(20px, calc(env(safe-area-inset-top) + 12px)); }
+
 @media (max-width: 760px) {
   .app-shell { display: block; height: auto; overflow: visible; }
 
@@ -297,7 +309,7 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
   input, select, textarea { font-size: 16px !important; }
 
   /* Login */
-  .login-screen { border-top: env(safe-area-inset-top) solid #1b1f26; padding: 16px; }
+  .login-screen { padding: 16px; }
   .login-card { padding: 36px 24px; }
 }
 
