@@ -174,7 +174,7 @@ export default function PersonDetail() {
       <button className="btn ghost" onClick={() => navigate('/direct-reports')} style={{ marginBottom:20, paddingLeft:0 }}>← Direct Reports</button>
 
       {/* Person header */}
-      <div className="card" style={{ display:'flex', alignItems:'center', gap:20, marginBottom:24 }}>
+      <div className="card person-header" style={{ display:'flex', alignItems:'center', gap:20, marginBottom:24 }}>
         <Avatar photo={person.photo} name={person.name} size={64} />
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:600, marginBottom:4 }}>{person.name}</div>
@@ -264,9 +264,9 @@ export default function PersonDetail() {
         {interviews.map((iv) => (
           <div className="row-card" key={iv.id} id={`iv-${iv.id}`} style={{ flexDirection:'column', alignItems:'stretch', cursor:'pointer' }}
             onClick={() => setExpanded(expanded===iv.id?null:iv.id)}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%' }}>
+            <div className="row-head" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%' }}>
               <div className="row-main"><div><div className="row-title">{iv.title||'(untitled)'}</div><div className="row-sub">{iv.date||'no date'}</div>{iv.tags && (<div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>{iv.tags.split(',').map((t)=>t.trim()).filter(Boolean).map((t)=><span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>)}</div>)}</div></div>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <span className="badge">{INTERVIEW_TYPES[iv.type]||iv.type}</span>
                 <span style={{ color:'var(--text-faint)', fontSize:13 }}>{expanded===iv.id?'▲':'▼'}</span>
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px' }} onClick={(e) => { e.stopPropagation(); setAddingFU(iv) }}>+ Follow-up</button>

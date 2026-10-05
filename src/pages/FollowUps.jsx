@@ -220,7 +220,7 @@ export default function FollowUps() {
                   {f.sourceTitle && <span style={{ color:'var(--text-faint)' }}>↳ {f.sourceTitle}</span>}
                 </div>
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+              <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                 {urg.label && <span className={`badge ${urg.cls}`}>{urg.label}</span>}
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px', color:'var(--accent)' }}
                   onClick={() => handleSync(f)} disabled={syncingId === f.id || syncingAll} title={f.msTaskId ? 'Re-sync to Outlook' : 'Sync to Outlook'}>

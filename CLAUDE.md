@@ -30,6 +30,8 @@ accomplishments summary (server-side, via Resend).
   `scripts/send-schedule-email.mjs` (a CI-only script), so despite being a normal
   `dependencies` entry it never reaches the browser bundle at all
 - No CSS framework — plain `src/styles.css` with CSS custom properties for theming
+- Installable **PWA** (manifest + hand-rolled service worker, no `vite-plugin-pwa`/workbox) with
+  a phone layout at ≤760px — see "PWA / mobile" under Architecture
 - No test runner and no linter are configured in this repo
 - Two Node scripts under `scripts/` (`send-accomplishments-email.mjs`,
   `send-schedule-email.mjs`) run in CI only, not bundled into the app; they depend on
@@ -50,7 +52,41 @@ Browser (React SPA)
 - **Auth**: `src/lib/auth.js` wraps Firebase `signInWithPopup` and hard-checks
   `result.user.email` against `VITE_ALLOWED_EMAIL`, signing the user back out and throwing
   `ACCESS_DENIED` if it doesn't match. This is a single-user app by design — one hardcoded
-  allowed email, not a domain allowlist.
+  allowed email, not a domain allowlist. For the installed PWA, `loginWithGoogle` falls back to
+  `signInWithRedirect` when the popup is unsupported (`POPUP_UNSUPPORTED` codes such as
+  `auth/popup-blocked`); `completeRedirectLogin()` (called once from `App.jsx` on mount) finishes
+  that flow with the same email check, and `onAuth` itself also drops/signs out any non-allowed
+  user, so the check holds whichever path produced the session. Popup stays the default — the
+  redirect flow is unreliable on iOS Safari (third-party-storage partitioning between
+  github.io and the Firebase `authDomain`), so don't flip the default to redirect.
+- **PWA / mobile**: installable from the phone's browser. `public/manifest.webmanifest` (all
+  paths relative, deliberately no `id`, so nothing in it depends on the repo name) + icons in
+  `public/icons/` (`icon.svg` is the source; the PNGs were rendered from it once) + iOS meta tags
+  in `index.html` (`viewport-fit=cover`, `apple-mobile-web-app-*`, `%BASE_URL%` hrefs).
+  The service worker is **generated at build time**: the `serviceWorker()` plugin in
+  `vite.config.js` reads `src/sw-template.js`, injects this build's JS/CSS file list (minus the
+  lazily-loaded exceljs chunk, which is runtime-cached on first use) plus `./`, the manifest and
+  icons, versions the cache with a hash of that list + the built `index.html`, and emits
+  `dist/sw.js`. It only handles same-origin GETs inside the scope: navigations get the cached
+  shell (cache-first → instant, offline-capable launch), other assets cache-first. **Data is
+  never cached** — GitHub API/Firebase/OpenRouter/Graph are cross-origin and pass straight
+  through, so offline the app opens but shows an offline banner and data errors. Updates: a new
+  deploy installs as a *waiting* worker (no auto `skipWaiting`), `src/lib/pwa.js` raises
+  `updateReady`, and `App.jsx`'s `AppBanners` shows "new version available — Reload", which
+  posts `SKIP_WAITING` and reloads on `controllerchange`; `pwa.js` also calls `reg.update()`
+  whenever the app is foregrounded. The SW is registered only in production builds (`npm run
+  dev` never registers it). `pwa.js` also captures `beforeinstallprompt` for the Settings page's
+  "Install on your phone" card (`InstallCard`), which falls back to iOS/Android instructions.
+  Phone layout (all in `styles.css`, `@media (max-width: 760px)`): a sticky `.mobile-topbar`
+  with ☰ opens the **same** `Sidebar` as an off-canvas drawer (`.app-shell.nav-open`, backdrop,
+  closes on nav tap). The desktop collapse preference is ignored there, which is why `WorldClock`
+  is hidden by CSS (`.sidebar.collapsed .world-clock`) instead of returning `null`. List rows
+  wrap: put action buttons in a `.row-actions` container (and the title+actions line of
+  column-style rows in `.row-head`) so they drop to their own line on phones instead of
+  squeezing the text. The Work Schedule month grid becomes a one-column day list
+  (`.ws-day-wd` weekday and `.ws-hol-name` holiday labels are phone-only). Inputs are forced
+  to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
+  content clear of the notch and home indicator.
 - **Data**: `src/lib/dataStore.js` is the entire persistence layer. `makeStore(filename)`
   builds a tiny CRUD wrapper (`list` / `upsert` / `remove`) around one JSON file in the data
   repo (e.g. `direct-reports.json`). `upsert`/`remove` re-fetch the file's current SHA first
@@ -350,6 +386,10 @@ src/
     settings.js        Browser-local (localStorage) user settings — currently just
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
                         written by the Settings page
+    pwa.js             Service-worker registration + update banner state, install prompt
+                        capture (subscribePwa/applyUpdate/promptInstall/isStandalone/isIOS)
+  sw-template.js       Service-worker source; NOT imported — vite.config.js's serviceWorker()
+                       plugin fills in the precache list/version and emits dist/sw.js
   pages/
     Dashboard.jsx      Team stats, 24/7 on duty (before/now/next), follow-ups, anniversaries | birthdays (two columns,
                        last-passed row greyed + next 3), 1:1s overdue, recent activity
@@ -363,9 +403,9 @@ src/
     Notes.jsx          Freeform scratchpad; pin, archive/unarchive, search
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
-    Settings.jsx       Browser-local settings — currently the Microsoft Graph token form
+    Settings.jsx       Browser-local settings — the Microsoft Graph token form
                         (backs msGraph.js via settings.js), with instructions for generating
-                        one from Graph Explorer
+                        one from Graph Explorer, plus the "Install on your phone" PWA card
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
@@ -390,6 +430,10 @@ src/
                         `DraggableModal.jsx`, the same hook DraggableModal itself uses) — it
                         isn't a DraggableModal because of its wide custom layout. The hook
                         ignores mousedowns on buttons inside the handle, so the × still clicks.
+public/
+  manifest.webmanifest PWA manifest (relative paths, no repo-name dependency)
+  icons/               App icons — icon.svg source + 192/512/maskable/apple-touch PNGs
+  404.html             GitHub Pages deep-link redirect
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
   send-schedule-email.mjs   CI-only Node script; imports scheduleGenerator.js/holidays.js/
@@ -423,9 +467,15 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 - **New persisted collections** go through `makeStore()` in `dataStore.js` and get a `.json`
   filename. Export a `<name>Store` alongside the existing ones.
 - **`base: '/people-os/'` in `vite.config.js`** must keep matching the GitHub Pages repo
-  name — don't change one without the other. `githubActions.js`'s `APP_OWNER`/`APP_REPO`
+  name — don't change one without the other. (The PWA manifest and service worker derive
+  everything from `base`/their own scope, so they need no change when it moves.) `githubActions.js`'s `APP_OWNER`/`APP_REPO`
   constants (and, cosmetically, `ai.js`'s `APP_URL`) are also hardcoded to
   `HenryAI-stack/people-os`; update them together if the repo moves.
+- **Everything must work on a phone** (the app is installed as a PWA). Check new UI at ~390px
+  wide: wrap row buttons in `.row-actions`, don't rely on hover-only affordances (add them to the
+  `@media (hover: none)` block), and launch any new overlay from the sidebar via `createPortal`
+  (the drawer is `position: fixed` and its own stacking context, like the sticky desktop
+  sidebar).
 - Styling is hand-rolled CSS variables (`var(--accent)`, `var(--bad)`, `var(--border)`,
   `var(--text-dim)`, `var(--text-faint)`, …) in `src/styles.css` — match the existing look
   rather than adding a UI library. Dark is the default; `body.light` is the light theme.

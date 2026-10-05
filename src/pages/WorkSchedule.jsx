@@ -429,8 +429,10 @@ export default function WorkSchedule() {
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => onDrop(dateStr, c.id)}>
                       <div className="ws-day-num">
+                        <span className="ws-day-wd">{fmtWeekday(dateStr)}</span>
                         {fmtDay(dateStr)}
                         {hol && <span className="ws-hol-label" title={hol}>🗓️</span>}
+                        {hol && <span className="ws-hol-name">{hol}</span>}
                         <button className="ws-add-btn no-print" title="Assign someone to this day"
                           onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: null })}>+</button>
                       </div>

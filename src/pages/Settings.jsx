@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getMsGraphToken, setMsGraphToken } from '../lib/settings.js'
+import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
 
 export default function Settings() {
   const [token, setToken] = useState(() => getMsGraphToken())
@@ -74,6 +75,49 @@ export default function Settings() {
             : 'Status: no token set — Outlook sync will show an error until one is added.'}
         </div>
       </div>
+
+      <InstallCard />
     </>
+  )
+}
+
+// "Install on your phone" — PeopleOS is a PWA (manifest + service worker, see src/lib/pwa.js).
+function InstallCard() {
+  const [pwa, setPwa] = useState({ installPrompt: null })
+  useEffect(() => subscribePwa(setPwa), [])
+  const standalone = isStandalone()
+  const ios = isIOS()
+  const steps = { color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.8, paddingLeft: 20, margin: '0 0 6px' }
+
+  return (
+    <div className="card" style={{ maxWidth: 640, marginTop: 20 }}>
+      <h3 style={{ marginTop: 0, marginBottom: 6 }}>📱 Install on your phone</h3>
+      <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
+        PeopleOS can be installed as an app: its own home-screen icon, full screen without the
+        browser bar, and an instant start. Data still comes live from the data repo, so you need a
+        connection to load or save anything.
+      </p>
+      {standalone ? (
+        <div className="badge good" style={{ display: 'inline-block' }}>✓ You're using the installed app</div>
+      ) : pwa.installPrompt ? (
+        <button className="btn primary" onClick={promptInstall}>Install PeopleOS</button>
+      ) : ios ? (
+        <ol style={steps}>
+          <li>Open this page in <strong>Safari</strong>.</li>
+          <li>Tap the <strong>Share</strong> button (square with an arrow).</li>
+          <li>Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+        </ol>
+      ) : (
+        <>
+          <ol style={steps}>
+            <li><strong>Android (Chrome):</strong> open this page on your phone, tap the <strong>⋮</strong> menu → <strong>Install app</strong> (or <em>Add to Home screen</em>).</li>
+            <li><strong>iPhone (Safari):</strong> Share button → <strong>Add to Home Screen</strong>.</li>
+          </ol>
+          <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+            Open the same address on your phone: <code>{window.location.origin + import.meta.env.BASE_URL}</code>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
