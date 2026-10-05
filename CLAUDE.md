@@ -93,7 +93,13 @@ Browser (React SPA)
   so the grid gets the full window. Print resets the container (`container-type: normal`) and
   always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
-  content clear of the notch and home indicator.
+  content clear of the notch and home indicator. The **top** inset is handled at *every* width,
+  not just in the phone media query: with `black-translucent` the iOS/iPadOS status bar is drawn
+  over the page, and an iPad gets the desktop layout — before this, the clock overlapped the
+  sidebar brand/page title there ("first line is blurry"). A fixed `body::before` strip
+  (`#1b1f26`, since the status-bar text is always white) sits behind it, and `.sidebar`,
+  `.main`, `.overlay` and `.login-screen` are pushed down by the inset (0 everywhere except an
+  installed iOS app, so browsers and Android are unaffected).
 - **Data**: `src/lib/dataStore.js` is the entire persistence layer. `makeStore(filename)`
   builds a tiny CRUD wrapper (`list` / `upsert` / `remove`) around one JSON file in the data
   repo (e.g. `direct-reports.json`). `upsert`/`remove` re-fetch the file's current SHA first
