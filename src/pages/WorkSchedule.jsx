@@ -5,6 +5,7 @@ import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKL
 import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
+import { isBirthdayOn } from '../lib/birthdays.js'
 import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
@@ -457,6 +458,7 @@ export default function WorkSchedule() {
                             <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={18} />
                             <span className="ws-chip-name" title={a.personName}>{a.personName}</span>
                             <div className="ws-chip-actions">
+                              {isBirthdayOn(peopleById[a.personId]?.birthday, dateStr) && <span title={`${a.personName}'s birthday — consider swapping`}>🎂</span>}
                               {a.dayOffGranted && <span title="Day-off credit">💤</span>}
                               <button className="ws-comment-btn"
                                 onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id, a.personId) }}
@@ -481,6 +483,7 @@ export default function WorkSchedule() {
                 <span className="ws-legend-item ws-holiday-sample">Public holiday</span>
                 <span className="ws-legend-item">💤 Day-off credit</span>
                 <span className="ws-legend-item">💬 Has comment</span>
+                <span className="ws-legend-item">🎂 Birthday shift (avoided — consider swapping)</span>
                 <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Click a name to swap or remove · click an empty day or + to assign · drag to move</span>
               </div>
             </div>
@@ -599,7 +602,7 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
                 const busy = onThisDay.has(p.id)
                 return (
                   <option key={p.id} value={p.id} disabled={busy}>
-                    {p.name}{busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}
+                    {p.name}{busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}{!busy && isBirthdayOn(p.birthday, shift.date) ? ' 🎂 birthday' : ''}
                   </option>
                 )
               })}
@@ -608,6 +611,11 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
         {toPerson && restDay.has(toPerson.id) && (
           <div style={{ fontSize:12, color:'var(--warn)', marginTop:6 }}>
             ⚠ {toPerson.name} worked the {prevHoliday ? `holiday (${prevHoliday})` : 'Sunday'} before — the schedule rules give them this day off. You can still swap.
+          </div>
+        )}
+        {toPerson && isBirthdayOn(toPerson.birthday, shift.date) && (
+          <div style={{ fontSize:12, color:'var(--warn)', marginTop:6 }}>
+            🎂 It's {toPerson.name}'s birthday — the schedule avoids giving people a shift that day. You can still {current ? 'swap' : 'assign'}.
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
+import { isBirthdayOn } from './birthdays.js'
 
 // `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
 // Array order = display order everywhere (Work Schedule tabs/default tab, print view, Excel sheets,
@@ -73,6 +74,11 @@ function makeAssignment(dateStr, center, person, we, hol) {
  *    the month boundary also count the previous month's shifts (`prevAssignments`).
  *    Like Rule 3, a day is left short-staffed rather than breaking the cap.
  * 5. Weekend/holiday burden balanced across months
+ * 6. Nobody is scheduled on their own birthday (direct report's `birthday`, 'MM-DD' or
+ *    'YYYY-MM-DD'). A strong preference rather than a hard block: the birthday person is
+ *    only used as a last resort when nobody else can cover the day (so coverage never drops
+ *    because of it), and the top-up step never adds a shift on a birthday. The Work Schedule
+ *    page flags any birthday shift with 🎂 so it can be swapped by hand.
  */
 export function generateSchedule(yearMonth, people, fairness = {}, prevAssignments = []) {
   const days    = getDaysInMonth(yearMonth)
@@ -104,6 +110,8 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     for (const a of prevAssignments) {
       if (!a.cleared && pool.some((p) => p.id === a.personId)) weekCount[wk(a.personId, a.date)] = (weekCount[wk(a.personId, a.date)] || 0) + 1
     }
+    // Rule 6: birthday = avoid (last resort only)
+    const onBirthday = (person, dateStr) => isBirthdayOn(person.birthday, dateStr)
     function canWork(personId, dateStr) {
       return !isBlocked(personId, dateStr) && (weekCount[wk(personId, dateStr)] || 0) < MAX_SHIFTS_PER_WEEK
     }
@@ -150,8 +158,10 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       })
       const free = ranked.filter((p) => canWork(p.id, dateStr))
       const pick =
-        free.find((p) => !workedDayBefore(p.id, dateStr)) // rotate + no back-to-back
-        || free[0]                                        // back-to-back only if nobody else is free
+        free.find((p) => !onBirthday(p, dateStr) && !workedDayBefore(p.id, dateStr)) // rotate + no back-to-back
+        || free.find((p) => !onBirthday(p, dateStr))      // back-to-back only if nobody else is free
+        || free.find((p) => !workedDayBefore(p.id, dateStr)) // birthday only as a last resort (Rule 6)
+        || free[0]
         // else: everyone hard-blocked (Rule 3) or at 40h (Rule 4a) → leave the day unassigned
       if (pick) {
         assign(dateStr, pick)
@@ -171,8 +181,10 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
         allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
       )
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      const pick = sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr) && used[p.id] <= target)
-               || sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr))
+      const ok = (p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr)
+      const pick = sorted.find((p) => ok(p) && !onBirthday(p, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => ok(p) && !onBirthday(p, dateStr))
+               || sorted.find(ok) // birthday only as a last resort (Rule 6)
       if (pick) { assign(dateStr, pick) }
     }
 
@@ -183,8 +195,10 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       )
       if (alreadyOn.size >= 2) continue
       const sorted = [...pool].sort((a, b) => used[a.id] - used[b.id])
-      const pick = sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr) && used[p.id] <= target)
-               || sorted.find((p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr))
+      const ok = (p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr)
+      const pick = sorted.find((p) => ok(p) && !onBirthday(p, dateStr) && used[p.id] <= target)
+               || sorted.find((p) => ok(p) && !onBirthday(p, dateStr))
+               || sorted.find(ok) // birthday only as a last resort (Rule 6)
       if (pick) { assign(dateStr, pick) }
     }
 
@@ -193,7 +207,8 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       let gap = (target + 1) - used[person.id]  // allow up to 21 days
       if (gap <= 0) continue
       const onDay = (d) => allAssignments.some((a) => a.date === d && a.center === center.id && a.personId === person.id)
-      const available = trueWeekdays.filter((d) => canWork(person.id, d) && !onDay(d))
+      // Never top up onto a birthday (Rule 6) — these are extra shifts, not needed coverage.
+      const available = trueWeekdays.filter((d) => canWork(person.id, d) && !onDay(d) && !onBirthday(person, d))
       // Re-check the week cap at assignment time — earlier top-ups in this loop can fill a week.
       const tryAssign = (d) => { if (gap > 0 && canWork(person.id, d) && !onDay(d)) { assign(d, person); gap-- } }
       const step = Math.max(1, Math.floor(available.length / gap))
