@@ -273,7 +273,7 @@ Browser (React SPA)
   every `CENTERS` entry now carries a `tz` (IANA name). `src/lib/onDuty.js`'s
   `getShiftTimeline(schedules, now)` builds concrete shift instances for each center for its own
   local yesterday/today/tomorrow, converts start/end to absolute instants via `Intl` offsets (no
-  timezone library; a two-pass `zonedToUtc` handles DST), attaches non-cleared assignments by
+  timezone library; a two-pass `zonedToUtc`, imported from `worldClock.js`, handles DST), attaches non-cleared assignments by
   `date|center` (date = that center's local date, so Mexico City's evening shift belongs to its own
   calendar day), and returns `{ current[], previous, next, hasSchedule }`. `current` is an array
   because coverage isn't seamless all year: in Warsaw winter time there's a real 1-hour gap after
@@ -406,9 +406,11 @@ src/
                         single `<path fill-rule="evenodd">` so holes (e.g. the Caspian/Aral
                         Sea inside Asia) render as open water. Don't flatten rings into
                         independent filled shapes again — that silently paints holes as land.
-    worldClock.js      CLOCKS (Warsaw/Chicago/Bangalore/Mexico City) + fmtTime/fmtDate/
-                        fmtTzAbbr/fmtTzFull, shared by App.jsx's sidebar widget and
-                        WorldMapModal's clocks table so both list the same cities
+    worldClock.js      CLOCKS (Warsaw/Chicago/Bangalore/Mexico City, each with a converter
+                        `region` label) + fmtTime/fmtDate/fmtTzAbbr/fmtTzFull, shared by
+                        App.jsx's sidebar widget and WorldMapModal's clocks table + time
+                        converter; also the one Intl wall-clock↔instant helper set
+                        (zonedToUtc/localDateStr/localTimeStr) that onDuty.js imports too
     imageUtils.js      Client-side avatar photo resizing before storing as base64
     settings.js        Browser-local (localStorage) user settings — currently just
                         getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
@@ -440,7 +442,14 @@ src/
                         sun position, a pin per active direct report's resolved location
                         (hover tooltip with photo/name; pins sharing a city cluster into one
                         badge), and a clocks table (same cities as `worldClock.js`'s CLOCKS)
-                        alongside the map. The base map itself is drawn inline from
+                        alongside the map. Under the clocks table, a "Convert a time" form
+                        (`TimeConverter`): pick a region (India/Poland/Mexico/USA, i.e.
+                        `CLOCKS[].region`; USA = Chicago), enter a date + time, and every
+                        other city shows the same instant (with a ±day badge when the date
+                        changes). Conversion uses `zonedToUtc`/`localDateStr`/`localTimeStr`
+                        from `worldClock.js` (Intl, DST-correct on both ends); a time skipped
+                        by a spring-forward change is called out rather than silently moved.
+                        The base map itself is drawn inline from
                         `src/lib/worldContinents.js`'s real coastline data (Natural Earth,
                         generated once — see that file's header) — deliberately not an
                         external image. An earlier version hotlinked a

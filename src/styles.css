@@ -178,6 +178,16 @@ body.light .world-map-modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .world-map-clocks .world-map-clocks-time { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
 .world-map-clocks-date { font-weight: 400; font-size: 9.5px; color: var(--text-faint); }
 .world-map-clocks .world-map-clocks-tz { color: #c47a3a; font-weight: 600; font-size: 8.5px; cursor: help; }
+.tz-convert { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.tz-convert select, .tz-convert input { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font: inherit; font-size: 12px; padding: 5px 7px; color-scheme: dark; }
+body.light .tz-convert select, body.light .tz-convert input { color-scheme: light; }
+.tz-convert select:focus, .tz-convert input:focus { outline: none; border-color: var(--accent); }
+.tz-convert-inputs { display: grid; grid-template-columns: 1fr; gap: 6px; } /* stacked: a 12h time field ("10:00 PM") needs the full panel width */
+.tz-convert-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 600; color: #c47a3a; }
+.tz-convert-now { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.tz-convert-now:hover { border-color: var(--accent); color: var(--accent); }
+.tz-convert-note { font-size: 11px; color: var(--text-faint); line-height: 1.4; }
+.tz-convert-day { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .sun-marker { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: radial-gradient(circle, #fff6d6 0%, #ffd25c 55%, rgba(255,210,92,0) 75%); box-shadow: 0 0 10px 3px rgba(255,210,92,0.65); pointer-events: none; }
 .world-map-pin { position: absolute; pointer-events: auto; width: 16px; height: 16px; margin: -8px 0 0 -8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .world-map-pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(217,142,84,0.45), 0 1px 4px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #1b1f26; transition: transform 0.12s; }

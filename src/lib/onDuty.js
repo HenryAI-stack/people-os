@@ -1,30 +1,10 @@
 import { CENTERS } from './scheduleGenerator.js'
+import { zonedToUtc, localDateStr } from './worldClock.js'
 
 // Turns saved work schedules into real-time shift instances so the Dashboard can show
 // who is on duty now, who was before, and who is next. Each center's `hours` are local
 // to its own `tz`, so every shift is converted to an absolute instant via Intl — no
 // timezone library, and correct across DST changes in Warsaw.
-
-function tzOffsetMs(tz, date) {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    }).formatToParts(date).map((x) => [x.type, x.value])
-  )
-  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - date.getTime()
-}
-
-// Wall-clock time in `tz` → epoch ms. Second pass corrects for an offset change in between.
-function zonedToUtc(y, m, d, hh, mm, tz) {
-  const guess = Date.UTC(y, m - 1, d, hh, mm)
-  const first = guess - tzOffsetMs(tz, new Date(guess))
-  return guess - tzOffsetMs(tz, new Date(first))
-}
-
-function localDateStr(tz, date) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
-}
 
 function shiftDate(dateStr, delta) {
   const [y, m, d] = dateStr.split('-').map(Number)
