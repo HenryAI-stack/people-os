@@ -89,7 +89,7 @@ export default function DirectReports() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:10 }}>
                     {p.status === 'active' && (() => {
                       const last = lastOneOnOne(p, interviews)
                       const b = cadenceBadge(last)

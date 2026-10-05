@@ -188,7 +188,7 @@ places. If you forked/renamed (i.e. your app repo is **not** literally
 ```js
 // vite.config.js
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), serviceWorker()],
   base: '/YOUR-REPO/',   // ← match your actual repo name
 })
 ```
@@ -211,6 +211,27 @@ https://YOUR-USERNAME.github.io/people-os/
 
 ---
 
+## Optional — Install it on your phone (PWA)
+
+PeopleOS is a Progressive Web App, so it can be installed like a native app: its own
+home-screen icon, full screen without the browser bar, and an instant (even offline) start.
+There's nothing to configure — open the live URL on your phone:
+
+- **Android (Chrome / Edge / Samsung Internet):** ⋮ menu → **Install app** (or
+  *Add to Home screen*). On Chrome you can also use the **Install PeopleOS** button on the
+  app's **Settings** page.
+- **iPhone / iPad (Safari):** Share button → **Add to Home Screen** → **Add**.
+
+Sign in once inside the installed app (it keeps its own login, separate from the browser).
+Only the app itself is cached on the phone. Your data is still loaded live from the private
+data repo and never stored by the service worker, so you need a connection to see or save
+anything. When you're offline, the app opens and shows an "offline" banner.
+
+After a new deploy, the installed app shows a **"A new version of PeopleOS is available —
+Reload"** banner the next time it's opened or brought to the foreground.
+
+---
+
 ## Troubleshooting
 
 | Problem                                  | Fix                                                                       |
@@ -221,6 +242,8 @@ https://YOUR-USERNAME.github.io/people-os/
 | Data unreadable after rotating the token   | That's fine — the token doesn't affect decryption, only write access        |
 | Data unreadable after changing the secret  | The encryption secret must **never** change — otherwise old data is lost    |
 | Actions workflow fails                     | Repo → Actions → read the log; confirm all required secrets from Step 5 are set correctly |
+| No "Install app" option on Android         | Open the URL in Chrome itself (not an in-app browser such as Gmail's or Slack's), and load it once while online |
+| Google sign-in does nothing in the installed app | Sign-in uses a popup. If the phone blocks it, the app falls back to a full-page redirect automatically. iPhone home-screen apps keep their own storage, separate from Safari, so you sign in inside the app itself. If it still fails there, keep using PeopleOS in Safari |
 
 ---
 

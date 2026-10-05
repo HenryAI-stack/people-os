@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { onAuth, loginWithGoogle, logout } from './lib/auth.js'
+import { onAuth, loginWithGoogle, completeRedirectLogin, logout } from './lib/auth.js'
+import { subscribePwa, applyUpdate } from './lib/pwa.js'
 
 import Dashboard    from './pages/Dashboard.jsx'
 import DirectReports from './pages/DirectReports.jsx'
@@ -29,22 +30,41 @@ export default function App() {
   const [light,       setLight]       = usePref('peopleos-theme-light', false)
   const [collapsed,   setCollapsed]   = usePref('peopleos-sidebar-collapsed', false)
 
-  useEffect(() => { document.body.classList.toggle('light', light) }, [light])
+  const [navOpen,     setNavOpen]     = useState(false)  // mobile drawer (≤760px only)
+
+  useEffect(() => {
+    document.body.classList.toggle('light', light)
+    // Status bar / task switcher colour of the installed app follows the theme.
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#ffffff' : '#1b1f26')
+  }, [light])
   useEffect(() => { return onAuth(u => { setUser(u); setAuthLoading(false) }) }, [])
+  useEffect(() => {
+    completeRedirectLogin().catch((e) => { if (e.message === 'ACCESS_DENIED') setAuthError('access_denied') })
+  }, [])
 
   async function handleLogin() {
     try { setAuthError(null); await loginWithGoogle() }
-    catch (e) { if (e.message === 'ACCESS_DENIED') setAuthError('access_denied') }
+    catch (e) {
+      if (e.message === 'ACCESS_DENIED') setAuthError('access_denied')
+      else if (!['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(e?.code)) setAuthError(e?.code || e?.message || 'failed')
+    }
   }
 
   if (authLoading) return <Centered>Loading PeopleOS…</Centered>
   if (!user)       return <LoginPage onLogin={handleLogin} authError={authError} />
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
+      <header className="mobile-topbar">
+        <button className="mobile-menu-btn" onClick={() => setNavOpen(true)} aria-label="Open menu">☰</button>
+        <div className="brand"><span className="dot">●</span><span className="brand-text">PeopleOS</span></div>
+      </header>
       <Sidebar user={user} light={light} onToggleTheme={() => setLight(!light)}
-        collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
+        collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)}
+        onNavigate={() => setNavOpen(false)} />
+      {navOpen && <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} />}
       <main className="main">
+        <AppBanners />
         <Routes>
           <Route path="/"                    element={<Dashboard />} />
           <Route path="/direct-reports"      element={<DirectReports />} />
@@ -62,12 +82,12 @@ export default function App() {
   )
 }
 
-function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
+function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onNavigate }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
       <div className="brand"><span className="dot">●</span><span className="brand-text">PeopleOS</span></div>
       <div className="sidebar-scroll">
-        <nav className="nav">
+        <nav className="nav" onClick={(e) => { if (e.target.closest('a')) onNavigate?.() }}>
           <NavLink to="/" end title="Dashboard"><span className="nav-icon">📊</span><span className="nav-label">Dashboard</span></NavLink>
           <NavLink to="/direct-reports" title="Direct Reports"><span className="nav-icon">👥</span><span className="nav-label">Direct Reports</span></NavLink>
           <NavLink to="/interviews" title="Interviews"><span className="nav-icon">🗣️</span><span className="nav-label">Interviews</span></NavLink>
@@ -78,7 +98,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
           <NavLink to="/settings" title="Settings"><span className="nav-icon">⚙️</span><span className="nav-label">Settings</span></NavLink>
         </nav>
       </div>
-      <WorldClock collapsed={collapsed} />
+      <WorldClock />
       <div className="sidebar-bottom">
         <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
           <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
@@ -105,12 +125,37 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse }) {
   )
 }
 
+// ── PWA / connectivity banners ──────────────────────────────────────────────
+function AppBanners() {
+  const [pwa, setPwa] = useState({ updateReady: false })
+  const [online, setOnline] = useState(() => navigator.onLine)
+  useEffect(() => subscribePwa(setPwa), [])
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false)
+    window.addEventListener('online', on); window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+  return (
+    <>
+      {!online && (
+        <div className="app-banner warn">📴 You're offline — data can't be loaded or saved until you reconnect.</div>
+      )}
+      {pwa.updateReady && (
+        <div className="app-banner">
+          ✨ A new version of PeopleOS is available.
+          <button className="btn primary" onClick={applyUpdate}>Reload</button>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── World Clock ───────────────────────────────────────────────────────────────
 function flagUrl(code) {
   return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`
 }
 
-function WorldClock({ collapsed }) {
+function WorldClock() {
   const [now, setNow] = useState(new Date())
   const [mapOpen, setMapOpen] = useState(false)
   useEffect(() => {
@@ -118,10 +163,10 @@ function WorldClock({ collapsed }) {
     return () => clearInterval(t)
   }, [])
 
-  if (collapsed) return null
-
+  // Hidden via CSS (not unmounted) when collapsed, so the mobile drawer — which ignores the
+  // desktop collapse preference — still shows it.
   return (
-    <div style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+    <div className="world-clock" style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
       <button
         className="world-clock-title-btn"
         onClick={() => setMapOpen(true)}
@@ -165,6 +210,7 @@ function LoginPage({ onLogin, authError }) {
           <GoogleIcon />{busy ? 'Signing in…' : 'Continue with Google'}
         </button>
         {authError === 'access_denied' && <div className="login-error">This Google account is not authorized.</div>}
+        {authError && authError !== 'access_denied' && <div className="login-error">Sign-in failed ({authError}). Please try again.</div>}
       </div>
     </div>
   )

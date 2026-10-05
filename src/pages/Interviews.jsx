@@ -131,7 +131,7 @@ export default function Interviews() {
           <div className="row-card" key={it.id} id={`interview-${it.id}`}
             style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer' }}
             onClick={() => setExpanded(expanded === it.id ? null : it.id)}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div className="row-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <div className="row-main">
                 <div>
                   <div className="row-title">{it.title || '(untitled)'}</div>
@@ -145,7 +145,7 @@ export default function Interviews() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="row-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="badge">{TYPE_LABEL[it.type] || it.type}</span>
                 <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...it }) }}>Edit</button>
                 <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(it.id) }}>Delete</button>

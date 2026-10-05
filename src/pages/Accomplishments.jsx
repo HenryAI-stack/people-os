@@ -178,7 +178,7 @@ export default function Accomplishments() {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <div className="row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setEditing({ ...a })}>Edit</button>
                   <button className="btn ghost danger" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => handleDelete(a.id)}>Delete</button>
                 </div>
