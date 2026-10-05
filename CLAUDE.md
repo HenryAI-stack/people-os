@@ -240,7 +240,13 @@ Browser (React SPA)
   people at a center (≈53 shifts needed/month vs 2×40h/week) some weekdays get 1 person instead of
   2 — 3+ people per center covers everything. Before the cap, the generator routinely handed out
   48h weeks. Weekend burden balanced across months via the `fairnessSnapshot` persisted on the
-  schedule record.
+  schedule record. **Nobody is scheduled on their own birthday** (Rule 6, via `isBirthdayOn()` from
+  `birthdays.js`, pure string math, 29 Feb → 28 Feb in non-leap years). Unlike the rest rule
+  and the 40h cap, this is a strong *preference*, not a hard block: every pick tries non-birthday
+  candidates first and only falls back to the birthday person when nobody else can cover the day,
+  so coverage never drops because of it. The top-up step never adds a shift on a birthday.
+  (`scheduleGenerator.js` now imports `birthdays.js`, which is also free of `import.meta.env`/browser
+  globals, so the CI email script can still import the generator.)
   Schedules saved *before* the 2026-09-15 `getDaysInMonth` fix (see Excel export below) are
   shifted by a day in CET — e.g. October stored as Sep 30–Oct 30, so Oct 31 shows empty. Fix by
   assigning the empty day (click "—" / "+") or regenerating the month.
@@ -248,7 +254,9 @@ Browser (React SPA)
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
   plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who
   worked the Sunday/holiday before is flagged "⚠ rest day" (mirrors the generator's rest rule;
-  still allowed, it's the manager's call) — plus "Remove from this day" (sets `cleared: true`,
+  still allowed, it's the manager's call), and anyone whose birthday it is is flagged "🎂 birthday"
+  (plus a warning line when picked; also still allowed). Chips of people working on their birthday
+  show 🎂 in the calendar (e.g. schedules saved before the birthday rule, or last-resort picks) — plus "Remove from this day" (sets `cleared: true`,
   restorable with ↩, same as the chip's ✕). `swapAssignment()` rewrites the assignment's
   `personId`/`personName` in place (date/center/flags/comment kept) and drops any *cleared* entry
   the replacement already had that day, so nobody is listed twice. Drag-and-drop (move to another

@@ -75,3 +75,19 @@ export function fmtBirthdayLabel(birthdayStr) {
   const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   return year ? `${label} ${year}` : label
 }
+
+/**
+ * Is `dateStr` ('YYYY-MM-DD') this person's birthday? Pure string/number comparison — no Date
+ * parsing, so it's timezone-safe and usable from the work-schedule generator (and the CI email
+ * script that imports it). A 29 Feb birthday counts on 28 Feb in non-leap years.
+ */
+export function isBirthdayOn(birthdayStr, dateStr) {
+  const b = parseBirthday(birthdayStr)
+  if (!b || !dateStr) return false
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (b.month === 2 && b.day === 29 && m === 2 && d === 28) {
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+    return !leap
+  }
+  return b.month === m && b.day === d
+}
