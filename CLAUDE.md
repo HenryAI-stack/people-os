@@ -62,7 +62,8 @@ Browser (React SPA)
 - **PWA / mobile**: installable from the phone's browser. `public/manifest.webmanifest` (all
   paths relative, deliberately no `id`, so nothing in it depends on the repo name) + icons in
   `public/icons/` (`icon.svg` is the source; the PNGs were rendered from it once) + iOS meta tags
-  in `index.html` (`viewport-fit=cover`, `apple-mobile-web-app-*`, `%BASE_URL%` hrefs).
+  in `index.html` (`viewport-fit=cover`, `apple-mobile-web-app-capable`/`-title`, deliberately
+  no status-bar style — see below, `%BASE_URL%` hrefs).
   The service worker is **generated at build time**: the `serviceWorker()` plugin in
   `vite.config.js` reads `src/sw-template.js`, injects this build's JS/CSS file list (minus the
   lazily-loaded exceljs chunk, which is runtime-cached on first use) plus `./`, the manifest and
@@ -93,13 +94,18 @@ Browser (React SPA)
   so the grid gets the full window. Print resets the container (`container-type: normal`) and
   always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
-  content clear of the notch and home indicator. The **top** inset is handled at *every* width,
-  not just in the phone media query: with `black-translucent` the iOS/iPadOS status bar is drawn
-  over the page, and an iPad gets the desktop layout — before this, the clock overlapped the
-  sidebar brand/page title there ("first line is blurry"). A fixed `body::before` strip
-  (`#1b1f26`, since the status-bar text is always white) sits behind it, and `.sidebar`,
-  `.main`, `.overlay` and `.login-screen` are pushed down by the inset (0 everywhere except an
-  installed iOS app, so browsers and Android are unaffected).
+  content clear of the notch and home indicator.
+  **iOS status bar — don't add `apple-mobile-web-app-status-bar-style: black-translucent` back.**
+  It draws the page under the status bar, and since iOS 26 the installed app then gets a Liquid
+  Glass edge blur over the top ~40pt past the status bar, which no CSS can switch off. That's
+  what made the first line blurry on iPad and iPhone. An opaque `body::before` strip behind the
+  status bar did *not* help: the blur reaches past it. `index.html` therefore sets no
+  status-bar style at all. iOS uses the default opaque bar, tinted from `theme-color` (which
+  `App.jsx` switches with the theme), and starts the web view below it, so
+  `env(safe-area-inset-top)` is 0. The top-inset rules in `styles.css` (that strip, plus
+  `.sidebar`/`.main`/`.overlay`/`.login-screen` padding, at every width) are left in as a
+  harmless no-op guard. iOS reads the status-bar style when the app is **added to the Home
+  Screen**, so a change to it only shows after removing and re-adding the app.
 - **Data**: `src/lib/dataStore.js` is the entire persistence layer. `makeStore(filename)`
   builds a tiny CRUD wrapper (`list` / `upsert` / `remove`) around one JSON file in the data
   repo (e.g. `direct-reports.json`). `upsert`/`remove` re-fetch the file's current SHA first

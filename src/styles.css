@@ -236,12 +236,12 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
    notch / home indicator when installed (index.html sets viewport-fit=cover). */
 .mobile-topbar, .sidebar-backdrop { display: none; }
 
-/* Installed on iOS/iPadOS, the status bar (clock, battery) is translucent — index.html sets
-   black-translucent + viewport-fit=cover — and drawn over the top env(safe-area-inset-top) of
-   the page. This applies at every width (an iPad gets the desktop layout), so: a fixed dark strip
-   behind the status bar (its text is always white, so it stays readable in light mode) and
-   content pushed below it. env() is 0 in a normal browser tab and on Android, so nothing changes
-   there. The phone layout below handles its own top bar the same way. */
+/* Top safe-area guard. The installed iOS app now uses the default (opaque) status bar, so the
+   page starts below it and env(safe-area-inset-top) is 0 — these rules are a no-op today. They
+   only matter if the page is ever drawn under the status bar again (black-translucent), which
+   iOS 26+ blurs (see index.html): then a fixed dark strip sits behind the white status-bar text
+   and the sidebar/main/modals/login are pushed below it, at every width (an iPad gets the
+   desktop layout). env() is 0 in browser tabs and on Android, so nothing changes there. */
 body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: #1b1f26; z-index: 100; pointer-events: none; }
 .sidebar { padding-top: env(safe-area-inset-top); }
 .main { padding-top: calc(32px + env(safe-area-inset-top)); }
@@ -254,7 +254,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   .mobile-topbar {
     display: flex; align-items: center; gap: 2px; position: sticky; top: 0; z-index: 30;
     height: calc(52px + env(safe-area-inset-top));
-    /* iOS draws white status-bar text over this strip (black-translucent), so it stays dark in light mode too */
+    /* 0 with the default status bar; dark if the page is ever under a translucent one (white text) */
     border-top: env(safe-area-inset-top) solid #1b1f26;
     padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
     background: var(--bg-elevated); border-bottom: 1px solid var(--border);

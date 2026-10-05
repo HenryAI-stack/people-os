@@ -242,6 +242,7 @@ Reload"** banner the next time it's opened or brought to the foreground.
 | Data unreadable after rotating the token   | That's fine — the token doesn't affect decryption, only write access        |
 | Data unreadable after changing the secret  | The encryption secret must **never** change — otherwise old data is lost    |
 | Actions workflow fails                     | Repo → Actions → read the log; confirm all required secrets from Step 5 are set correctly |
+| Top line blurry in the installed iPhone/iPad app | Fixed in the app: it now uses iOS's solid status bar. iOS only reads that setting when the app is added, so remove the app from the Home Screen and add it again (then sign in once more) |
 | No "Install app" option on Android         | Open the URL in Chrome itself (not an in-app browser such as Gmail's or Slack's), and load it once while online |
 | Google sign-in does nothing in the installed app | Sign-in uses a popup. If the phone blocks it, the app falls back to a full-page redirect automatically. iPhone home-screen apps keep their own storage, separate from Safari, so you sign in inside the app itself. If it still fails there, keep using PeopleOS in Safari |
 
