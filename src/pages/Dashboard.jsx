@@ -341,7 +341,10 @@ export default function Dashboard() {
                 </div>
               )}
             </div></div>
-            <span className="badge">{it.type}</span>
+            <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+              {it.faceToFace && <span className="badge good" title="Face-to-face meeting">🤝 Face-to-face</span>}
+              <span className="badge">{it.type}</span>
+            </div>
           </div>
         ))}
       </div>

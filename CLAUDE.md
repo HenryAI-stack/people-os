@@ -207,7 +207,8 @@ Browser (React SPA)
   Both forms also put the Type `<select>` in a narrow `.type-row` next to a "🤝 Face-to-face
   meeting" checkbox (`.check-label`), stored as a plain `faceToFace` boolean on the interview
   record (editable on existing interviews too; records without it read as `false`). Both
-  interview lists show a "🤝 Face-to-face" badge next to the type badge when it's set.
+  interview lists and the Dashboard's "Recent conversations" show a "🤝 Face-to-face" badge next
+  to the type badge when it's set.
 - **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
   (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 14`, i.e. a fortnightly rhythm) finds each person's most recent
   interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
