@@ -6,7 +6,7 @@ import { generateTags, generateTakeaways } from '../lib/autoTags.js'
 
 const EMPTY = {
   title: '', type: '1:1', personId: '', person: '', date: '',
-  summary: '', takeaways: '', tags: '',
+  summary: '', takeaways: '', tags: '', faceToFace: false,
 }
 
 // Seeded so the title autocomplete is useful on day one (before any history
@@ -146,6 +146,7 @@ export default function Interviews() {
                 </div>
               </div>
               <div className="row-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {it.faceToFace && <span className="badge good" title="Face-to-face meeting">🤝 Face-to-face</span>}
                 <span className="badge">{TYPE_LABEL[it.type] || it.type}</span>
                 <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...it }) }}>Edit</button>
                 <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(it.id) }}>Delete</button>
@@ -288,9 +289,15 @@ function InterviewForm({ initial, reports, items, onCancel, onSave }) {
         </div>
         <div className="field">
           <label>Type</label>
-          <select value={form.type} onChange={(e) => set('type', e.target.value)}>
-            {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <div className="type-row">
+            <select value={form.type} onChange={(e) => set('type', e.target.value)}>
+              {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <label className="check-label">
+              <input type="checkbox" checked={!!form.faceToFace} onChange={(e) => set('faceToFace', e.target.checked)} />
+              🤝 Face-to-face meeting
+            </label>
+          </div>
         </div>
         <div className="field">
           <label>Person</label>

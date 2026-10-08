@@ -250,6 +250,8 @@ function FollowUpForm({ initial, reports, onCancel, onSave }) {
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
   const isNew = !initial.id
+  // Alphabetical by first name (names are stored "First Last"), case/accent-insensitive.
+  const sortedReports = [...reports].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
   function handlePersonChange(e) {
@@ -273,7 +275,7 @@ function FollowUpForm({ initial, reports, onCancel, onSave }) {
           <label>Person (optional)</label>
           <select value={form.personId} onChange={handlePersonChange}>
             <option value="">— Not linked to a person —</option>
-            {reports.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {sortedReports.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </div>
         <div className="modal-actions">
