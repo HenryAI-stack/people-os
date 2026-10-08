@@ -204,6 +204,10 @@ Browser (React SPA)
   merged with whatever titles have actually been used before (org-wide in `Interviews.jsx`, this
   person's own history in `PersonDetail.jsx`), deduped via `Set`. Editing an existing interview is
   untouched — only new entries get the today-date default.
+  Both forms also put the Type `<select>` in a narrow `.type-row` next to a "🤝 Face-to-face
+  meeting" checkbox (`.check-label`), stored as a plain `faceToFace` boolean on the interview
+  record (editable on existing interviews too; records without it read as `false`). Both
+  interview lists show a "🤝 Face-to-face" badge next to the type badge when it's set.
 - **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
   (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 14`, i.e. a fortnightly rhythm) finds each person's most recent
   interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
@@ -425,7 +429,8 @@ src/
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
     Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log
-    FollowUps.jsx      Action-item tracker, optional person link, optional Outlook sync
+    FollowUps.jsx      Action-item tracker, optional person link (dropdown sorted A–Z by
+                        first name, i.e. `localeCompare` on the stored "First Last" name), optional Outlook sync
                         (per-row one-way push, or "Sync with Outlook" for a full two-way
                         reconciliation across every follow-up);
                         exports `urgencyLabel`

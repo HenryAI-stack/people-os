@@ -14,7 +14,7 @@ const INTERVIEW_TYPES = {
   exit: 'Exit interview', performance: 'Performance review', team_meeting: 'Team meeting',
 }
 
-const EMPTY_INTERVIEW = { title:'', type:'1:1', person:'', date:'', summary:'', takeaways:'', tags:'' }
+const EMPTY_INTERVIEW = { title:'', type:'1:1', person:'', date:'', summary:'', takeaways:'', tags:'', faceToFace:false }
 
 // Seeded so the title autocomplete is useful even for a report with no
 // interview history yet — merged with this person's actual past titles in
@@ -267,6 +267,7 @@ export default function PersonDetail() {
             <div className="row-head" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%' }}>
               <div className="row-main"><div><div className="row-title">{iv.title||'(untitled)'}</div><div className="row-sub">{iv.date||'no date'}</div>{iv.tags && (<div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>{iv.tags.split(',').map((t)=>t.trim()).filter(Boolean).map((t)=><span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>)}</div>)}</div></div>
               <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8 }}>
+                {iv.faceToFace && <span className="badge good" title="Face-to-face meeting">🤝 Face-to-face</span>}
                 <span className="badge">{INTERVIEW_TYPES[iv.type]||iv.type}</span>
                 <span style={{ color:'var(--text-faint)', fontSize:13 }}>{expanded===iv.id?'▲':'▼'}</span>
                 <button className="btn ghost" style={{ fontSize:12, padding:'4px 8px' }} onClick={(e) => { e.stopPropagation(); setAddingFU(iv) }}>+ Follow-up</button>
@@ -420,9 +421,15 @@ function InterviewForm({ initial, onCancel, onSave, title='Log interview', previ
         </div>
         <div className="field">
           <label>Type</label>
-          <select value={form.type} onChange={(e) => set('type', e.target.value)}>
-            {Object.entries(INTERVIEW_TYPES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <div className="type-row">
+            <select value={form.type} onChange={(e) => set('type', e.target.value)}>
+              {Object.entries(INTERVIEW_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <label className="check-label">
+              <input type="checkbox" checked={!!form.faceToFace} onChange={(e) => set('faceToFace', e.target.checked)} />
+              🤝 Face-to-face meeting
+            </label>
+          </div>
         </div>
         <div className="field"><label>Date</label><input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} /></div>
         <div className="field"><label>Summary</label><textarea value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="What was discussed?" /></div>
