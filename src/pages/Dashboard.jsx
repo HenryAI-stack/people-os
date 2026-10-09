@@ -181,7 +181,11 @@ export default function Dashboard() {
 
   const activeCount      = reports.filter((r) => r.status === 'active').length
   const last30           = interviews.filter((i) => isWithinDays(i.date, 30)).length
-  const recentInterviews = interviews.slice(0, 5)
+  // Newest *conducted* first: 'YYYY-MM-DD' strings sort correctly as plain strings (no Date
+  // parsing). Same day → most recently logged first; undated entries go last.
+  const recentInterviews = [...interviews]
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .slice(0, 5)
 
   const upcomingAnniversaries = reports
     .filter((r) => r.startDate)
