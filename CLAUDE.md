@@ -426,7 +426,8 @@ src/
                        plugin fills in the precache list/version and emits dist/sw.js
   pages/
     Dashboard.jsx      Team stats, 24/7 on duty (before/now/next), follow-ups, anniversaries | birthdays (two columns,
-                       last-passed row greyed + next 3), 1:1s overdue, recent activity
+                       last-passed row greyed + next 3), 1:1s overdue, recent conversations (5 newest by
+                       interview `date`, not storage order; same day → latest `createdAt` first)
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
     Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log
