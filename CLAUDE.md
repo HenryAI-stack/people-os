@@ -349,6 +349,22 @@ Browser (React SPA)
   Schedules saved *before* the 2026-09-15 `getDaysInMonth` fix (see Excel export below) are
   shifted by a day in CET — e.g. October stored as Sep 30–Oct 30, so Oct 31 shows empty. Fix by
   assigning the empty day (click "—" / "+") or regenerating the month.
+- **Who's on the schedule ("Select employees")**: "✦ Generate schedule"/"↻ Regenerate" no longer
+  just confirms; it opens `SchedulePeopleModal` (`WorkSchedule.jsx`, a `DraggableModal`) listing every
+  direct report at a support center (`getCenter(p)` non-null), grouped by center with a checkbox each,
+  a per-center "N of M" count (amber below 2, plus a "weekdays need 2 people" note), and an All/None
+  toggle. Other-team and non-active people show a badge. 24/7 team members whose location isn't a
+  center are named in a "Not listed…" note rather than silently missing. Preselection is
+  `scheduleGenerator.js`'s `defaultScheduleSelection(allPeople, ref)`: active `SCHEDULE_TEAM`
+  ('24/7 Core Operations') members, minus `ref.excludedIds`, plus other-team people in
+  `ref.memberIds`; `ref` = this month's schedule when regenerating, else last month's. So someone
+  unticked stays unticked next month, new team members start ticked, and anyone on leave starts
+  unticked (still tickable). The schedule record stores `memberIds` (ticked) and `excludedIds`
+  (candidates left unticked). Everything downstream uses `scheduleMembers(allPeople, schedule)`:
+  the stat chips, swap/assign candidates, Excel export, SharePoint upload and the CI email script.
+  Schedules saved before this existed (no `memberIds`) fall back to the whole 24/7 team, as before.
+  `WorkSchedule.jsx` loads all direct reports (`allPeople`) and derives `people` from that; its old
+  local `TEAM_NAME` is gone, and `send-schedule-email.mjs` imports `SCHEDULE_TEAM` too.
 - **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
   plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who
@@ -490,7 +506,8 @@ src/
                        workflow_dispatch
     scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule, plus
                        centerHours()/centerHoursForMonth() (season-aware shift hours: Warsaw's
-                       winterHours)
+                       winterHours) and SCHEDULE_TEAM/scheduleMembers()/defaultScheduleSelection()
+                       (who's on a month's schedule, and who the "Select employees" step ticks)
     scheduleExcel.js   buildScheduleWorkbook() (shared with scripts/send-schedule-email.mjs)
                        + buildScheduleExcelFile() (→ { buffer, filename, mimeType }, shared by
                        "Export Excel" and "Upload to SharePoint") + downloadScheduleExcel() —
