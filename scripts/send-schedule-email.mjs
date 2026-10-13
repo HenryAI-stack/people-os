@@ -21,7 +21,7 @@
 import CryptoJS from 'crypto-js'
 import ExcelJS from 'exceljs'
 import PDFDocument from 'pdfkit'
-import { CENTERS, getCenter } from '../src/lib/scheduleGenerator.js'
+import { CENTERS, getCenter, centerHoursForMonth } from '../src/lib/scheduleGenerator.js'
 import { getDaysInMonth } from '../src/lib/holidays.js'
 import {
   buildScheduleWorkbook, dayCode,
@@ -102,13 +102,14 @@ function drawCenterPage(doc, center, people, days, monthLabel, assignmentMap) {
   const nameColW = 90
   const dayColW = (pageWidth - marginX * 2 - nameColW) / days.length
   let y = top
+  const hours = centerHoursForMonth(center, days[0].slice(0, 7))
 
   doc.fillColor(hex('FF1F2937')).font('Helvetica-Bold').fontSize(14)
-    .text(`${center.label} | ${monthLabel} | Shift ${center.hours}`, marginX, y)
+    .text(`${center.label} | ${monthLabel} | Shift ${hours.label}`, marginX, y)
   y += 22
 
   // Legend
-  const legend = [['S', FILL_SHIFT, `Shift ${center.hours}`], ['D', FILL_DAYOFF, 'Day Off'], ['H', FILL_HOLIDAY, 'Holiday']]
+  const legend = [['S', FILL_SHIFT, `Shift ${hours.mixed ? '(hours above)' : hours.label}`], ['D', FILL_DAYOFF, 'Day Off'], ['H', FILL_HOLIDAY, 'Holiday']]
   let lx = marginX
   doc.fontSize(8)
   for (const [code, argb, label] of legend) {

@@ -1,14 +1,36 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 import { isBirthdayOn } from './birthdays.js'
+import { isWinterTime } from './worldClock.js'
 
 // `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
+// `winterHours` (Warsaw only) apply while that zone is on winter time: Poland is the only one of
+// the three that changes clocks, so Warsaw starts an hour earlier in winter to keep the
+// follow-the-sun chain seamless. Read hours via centerHours()/centerHoursForMonth(), not `.hours`.
 // Array order = display order everywhere (Work Schedule tabs/default tab, print view, Excel sheets,
 // PDF pages) — Bangalore → Warsaw → Mexico City, i.e. the follow-the-sun shift sequence.
 export const CENTERS = [
   { id: 'Bangalore',   label: 'Bangalore, India',     country: 'IN', tz: 'Asia/Kolkata',        hours: '07:00 – 15:00', locationKeys: ['bangalore', 'bengaluru', 'india'] },
-  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', tz: 'Europe/Warsaw',       hours: '11:30 – 19:30', locationKeys: ['warsaw', 'poland'] },
+  { id: 'Warsaw',      label: 'Warsaw, Poland',      country: 'PL', tz: 'Europe/Warsaw',       hours: '11:30 – 19:30', winterHours: '10:30 – 18:30', locationKeys: ['warsaw', 'poland'] },
   { id: 'Mexico City', label: 'Mexico City, Mexico',  country: 'MX', tz: 'America/Mexico_City', hours: '11:30 – 19:30', locationKeys: ['mexico', 'guadalajara'] },
 ]
+
+/** Local shift hours ('HH:MM – HH:MM') of `center` on calendar day 'YYYY-MM-DD'. */
+export function centerHours(center, date) {
+  return center.winterHours && isWinterTime(center.tz, date) ? center.winterHours : center.hours
+}
+
+/**
+ * Shift hours for a whole month 'YYYY-MM' → { label, mixed }. `mixed` when a clock change falls
+ * inside the month, e.g. October: "11:30 – 19:30, from 25 Oct 10:30 – 18:30".
+ */
+export function centerHoursForMonth(center, month) {
+  const days = getDaysInMonth(month)
+  const first = centerHours(center, days[0])
+  const switchDay = days.find((d) => centerHours(center, d) !== first)
+  if (!switchDay) return { label: first, mixed: false }
+  const day = new Date(`${switchDay}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return { label: `${first}, from ${day} ${centerHours(center, switchDay)}`, mixed: true }
+}
 
 export function getCenter(person) {
   if (!person.location) return null

@@ -358,15 +358,26 @@ Browser (React SPA)
   Edits don't recompute the saved `fairnessSnapshot` (same as drag-and-drop always behaved).
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
   "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so
-  every `CENTERS` entry now carries a `tz` (IANA name). `src/lib/onDuty.js`'s
+  every `CENTERS` entry now carries a `tz` (IANA name). **Warsaw has winter hours**
+  (`winterHours: '10:30 – 18:30'`): Poland is the only one of the three that changes clocks (India
+  has no DST, Mexico City dropped it in 2022), so with fixed local hours winter time left a 1-hour
+  gap after Bangalore and a 1-hour Warsaw/Mexico overlap. Starting Warsaw an hour earlier in winter
+  pins its shift to 09:30–17:30 UTC year-round and makes the chain seamless (checked minute-by-minute
+  over 2026–2027: no gaps, no overlaps). The manager agreed this with the Warsaw team. Always read
+  hours through `scheduleGenerator.js`'s `centerHours(center, date)` (picks `winterHours` when
+  `worldClock.js`'s `isWinterTime(tz, date)` says the zone is on winter time that day) or
+  `centerHoursForMonth(center, month)` → `{ label, mixed }` (October/March label reads
+  "11:30 – 19:30, from 25 Oct 10:30 – 18:30"), never `center.hours` directly. Users: `shiftWindow`,
+  the Dashboard cards (`shift.hours`), the On-duty calendar description, the Work Schedule tabs,
+  print header and ShiftModal, and the Excel/PDF titles (their legend says "Shift (hours above)" in
+  a mixed month). `src/lib/onDuty.js`'s
   `getShiftTimeline(schedules, now)` builds concrete shift instances for each center for its own
   local yesterday/today/tomorrow, converts start/end to absolute instants via `Intl` offsets (no
   timezone library; a two-pass `zonedToUtc`, imported from `worldClock.js`, handles DST), attaches non-cleared assignments by
   `date|center` (date = that center's local date, so Mexico City's evening shift belongs to its own
   calendar day), and returns `{ current[], previous, next, hasSchedule }`. `current` is an array
-  because coverage isn't seamless all year: in Warsaw winter time there's a real 1-hour gap after
-  Bangalore and a 1-hour Warsaw/Mexico overlap — the "On duty now" card says "gap in coverage" (and
-  when the next shift starts) rather than hiding it. `Dashboard.jsx` shows Before (greyed) / On duty
+  so overlaps and gaps still show honestly if the hours ever change again: with no shift running,
+  the "On duty now" card says "gap in coverage" (and when the next shift starts) rather than hiding it. `Dashboard.jsx` shows Before (greyed) / On duty
   now (accent border) / Up next cards, each with the center's local hours plus the same window in
   the viewer's own browser time, and re-evaluates every 60s. Empty shifts show "No one scheduled".
 - **Excel export**: `src/lib/scheduleExcel.js`'s `downloadScheduleExcel(month, people,
@@ -466,7 +477,9 @@ src/
                        uploadFileToSharePoint() for the Work Schedule's SharePoint upload
     githubActions.js   Fires the accomplishments-email and schedule-email workflows via
                        workflow_dispatch
-    scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule
+    scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule, plus
+                       centerHours()/centerHoursForMonth() (season-aware shift hours: Warsaw's
+                       winterHours)
     scheduleExcel.js   buildScheduleWorkbook() (shared with scripts/send-schedule-email.mjs)
                        + buildScheduleExcelFile() (→ { buffer, filename, mimeType }, shared by
                        "Export Excel" and "Upload to SharePoint") + downloadScheduleExcel() —
@@ -504,7 +517,8 @@ src/
                         `region` label) + fmtTime/fmtDate/fmtTzAbbr/fmtTzFull, shared by
                         App.jsx's sidebar widget and WorldMapModal's clocks table + time
                         converter; also the one Intl wall-clock↔instant helper set
-                        (zonedToUtc/localDateStr/localTimeStr) that onDuty.js imports too
+                        (zonedToUtc/localDateStr/localTimeStr/isWinterTime) that onDuty.js and
+                        scheduleGenerator.js import too
     imageUtils.js      Client-side avatar photo resizing before storing as base64
     settings.js        Browser-local (localStorage) user settings — getMsGraphToken()/
                         setMsGraphToken() (read by msGraph.js, written by the Settings page),
