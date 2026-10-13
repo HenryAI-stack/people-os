@@ -3,7 +3,7 @@
 // vite.config.js (from src/sw-template.js) — it is never registered in `npm run dev`.
 
 const listeners = new Set()
-const state = { updateReady: false, installPrompt: null }
+const state = { updateReady: false, updating: false, installPrompt: null }
 let waitingWorker = null
 
 function emit() { for (const fn of listeners) fn({ ...state }) }
@@ -50,8 +50,40 @@ function markWaiting(worker) {
   emit()
 }
 
+// A lazily-loaded chunk of *this* running version failed to load: the server already has a newer
+// deploy and this version's files are gone (only possible for versions installed before every chunk
+// was precached, or a plain browser tab left open across a deploy). Move to the new version instead
+// of leaving the feature broken: activate a waiting service worker if there is one (after checking
+// for it), otherwise just reload. At most once per 30s so a genuinely missing file can't loop.
+const STALE_KEY = 'peopleos-stale-build-reload'
+export async function recoverFromStaleBuild() {
+  if (state.updating) return
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(STALE_KEY) || 0) < 30_000) return
+    sessionStorage.setItem(STALE_KEY, String(Date.now()))
+  } catch {}
+  state.updating = true
+  emit()
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration(import.meta.env.BASE_URL)
+    if (reg && !reg.waiting) {
+      await reg.update().catch(() => {})
+      for (let i = 0; i < 40 && !reg.waiting && reg.installing; i++) await new Promise((r) => setTimeout(r, 250))
+    }
+    if (reg?.waiting) {
+      state.updateReady = true // lets the controllerchange handler below reload
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      return
+    }
+  } catch {}
+  window.location.reload()
+}
+
 export function registerServiceWorker() {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return
+  if (!import.meta.env.PROD) return
+  // Fired by Vite's dynamic-import helper when a chunk can't be fetched (see recoverFromStaleBuild).
+  window.addEventListener('vite:preloadError', () => { recoverFromStaleBuild() })
+  if (!('serviceWorker' in navigator)) return
   const base = import.meta.env.BASE_URL
   window.addEventListener('load', async () => {
     try {

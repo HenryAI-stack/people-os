@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Everything else in scope (hashed assets, icons, lazily-loaded chunks like exceljs):
+  // Everything else in scope (all precached; anything new still gets cached on first fetch):
   // cache-first, and cache what we fetch so it's there next time.
   event.respondWith((async () => {
     const hit = await caches.match(req)

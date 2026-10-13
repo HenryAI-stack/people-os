@@ -140,7 +140,10 @@ function AppBanners() {
       {!online && (
         <div className="app-banner warn">📴 You're offline — data can't be loaded or saved until you reconnect.</div>
       )}
-      {pwa.updateReady && (
+      {pwa.updating && (
+        <div className="app-banner">🔄 A newer version of PeopleOS is online. Switching to it…</div>
+      )}
+      {pwa.updateReady && !pwa.updating && (
         <div className="app-banner">
           ✨ A new version of PeopleOS is available.
           <button className="btn primary" onClick={applyUpdate}>Reload</button>

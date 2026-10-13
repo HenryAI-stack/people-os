@@ -12,10 +12,11 @@ function serviceWorker() {
     apply: 'build',
     enforce: 'post', // after vite:build-html, so index.html is in the bundle and feeds the version hash
     generateBundle(_, bundle) {
-      const files = Object.keys(bundle).filter((f) =>
-        /\.(js|css)$/.test(f) &&        // index.html is precached as './'
-        !/exceljs/i.test(f)           // ~270KB gz, only for "Export Excel" — runtime-cached on first use
-      )
+      // Every JS/CSS file of this build, lazily-loaded chunks included (exceljs, ~270KB gz). An
+      // installed app keeps running its cached version until the user taps "Reload", and each deploy
+      // replaces all hashed files on GitHub Pages — so a chunk that isn't precached is gone by the
+      // time the old version first asks for it ("Failed to fetch dynamically imported module").
+      const files = Object.keys(bundle).filter((f) => /\.(js|css)$/.test(f)) // index.html is precached as './'
       const icons = readdirSync('public/icons').map((f) => `icons/${f}`)
       const precache = ['./', ...files, 'manifest.webmanifest', ...icons].sort()
       const html = bundle['index.html']?.source ?? ''

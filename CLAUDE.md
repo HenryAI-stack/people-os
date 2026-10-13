@@ -65,9 +65,16 @@ Browser (React SPA)
   in `index.html` (`viewport-fit=cover`, `apple-mobile-web-app-capable`/`-title`, deliberately
   no status-bar style — see below, `%BASE_URL%` hrefs).
   The service worker is **generated at build time**: the `serviceWorker()` plugin in
-  `vite.config.js` reads `src/sw-template.js`, injects this build's JS/CSS file list (minus the
-  lazily-loaded exceljs chunk, which is runtime-cached on first use) plus `./`, the manifest and
-  icons, versions the cache with a hash of that list + the built `index.html`, and emits
+  `vite.config.js` reads `src/sw-template.js`, injects this build's **entire** JS/CSS file list,
+  lazily-loaded chunks included (exceljs too, ~270KB gz), plus `./`, the manifest and icons. Don't
+  exclude chunks again. An installed app keeps running its cached version until "Reload", and every
+  deploy replaces all hashed files on Pages (the exceljs chunk's hash changes between builds even
+  when its code doesn't), so an un-precached chunk 404'd and the user saw "Failed to fetch
+  dynamically imported module: exceljs.min-….js". `pwa.js`'s `recoverFromStaleBuild()` is the
+  safety net for any remaining case (versions installed before this fix, plain tabs left open
+  across a deploy). It listens for Vite's `vite:preloadError` and moves to the new version: it
+  activates a waiting SW after `reg.update()`, otherwise reloads, at most once per 30s via
+  sessionStorage, and shows "Switching to it…" through `AppBanners`. The SW versions the cache with a hash of that list + the built `index.html`, and emits
   `dist/sw.js`. It only handles same-origin GETs inside the scope: navigations get the cached
   shell (cache-first → instant, offline-capable launch), other assets cache-first. **Data is
   never cached** — GitHub API/Firebase/OpenRouter/Graph are cross-origin and pass straight
