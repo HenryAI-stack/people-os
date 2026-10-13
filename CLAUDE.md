@@ -172,8 +172,9 @@ Browser (React SPA)
     SharePoint write permission the To Do sync didn't: the Graph Explorer token must have
     **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented; a 403 is turned into an error
     saying exactly that, and the Settings page instructions include the one-time consent step.
-    The target is `SHAREPOINT_SITE` in `WorkSchedule.jsx`
-    (`https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations`, library root); the file is
+    The target is `SHAREPOINT_SITE` + `SHAREPOINT_FOLDER` in `WorkSchedule.jsx`
+    (`https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations`, folder `Work schedule` inside
+    Shared Documents; Graph's path-based upload creates the folder if it's missing); the file is
     the same `work-schedule-YYYY-MM.xlsx` "Export Excel" downloads: both go through
     `scheduleExcel.js`'s `buildScheduleExcelFile()`, which returns `{ buffer, filename, mimeType }`.
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing

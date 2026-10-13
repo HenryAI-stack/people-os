@@ -327,7 +327,7 @@ you it's not configured; the scheduled Thursday send is unaffected either way.
 
 The **☁️ Upload to SharePoint** button on the Work Schedule page uploads that month's Excel file
 (the same one "Export Excel" downloads, `work-schedule-YYYY-MM.xlsx`) to the 24/7 Core Operations
-SharePoint site's **Shared Documents** library. Uploading the same month again replaces the file;
+SharePoint site, into **Shared Documents › Work schedule**. Uploading the same month again replaces the file;
 SharePoint keeps the previous version in its version history.
 
 It uses the same Microsoft Graph token as the Outlook sync (Settings page), which additionally
@@ -337,7 +337,8 @@ needs permission to write to SharePoint. One-time setup in
 **Consent**. Then copy a fresh access token to the Settings page as usual. If your organization
 blocks that consent, an admin has to approve it for Graph Explorer.
 
-The target site is the `SHAREPOINT_SITE` constant at the top of `src/pages/WorkSchedule.jsx`.
+The target site and folder are the `SHAREPOINT_SITE` / `SHAREPOINT_FOLDER` constants at the top of
+`src/pages/WorkSchedule.jsx`.
 
 ---
 

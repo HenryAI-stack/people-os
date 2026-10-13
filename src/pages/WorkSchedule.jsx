@@ -11,8 +11,9 @@ import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
 const TEAM_NAME = '24/7 Core Operations'
-// "Upload to SharePoint" target: this site's default document library (Shared Documents), root folder.
-const SHAREPOINT_SITE = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
+// "Upload to SharePoint" target: this site's default document library (Shared Documents) → "Work schedule" folder.
+const SHAREPOINT_SITE   = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
+const SHAREPOINT_FOLDER = 'Work schedule'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // dateStr is a plain 'YYYY-MM-DD' calendar date with no timezone of its own.
@@ -268,7 +269,7 @@ export default function WorkSchedule() {
     setUploadingSp(true); setError(''); setToast(null)
     try {
       const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
-      const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, filename, data: buffer, contentType: mimeType })
+      const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, folder: SHAREPOINT_FOLDER, filename, data: buffer, contentType: mimeType })
       showToast(`☁️ ${res.name} ${res.replaced ? 'updated' : 'uploaded'} on SharePoint.`, { href: res.webUrl, linkLabel: 'Open →' })
     } catch (e) { setError(e.message) }
     finally { setUploadingSp(false) }
@@ -359,7 +360,7 @@ export default function WorkSchedule() {
           )}
           {schedule && (
             <button className="btn" onClick={handleUploadSharePoint} disabled={uploadingSp} style={{ fontSize:13 }}
-              title="Upload this month's Excel file to the 24/7 Core Operations SharePoint (Shared Documents)">
+              title="Upload this month's Excel file to the 24/7 Core Operations SharePoint (Shared Documents › Work schedule)">
               {uploadingSp ? '⏳ Uploading…' : '☁️ Upload to SharePoint'}
             </button>
           )}
