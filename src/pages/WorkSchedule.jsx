@@ -3,7 +3,7 @@ import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile } from '../lib/scheduleExcel.js'
-import { uploadFileToSharePoint } from '../lib/msGraph.js'
+import { uploadFileToSharePoint, checkMembersAccess } from '../lib/msGraph.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
@@ -62,9 +62,12 @@ export default function WorkSchedule() {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
-  const [toast, setToast] = useState(null)  // { msg, href?, linkLabel? }
+  const [toast, setToast] = useState(null)  // { msg, href?, linkLabel?, tone?: 'warn' }
 
-  function showToast(msg, link) { setToast({ msg, ...link }); setTimeout(() => setToast(null), link ? 9000 : 4000) }
+  function showToast(msg, opts) {
+    setToast({ msg, ...opts })
+    setTimeout(() => setToast(null), opts?.tone === 'warn' ? 15000 : opts?.href ? 9000 : 4000)
+  }
 
   // Auto-save 1.5s after any change to the schedule
   useEffect(() => {
@@ -270,7 +273,14 @@ export default function WorkSchedule() {
     try {
       const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
       const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, folder: SHAREPOINT_FOLDER, filename, data: buffer, contentType: mimeType })
-      showToast(`☁️ ${res.name} ${res.replaced ? 'updated' : 'uploaded'} on SharePoint.`, { href: res.webUrl, linkLabel: 'Open →' })
+      // Members should only be able to view: that comes from the folder's own permissions (one-time
+      // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
+      const access = await checkMembersAccess(res)
+      const done = `☁️ ${res.name} ${res.replaced ? 'updated' : 'uploaded'} on SharePoint`
+      const link = { href: res.webUrl, linkLabel: 'Open →' }
+      if (access.status === 'readOnly') showToast(`${done} · Members can view only ✓`, link)
+      else if (access.status === 'canEdit') showToast(`${done} — but site Members can still edit it. Make the "${SHAREPOINT_FOLDER}" folder view-only for Members in SharePoint (one-time, see INSTALLATION.md).`, { ...link, tone: 'warn' })
+      else showToast(`${done} (couldn't verify Members' permissions).`, link)
     } catch (e) { setError(e.message) }
     finally { setUploadingSp(false) }
   }
@@ -555,9 +565,9 @@ export default function WorkSchedule() {
       )}
 
       {toast && (
-        <div className="no-print" style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-card)', border: '1px solid var(--good)', color: 'var(--good)', borderRadius: 10, padding: '11px 20px', fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 100, maxWidth: '90vw' }}>
+        <div className="no-print" style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-card)', border: `1px solid ${toast.tone === 'warn' ? 'var(--warn)' : 'var(--good)'}`, color: toast.tone === 'warn' ? 'var(--warn)' : 'var(--good)', borderRadius: 10, padding: '11px 20px', fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 100, maxWidth: '90vw' }}>
           {toast.msg}{' '}
-          {toast.href && <a href={toast.href} target="_blank" rel="noreferrer" style={{ color: 'var(--good)', textDecoration: 'underline' }}>{toast.linkLabel}</a>}
+          {toast.href && <a href={toast.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{toast.linkLabel}</a>}
         </div>
       )}
     </div>

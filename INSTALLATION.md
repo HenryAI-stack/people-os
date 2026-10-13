@@ -343,6 +343,29 @@ it's consented, sign out of Graph Explorer and back in, then copy a new token.
 The target site and folder are the `SHAREPOINT_SITE` / `SHAREPOINT_FOLDER` constants at the top of
 `src/pages/WorkSchedule.jsx`.
 
+### Make uploaded schedules view-only for site Members (one-time, needs site Owner)
+
+Files inherit their permissions from their folder. So set the **Work schedule** folder once,
+and every schedule uploaded into it is view-only for Members automatically, including
+re-uploads.
+
+1. Open the site → **Documents** → hover the **Work schedule** folder → **⋯** → **Manage access**.
+2. At the bottom of the panel, click **Advanced settings**. This opens the classic
+   "Permissions: Work schedule" page.
+3. In the ribbon, click **Stop Inheriting Permissions** → **OK**.
+4. Tick the **… Members** group → **Edit User Permissions** → untick **Edit**, tick **Read** → **OK**.
+5. Leave **… Owners** at Full Control (Visitors are already Read).
+
+Whoever presses **Upload to SharePoint** must still be able to write to the folder: either be in
+the site's **Owners** group, or get their own Edit/Contribute permission on the folder (same page →
+**Grant Permissions**). Otherwise uploads fail with a "no edit rights" message after step 4.
+
+After each upload PeopleOS checks the file's permissions. The message says
+**"Members can view only ✓"**, warns if Members can still edit, or notes when it couldn't verify
+(Graph only shows the full permission list to site owners). PeopleOS doesn't change permissions
+itself: Microsoft Graph can't reliably override inherited SharePoint permissions on a single
+file, so the folder setting is the dependable way.
+
 ---
 
 ## Optional — Work-schedule email

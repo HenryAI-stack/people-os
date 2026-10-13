@@ -176,7 +176,7 @@ function graphError(status, what) {
  * ("Shared Documents"). `siteUrl` is the site address, e.g. https://contoso.sharepoint.com/sites/Team;
  * `folder` is an optional path inside the library ('' = library root). Replacing an existing file
  * keeps the old one in SharePoint's version history.
- * Returns { name, webUrl, replaced }.
+ * Returns { name, webUrl, replaced, driveId, itemId }.
  */
 export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, data, contentType }) {
   const token = getMsGraphToken()
@@ -197,5 +197,31 @@ export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, d
   })
   if (!up.ok) throw graphError(up.status, 'upload files to SharePoint')
   const item = await up.json()
-  return { name: item.name, webUrl: item.webUrl, replaced: up.status === 200 } // 201 = new file, 200 = replaced
+  // 201 = new file, 200 = replaced
+  return { name: item.name, webUrl: item.webUrl, replaced: up.status === 200, driveId: item.parentReference?.driveId, itemId: item.id }
+}
+
+/**
+ * Read-only check after an upload: can the site's "… Members" group edit this file?
+ * Making uploads view-only for Members is a one-time *folder* setting in SharePoint (files inherit
+ * it — see INSTALLATION.md). Graph can't reliably change inherited permissions per file, so this
+ * only *verifies*. Returns { status: 'readOnly' | 'canEdit' | 'unknown', group? }. 'unknown' when the
+ * permissions can't be read or the Members group isn't listed (e.g. the caller isn't a site owner,
+ * so Graph shows them only part of the list). Never throws.
+ */
+export async function checkMembersAccess({ driveId, itemId }) {
+  try {
+    const token = getMsGraphToken()
+    if (!token || !driveId || !itemId) return { status: 'unknown' }
+    const res = await fetch(`${GRAPH}/drives/${driveId}/items/${itemId}/permissions`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return { status: 'unknown' }
+    const perms = (await res.json()).value || []
+    const members = perms.filter((p) => /members$/i.test(p.grantedToV2?.siteGroup?.displayName || ''))
+    if (!members.length) return { status: 'unknown' }
+    // SharePoint site-group roles via Graph: 'read' (Visitors-style), 'write' (Members by default), 'owner'.
+    const canEdit = members.some((p) => (p.roles || []).some((r) => String(r).toLowerCase() !== 'read'))
+    return { status: canEdit ? 'canEdit' : 'readOnly', group: members[0].grantedToV2.siteGroup.displayName }
+  } catch {
+    return { status: 'unknown' }
+  }
 }

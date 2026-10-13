@@ -183,6 +183,17 @@ Browser (React SPA)
     Shared Documents; Graph's path-based upload creates the folder if it's missing); the file is
     the same `work-schedule-YYYY-MM.xlsx` "Export Excel" downloads: both go through
     `scheduleExcel.js`'s `buildScheduleExcelFile()`, which returns `{ buffer, filename, mimeType }`.
+    **Members must only view uploaded schedules.** That's a one-time *folder* permission in
+    SharePoint (break inheritance on "Work schedule", set the "… Members" group to Read; steps in
+    INSTALLATION.md), which every uploaded file inherits. PeopleOS deliberately does **not** try
+    to change permissions per file: Graph documents that only non-inherited permissions can be
+    changed or deleted, and site groups can't be granted via `invite`. Don't reintroduce a
+    per-file permission hack. Instead, `checkMembersAccess({ driveId, itemId })` (msGraph.js) reads
+    `/drives/{d}/items/{i}/permissions` after each upload and reports `readOnly` / `canEdit` /
+    `unknown`, using the permission whose `grantedToV2.siteGroup.displayName` ends in "Members"
+    (roles other than `read` = can edit). `unknown` covers non-owners, to whom Graph shows only
+    part of the list. It never throws. `WorkSchedule.jsx` turns that into the upload toast
+    ("Members can view only ✓", a `tone: 'warn'` toast if they can edit, or "couldn't verify").
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
