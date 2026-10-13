@@ -168,7 +168,13 @@ Browser (React SPA)
     `msGraph.js`) resolves the site (`GET /sites/{host}:{path}`) and PUTs the file to its
     default document library — "Shared Documents" — via
     `/sites/{id}/drive/root:/{path}:/content` (simple upload; fine for these small files). 201 =
-    new file, 200 = replaced (SharePoint keeps the old one as a version). This needs a
+    new file, 200 = replaced (SharePoint keeps the old one as a version). **Never replaces
+    silently:** `handleUploadSharePoint` first calls `findSharePointFile()` (GET the item by path;
+    404 → null). If that month's file exists, `ReplaceScheduleModal` asks "Replace existing
+    schedule?", with the file link and its last-changed time and author. Only **Replace**
+    (`confirmReplace`) uploads; Cancel does nothing. The site id is cached per site URL
+    (`resolveSiteId`), so check + upload resolve the site once. `scheduleFileName(month)` in
+    `scheduleExcel.js` is the single source of the file name. This needs a
     SharePoint write permission the To Do sync didn't: the Graph Explorer token must have
     **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented. In UL's tenant that permission is
     already admin-granted for Graph Explorer: it shows greyed out with consent type

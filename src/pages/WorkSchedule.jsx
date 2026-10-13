@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
-import { downloadScheduleExcel, buildScheduleExcelFile } from '../lib/scheduleExcel.js'
-import { uploadFileToSharePoint, checkMembersAccess } from '../lib/msGraph.js'
+import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
+import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile } from '../lib/msGraph.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
@@ -62,6 +62,7 @@ export default function WorkSchedule() {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
+  const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
   const [teamsPost,   setTeamsPost]   = useState(null)  // after an upload: { text, html, webUrl, name, replaced, access, copied }
   const [toast, setToast] = useState(null)  // { msg, href?, linkLabel?, tone?: 'warn' }
 
@@ -269,21 +270,36 @@ export default function WorkSchedule() {
   // Builds the same .xlsx as "Export Excel" and PUTs it into the 24/7 site's Shared Documents
   // via Microsoft Graph (token from the Settings page). Re-uploading a month replaces the file;
   // SharePoint keeps the previous one in its version history.
+  // If that month's file is already on SharePoint, ask before replacing it (ReplaceScheduleModal);
+  // otherwise upload straight away.
   async function handleUploadSharePoint() {
     setUploadingSp(true); setError(''); setToast(null)
     try {
-      const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
-      const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, folder: SHAREPOINT_FOLDER, filename, data: buffer, contentType: mimeType })
-      // Members should only be able to view: that comes from the folder's own permissions (one-time
-      // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
-      const access = await checkMembersAccess(res)
-      // Ready-to-paste Teams announcement → clipboard. Copying can be refused this long after the
-      // click (Safari/iOS especially); the "Share in Teams" modal then offers a Copy button.
-      const msg = teamsMessage(month, res)
-      const copied = await copyRichText(msg.html, msg.text)
-      setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, copied })
+      const existing = await findSharePointFile({ siteUrl: SHAREPOINT_SITE, folder: SHAREPOINT_FOLDER, filename: scheduleFileName(month) })
+      if (existing) { setReplaceAsk(existing); return }
+      await uploadToSharePoint()
     } catch (e) { setError(e.message) }
     finally { setUploadingSp(false) }
+  }
+
+  async function confirmReplace() {
+    setReplaceAsk(null); setUploadingSp(true); setError('')
+    try { await uploadToSharePoint() }
+    catch (e) { setError(e.message) }
+    finally { setUploadingSp(false) }
+  }
+
+  async function uploadToSharePoint() {
+    const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
+    const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, folder: SHAREPOINT_FOLDER, filename, data: buffer, contentType: mimeType })
+    // Members should only be able to view: that comes from the folder's own permissions (one-time
+    // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
+    const access = await checkMembersAccess(res)
+    // Ready-to-paste Teams announcement → clipboard. Copying can be refused this long after the
+    // click (Safari/iOS especially); the "Share in Teams" modal then offers a Copy button.
+    const msg = teamsMessage(month, res)
+    const copied = await copyRichText(msg.html, msg.text)
+    setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, copied })
   }
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -546,6 +562,10 @@ export default function WorkSchedule() {
       )}
 
       {/* ── Comment modal ── */}
+      {replaceAsk && (
+        <ReplaceScheduleModal existing={replaceAsk} month={month} onReplace={confirmReplace} onCancel={() => setReplaceAsk(null)} />
+      )}
+
       {teamsPost && (
         <TeamsPostModal post={teamsPost} folder={SHAREPOINT_FOLDER}
           onCopy={async () => { const ok = await copyRichText(teamsPost.html, teamsPost.text); setTeamsPost((p) => ({ ...p, copied: ok, copyFailed: !ok })) }}
@@ -732,6 +752,28 @@ function TeamsPostModal({ post, folder, onCopy, onClose }) {
         <a className="btn ghost" href={post.webUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open file</a>
         <button className="btn" onClick={onCopy}>{post.copied ? '✓ Copied: copy again' : '📋 Copy message'}</button>
         <button className="btn primary" onClick={onClose}>Done</button>
+      </div>
+    </DraggableModal>
+  )
+}
+
+// Asked before "Upload to SharePoint" replaces a month that's already there.
+function ReplaceScheduleModal({ existing, month, onReplace, onCancel }) {
+  const when = existing.lastModified?.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return (
+    <DraggableModal title="Replace existing schedule?" onClose={onCancel} maxWidth={460}>
+      <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: '0 0 10px' }}>
+        A work schedule for <strong>{monthLabel(month)}</strong> is already on SharePoint:{' '}
+        <a href={existing.webUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{existing.name}</a>
+        {when && <> — last changed {when}{existing.lastModifiedBy && <> by {existing.lastModifiedBy}</>}</>}.
+      </p>
+      <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-dim)', margin: 0 }}>
+        Replacing it uploads the current version from PeopleOS. The previous file stays in SharePoint's
+        version history, where it can be restored.
+      </p>
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        <button className="btn primary" onClick={onReplace} autoFocus>Replace</button>
       </div>
     </DraggableModal>
   )

@@ -327,8 +327,7 @@ you it's not configured; the scheduled Thursday send is unaffected either way.
 
 The **☁️ Upload to SharePoint** button on the Work Schedule page uploads that month's Excel file
 (the same one "Export Excel" downloads, `work-schedule-YYYY-MM.xlsx`) to the 24/7 Core Operations
-SharePoint site, into **Shared Documents › Work schedule**. Uploading the same month again replaces the file;
-SharePoint keeps the previous version in its version history.
+SharePoint site, into **Shared Documents › Work schedule**. If that month's file is already there, PeopleOS first asks **"Replace existing schedule?"** (showing when and by whom it was last changed). **Replace** uploads the new version, and SharePoint keeps the previous one in its version history. **Cancel** uploads nothing.
 
 It uses the same Microsoft Graph token as the Outlook sync (Settings page), which additionally
 needs permission to write to SharePoint. One-time setup in

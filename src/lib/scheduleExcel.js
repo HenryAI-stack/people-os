@@ -181,6 +181,9 @@ export function buildScheduleWorkbook(workbook, month, people, schedule) {
  * not added to every page's bundle. */
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
+/** File name for a month's schedule — the same for the download and the SharePoint upload. */
+export function scheduleFileName(month) { return `work-schedule-${month}.xlsx` }
+
 /**
  * Builds the schedule .xlsx in the browser (exceljs dynamically imported — its own chunk).
  * Shared by "Export Excel" (download) and "Upload to SharePoint", so both produce the same file.
@@ -194,7 +197,7 @@ export async function buildScheduleExcelFile(month, people, schedule) {
   buildScheduleWorkbook(workbook, month, people, schedule)
 
   const buffer = await workbook.xlsx.writeBuffer()
-  return { buffer, filename: `work-schedule-${month}.xlsx`, mimeType: XLSX_MIME }
+  return { buffer, filename: scheduleFileName(month), mimeType: XLSX_MIME }
 }
 
 export async function downloadScheduleExcel(month, people, schedule) {
