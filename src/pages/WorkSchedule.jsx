@@ -3,7 +3,8 @@ import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
-import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile } from '../lib/msGraph.js'
+import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
+import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
@@ -14,6 +15,8 @@ const TEAM_NAME = '24/7 Core Operations'
 // "Upload to SharePoint" target: this site's default document library (Shared Documents) → "Work schedule" folder.
 const SHAREPOINT_SITE   = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
 const SHAREPOINT_FOLDER = 'Work schedule'
+// The team's On-duty calendar page on that site; its calendar is updated on every upload too.
+const ONDUTY_CALENDAR_PAGE = 'On-Duty-Calendar.aspx'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // dateStr is a plain 'YYYY-MM-DD' calendar date with no timezone of its own.
@@ -295,11 +298,18 @@ export default function WorkSchedule() {
     // Members should only be able to view: that comes from the folder's own permissions (one-time
     // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
     const access = await checkMembersAccess(res)
+    // On-duty calendar: replace this month's PeopleOS entries (one per center per day). Never fails
+    // the upload — the result (or the reason it didn't work) is shown in the Teams modal.
+    let calendar
+    try {
+      const entries = buildOnDutyEntries(month, schedule)
+      calendar = { ok: true, ...(await syncOnDutyCalendar({ siteUrl: SHAREPOINT_SITE, pageName: ONDUTY_CALENDAR_PAGE, month, marker: calendarMarker(month), entries })) }
+    } catch (e) { calendar = { ok: false, error: e.message } }
     // Ready-to-paste Teams announcement → clipboard. Copying can be refused this long after the
     // click (Safari/iOS especially); the "Share in Teams" modal then offers a Copy button.
-    const msg = teamsMessage(month, res)
+    const msg = teamsMessage(month, res, calendar.ok && calendar.created > 0)
     const copied = await copyRichText(msg.html, msg.text)
-    setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, copied })
+    setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, calendar, copied })
   }
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -702,12 +712,13 @@ function escapeHtml(s) {
 }
 
 /** Short channel post: plain text (any app) + HTML (Teams keeps the bold title and the link). */
-function teamsMessage(month, { webUrl, replaced }) {
+function teamsMessage(month, { webUrl, replaced }, calendarUpdated = false) {
   const m = monthLabel(month)
   const title = replaced ? `📅 24/7 work schedule updated: ${m}` : `📅 New 24/7 work schedule published: ${m}`
+  const cal = calendarUpdated ? ' The On-duty calendar is updated as well.' : ''
   const body = replaced
-    ? `The work schedule for ${m} has been updated on SharePoint. Please check the latest version:`
-    : `The work schedule for ${m} is now available on SharePoint:`
+    ? `The work schedule for ${m} has been updated on SharePoint.${cal} Please check the latest version:`
+    : `The work schedule for ${m} is now available on SharePoint.${cal} Open it here:`
   return {
     text: `${title}\n${body}\n${webUrl}`,
     html: `<p><strong>${escapeHtml(title)}</strong></p><p>${escapeHtml(body)} <a href="${escapeHtml(webUrl)}">Open the ${escapeHtml(m)} schedule</a></p>`,
@@ -737,6 +748,12 @@ function TeamsPostModal({ post, folder, onCopy, onClose }) {
     <DraggableModal title="📣 Share in Teams" onClose={onClose} maxWidth={500}>
       <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
         ☁️ <strong style={{ color: 'var(--text)' }}>{post.name}</strong> {post.replaced ? 'updated' : 'uploaded'} on SharePoint.<br />{statusLine}
+        {post.calendar && <><br />{post.calendar.ok
+          ? <span style={{ color: post.calendar.failed ? 'var(--warn)' : 'var(--good)' }}>
+              📅 On-duty calendar updated: {post.calendar.created} {post.calendar.created === 1 ? 'entry' : 'entries'} in “{post.calendar.listName}”
+              {post.calendar.deleted > 0 && <> (replaced {post.calendar.deleted} old)</>}{post.calendar.failed > 0 && <>, {post.calendar.failed} failed</>}{!post.calendar.failed && ' ✓'}
+            </span>
+          : <span style={{ color: 'var(--warn)' }}>⚠ On-duty calendar not updated: {post.calendar.error}</span>}</>}
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: post.copied ? 'var(--good)' : 'var(--text-dim)' }}>
         {post.copied ? '✓ Teams message copied: paste it into your channel (Ctrl+V / ⌘V).'

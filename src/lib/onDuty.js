@@ -32,16 +32,11 @@ export function getShiftTimeline(schedules, now = new Date()) {
 
   const shifts = []
   for (const center of CENTERS) {
-    const hrs = parseHours(center.hours)
-    if (!hrs || !center.tz) continue
-    const [sh, sm, eh, em] = hrs
+    if (!center.tz || !parseHours(center.hours)) continue
     const today = localDateStr(center.tz, now)
     for (const delta of [-1, 0, 1]) {
       const date = shiftDate(today, delta)
-      const [y, m, d] = date.split('-').map(Number)
-      const start = zonedToUtc(y, m, d, sh, sm, center.tz)
-      let end = zonedToUtc(y, m, d, eh, em, center.tz)
-      if (end <= start) end += 86400000
+      const { start, end } = shiftWindow(center, date)
       shifts.push({ center, date, start, end, people: byKey[`${date}|${center.id}`] || [] })
     }
   }
@@ -51,6 +46,22 @@ export function getShiftTimeline(schedules, now = new Date()) {
   const previous = shifts.filter((s) => s.end <= t).sort((a, b) => b.end - a.end)[0] || null
   const next = shifts.filter((s) => s.start > t).sort((a, b) => a.start - b.start)[0] || null
   return { current, previous, next, hasSchedule: Object.keys(byKey).length > 0 }
+}
+
+/**
+ * Absolute { start, end } (epoch ms) of `center`'s shift on its own local calendar day `date`
+ * ('YYYY-MM-DD'), or null if the center has no parsable hours/tz. Shared with the SharePoint
+ * On-duty calendar sync (onDutyCalendar.js).
+ */
+export function shiftWindow(center, date) {
+  const hrs = parseHours(center.hours)
+  if (!hrs || !center.tz) return null
+  const [sh, sm, eh, em] = hrs
+  const [y, m, d] = date.split('-').map(Number)
+  const start = zonedToUtc(y, m, d, sh, sm, center.tz)
+  let end = zonedToUtc(y, m, d, eh, em, center.tz)
+  if (end <= start) end += 86400000
+  return { start, end }
 }
 
 export function fmtDuration(ms) {

@@ -342,6 +342,17 @@ it's consented, sign out of Graph Explorer and back in, then copy a new token.
 The target site and folder are the `SHAREPOINT_SITE` / `SHAREPOINT_FOLDER` constants at the top of
 `src/pages/WorkSchedule.jsx`.
 
+### On-duty calendar
+
+Every upload also updates the site's **On-duty calendar** (the `On-Duty-Calendar.aspx` page). For
+each day and center there's one entry, e.g. "Bangalore: Ravi Kumar, Priya Sharma", covering that
+center's shift hours. It shows in each viewer's own time zone. Uploading a month again replaces the
+entries PeopleOS made for that month; entries added by hand stay. PeopleOS finds the calendar's list
+through the page itself, so no setup is needed. If the page uses the Microsoft 365 *group*
+calendar instead of a SharePoint list, the upload still works but the "Share in Teams" window says
+the calendar couldn't be updated (that would need an extra permission). The page name is the
+`ONDUTY_CALENDAR_PAGE` constant in `src/pages/WorkSchedule.jsx`.
+
 ### Make uploaded schedules view-only for site Members (one-time, needs site Owner)
 
 Files inherit their permissions from their folder. So set the **Work schedule** folder once,

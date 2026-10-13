@@ -216,6 +216,26 @@ Browser (React SPA)
     the modal shows whether it was copied and a "📋 Copy message" button that runs on a fresh click.
     It also shows a preview, "Open file" and "Done". There's no Teams API call: posting stays
     manual by design.
+    **On-duty calendar:** every upload also replaces that month's entries in the site's On-duty
+    calendar. The team opens it as a *page*, `ONDUTY_CALENDAR_PAGE` = `SitePages/On-Duty-Calendar.aspx`
+    in `WorkSchedule.jsx`. `syncOnDutyCalendar()` (msGraph.js) reads that page via Graph
+    (`/pages/{id}/microsoft.graph.sitePage?$expand=canvasLayout`), takes the list id from its Events
+    web part (`20745d7d-…`) or any web part with a `…ListId` GUID property, and falls back to a
+    site list named like "On-duty…" or with the `events` template. A Group-calendar web part
+    (`6676088b-…`) would need Group.ReadWrite.All, so that case throws a clear error instead.
+    `calendarFieldMap()` maps columns (classic Events: Title/EventDate/EndDate/Description/
+    Location/fAllDayEvent; otherwise the first start/end-looking dateTime columns). Entries come
+    from `onDutyCalendar.js`'s pure `buildOnDutyEntries(month, schedule)`: **one per center per
+    day**, title "Bangalore: Ravi Kumar, Priya Sharma", spanning that center's shift via
+    `onDuty.js`'s `shiftWindow()` (local hours → UTC instants, DST-correct, shared with the
+    Dashboard timeline). Cleared assignments and empty days are skipped. **Replace semantics:**
+    each entry's description carries `calendarMarker(month)` = `[PeopleOS YYYY-MM]`. A re-upload
+    deletes only items with that marker (or, without a description column, "Center: …" titles in
+    that month) before creating the new ones, so hand-made entries are never touched. Deletes and
+    creates go through Graph `$batch` (20 per call, 429s retried with Retry-After). The calendar
+    step never fails the upload. The Teams modal shows "📅 On-duty calendar updated: N entries in
+    "…"" (or the error), and the Teams message adds "The On-duty calendar is updated as well."
+    only when it worked.
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
@@ -444,7 +464,10 @@ src/
                        its own chunk)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
     onDuty.js          getShiftTimeline — who's on 24/7 duty now / before / next, from saved
-                       schedules + each center's local shift hours (Dashboard)
+                       schedules + each center's local shift hours (Dashboard); shiftWindow()
+                       (one center-day's shift as UTC instants) is shared with onDutyCalendar.js
+    onDutyCalendar.js  buildOnDutyEntries()/calendarMarker() — the SharePoint On-duty calendar
+                       entries for a month (pure; msGraph.js's syncOnDutyCalendar() writes them)
     cadence.js         lastOneOnOne/cadenceBadge/isOverdue — 1:1 cadence derived from
                        interviews, used by Dashboard.jsx and DirectReports.jsx
     birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —
