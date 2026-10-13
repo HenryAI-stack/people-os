@@ -38,6 +38,37 @@ export function getCenter(person) {
   return CENTERS.find((c) => c.locationKeys.some((k) => loc.includes(k)))?.id || null
 }
 
+/** The team whose members are preselected when generating a new schedule. */
+export const SCHEDULE_TEAM = '24/7 Core Operations'
+
+/**
+ * People on a month's schedule: the ones ticked when it was generated (`memberIds`). Schedules
+ * saved before that choice existed fall back to the whole 24/7 team, as they always did.
+ */
+export function scheduleMembers(allPeople, schedule) {
+  if (Array.isArray(schedule?.memberIds)) {
+    const ids = new Set(schedule.memberIds)
+    return allPeople.filter((p) => ids.has(p.id))
+  }
+  return allPeople.filter((p) => p.team === SCHEDULE_TEAM)
+}
+
+/**
+ * Who the "Select employees" step ticks by default: active people at a support center who are in
+ * the 24/7 team, except anyone deliberately left out of `ref` (`excludedIds`), plus anyone from
+ * another team who was ticked in `ref`. `ref` = this month's schedule when regenerating, else last
+ * month's, so a person left out once stays out until ticked again, and new team members start ticked.
+ * → array of person ids
+ */
+export function defaultScheduleSelection(allPeople, ref) {
+  const excluded = new Set(ref?.excludedIds || [])
+  const picked = new Set(ref?.memberIds || [])
+  return allPeople
+    .filter((p) => getCenter(p) && (p.status || 'active') === 'active'
+      && (picked.has(p.id) || (p.team === SCHEDULE_TEAM && !excluded.has(p.id))))
+    .map((p) => p.id)
+}
+
 // All UTC-based (Date.UTC in, getUTC*/.toISOString() out) so this never drifts
 // a day in either direction depending on the browser's timezone offset — see
 // getDaysInMonth in holidays.js for the bug this pattern used to cause.

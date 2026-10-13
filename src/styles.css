@@ -378,6 +378,18 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
+/* "Select employees" step before generating a schedule */
+.ws-pick-list { max-height: min(55vh, 460px); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+.ws-pick-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.ws-pick-count { font-size: 12px; color: var(--text-faint); }
+.ws-pick-warn { font-size: 12px; color: var(--warn); }
+.ws-pick-all { margin-left: auto; font-size: 12px; padding: 2px 10px; }
+.ws-pick-row { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 13.5px; user-select: none; }
+.ws-pick-row:hover { background: var(--accent-soft); }
+.ws-pick-row input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); cursor: pointer; flex: none; }
+.ws-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-pick-note { font-size: 12px; color: var(--warn); padding: 4px 4px 0; }
+
 .ws-stats {
   display: flex;
   flex-wrap: wrap;

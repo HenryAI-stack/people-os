@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
-import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth } from '../lib/scheduleGenerator.js'
+import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
+  SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
 import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
@@ -11,7 +12,6 @@ import { isBirthdayOn } from '../lib/birthdays.js'
 import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
-const TEAM_NAME = '24/7 Core Operations'
 // "Upload to SharePoint" target: this site's default document library (Shared Documents) → "Work schedule" folder.
 const SHAREPOINT_SITE   = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
 const SHAREPOINT_FOLDER = 'Work schedule'
@@ -50,7 +50,7 @@ function todayMonth() {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function WorkSchedule() {
   const [month,       setMonth]       = useState(todayMonth())
-  const [people,      setPeople]      = useState([])
+  const [allPeople,   setAllPeople]   = useState([])  // every direct report; the schedule's own are `people` below
   const [schedule,    setSchedule]    = useState(null)  // { id, month, assignments, fairnessSnapshot }
   const [loading,     setLoading]     = useState(true)
   const [saving,      setSaving]      = useState(false)
@@ -66,6 +66,7 @@ export default function WorkSchedule() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
   const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
+  const [picker,      setPicker]      = useState(null)  // "Select employees" step before generating: { initial: [ids] }
   const [teamsPost,   setTeamsPost]   = useState(null)  // after an upload: { text, html, webUrl, name, replaced, access, copied }
   const [toast, setToast] = useState(null)  // { msg, href?, linkLabel?, tone?: 'warn' }
 
@@ -92,9 +93,7 @@ export default function WorkSchedule() {
   async function load() {
     setLoading(true); setError('')
     try {
-      const all = await directReportsStore.list()
-      const ops = all.filter((p) => p.team === TEAM_NAME)
-      setPeople(ops)
+      setAllPeople(await directReportsStore.list())
 
       // Load schedule for this month
       const schedules = await schedulesStore.list()
@@ -107,8 +106,21 @@ export default function WorkSchedule() {
   useEffect(() => { load() }, [month])
 
   // ── Auto-generate ────────────────────────────────────────────────────────
+  // Step 1: pick who's on this month's schedule (SchedulePeopleModal), preselected from this month's
+  // schedule when regenerating, else last month's (see defaultScheduleSelection).
   async function handleGenerate() {
-    if (!confirm(`Generate a new schedule for ${month}? This will overwrite any existing schedule.`)) return
+    setError('')
+    try {
+      const schedules = await schedulesStore.list()
+      const ref = schedule || schedules.find((s) => s.month === prevMonth(month))
+      setPicker({ initial: defaultScheduleSelection(allPeople, ref) })
+    } catch (e) { setError(e.message) }
+  }
+
+  // Step 2: generate for the ticked people. The choice is saved on the schedule (memberIds), and
+  // the unticked ones (excludedIds) so next month starts from the same choice.
+  async function generateFor(memberIds) {
+    setPicker(null)
     setGenerating(true); setError('')
     try {
       // Load previous month's fairness snapshot
@@ -116,13 +128,17 @@ export default function WorkSchedule() {
       const prev = schedules.find((s) => s.month === prevMonth(month))
       const fairness = prev?.fairnessSnapshot || {}
 
+      const chosen = new Set(memberIds)
+      const members = allPeople.filter((p) => chosen.has(p.id))
       // Last month's shifts let the 40h/week cap see weeks that straddle the month boundary.
-      const { assignments, fairnessSnapshot } = generateSchedule(month, people, fairness, prev?.assignments || [])
+      const { assignments, fairnessSnapshot } = generateSchedule(month, members, fairness, prev?.assignments || [])
       const record = {
         id:                `schedule-${month}`,
         month,
         assignments,
         fairnessSnapshot,
+        memberIds:         members.map((p) => p.id),
+        excludedIds:       candidates.filter((p) => !chosen.has(p.id)).map((p) => p.id),
       }
       await schedulesStore.upsert(record)
       setSchedule(record)
@@ -315,6 +331,9 @@ export default function WorkSchedule() {
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const days = useMemo(() => getDaysInMonth(month), [month])
+  // Who's on this month's schedule (picked when it was generated), and who could be picked.
+  const people = useMemo(() => scheduleMembers(allPeople, schedule), [allPeople, schedule])
+  const candidates = useMemo(() => allPeople.filter((p) => getCenter(p)), [allPeople])
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people])
   const centerPeople = useMemo(() => {
     const map = {}
@@ -354,7 +373,7 @@ export default function WorkSchedule() {
     <div className="work-schedule-page">
       {/* ── Header ── */}
       <div className="page-header no-print">
-        <h1>Work Schedule — {TEAM_NAME}</h1>
+        <h1>Work Schedule — {SCHEDULE_TEAM}</h1>
         <p>Monthly scheduling for all OPS centers. Click a name to swap or remove, click an empty day or + to assign, drag to move, click 💬 to comment.</p>
       </div>
 
@@ -370,7 +389,7 @@ export default function WorkSchedule() {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           {error && <span style={{ color:'var(--bad)', fontSize:13, alignSelf:'center' }}>⚠️ {error}</span>}
-          <button className="btn" onClick={handleGenerate} disabled={generating || loading || people.length===0}
+          <button className="btn" onClick={handleGenerate} disabled={generating || loading || candidates.length===0}
             style={{ fontSize:13 }}>
             {generating ? '⏳ Generating…' : schedule ? '↻ Regenerate' : '✦ Generate schedule'}
           </button>
@@ -406,13 +425,14 @@ export default function WorkSchedule() {
       </div>
 
       {loading && <div className="empty-state">Loading…</div>}
-      {!loading && people.length === 0 && (
+      {!loading && candidates.length === 0 && (
         <div className="empty-state">
           <div className="icon">👥</div>
-          No team members found in "{TEAM_NAME}". Make sure direct reports have their team set correctly.
+          No direct reports at a support center yet. Set their location to Bangalore, Warsaw or Mexico City
+          (and their team to "{SCHEDULE_TEAM}" to have them preselected).
         </div>
       )}
-      {!loading && people.length > 0 && !schedule && (
+      {!loading && candidates.length > 0 && !schedule && (
         <div className="empty-state">
           <div className="icon">📅</div>
           No schedule for this month yet. Click "✦ Generate schedule" to create one automatically.
@@ -575,6 +595,12 @@ export default function WorkSchedule() {
       {/* ── Comment modal ── */}
       {replaceAsk && (
         <ReplaceScheduleModal existing={replaceAsk} month={month} onReplace={confirmReplace} onCancel={() => setReplaceAsk(null)} />
+      )}
+
+      {picker && (
+        <SchedulePeopleModal month={month} candidates={candidates} initial={picker.initial} replacing={!!schedule}
+          unplaced={allPeople.filter((p) => p.team === SCHEDULE_TEAM && !getCenter(p))}
+          onGenerate={generateFor} onCancel={() => setPicker(null)} />
       )}
 
       {teamsPost && (
@@ -782,6 +808,76 @@ function TeamsPostModal({ post, folder, onCopy, onClose }) {
 }
 
 // Asked before "Upload to SharePoint" replaces a month that's already there.
+/**
+ * "Select employees" step before generating: everyone at a support center, grouped by center, with
+ * a checkbox each. 24/7 team members start ticked (see defaultScheduleSelection); people from other
+ * teams or not active show that next to their name.
+ */
+function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, onGenerate, onCancel }) {
+  const [selected, setSelected] = useState(() => new Set(initial))
+  const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const setMany = (ids, on) => setSelected((s) => { const n = new Set(s); ids.forEach((id) => on ? n.add(id) : n.delete(id)); return n })
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
+  return (
+    <DraggableModal title={`Select employees · ${monthLabel(month)}`} onClose={onCancel} maxWidth={520}>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: '0 0 12px' }}>
+        Tick who should be on the work schedule. Members of {SCHEDULE_TEAM} are preselected; anyone you
+        untick stays unticked next month too.
+      </p>
+      <div className="ws-pick-list">
+        {CENTERS.map((c) => {
+          const list = candidates.filter((p) => getCenter(p) === c.id).sort(byName)
+          if (!list.length) return null
+          const count = list.filter((p) => selected.has(p.id)).length
+          const allOn = count === list.length
+          return (
+            <div key={c.id} className="ws-pick-center">
+              <div className="ws-pick-head">
+                <img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} />
+                <strong>{c.label}</strong>
+                <span className={count < 2 ? 'ws-pick-warn' : 'ws-pick-count'}>{count} of {list.length}</span>
+                <button type="button" className="btn ghost ws-pick-all" onClick={() => setMany(list.map((p) => p.id), !allOn)}>
+                  {allOn ? 'None' : 'All'}
+                </button>
+              </div>
+              {list.map((p) => (
+                <label key={p.id} className="ws-pick-row">
+                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
+                  <Avatar photo={p.photo} name={p.name} size={24} />
+                  <span className="ws-pick-name">{p.name}</span>
+                  {p.team !== SCHEDULE_TEAM && <span className="badge" style={{ fontSize: 11 }}>{p.team || 'no team'}</span>}
+                  {(p.status || 'active') !== 'active' && <span className="badge warn" style={{ fontSize: 11 }}>{p.status}</span>}
+                </label>
+              ))}
+              {count > 0 && count < 2 && (
+                <div className="ws-pick-note">Weekdays need 2 people, so with {count} some days stay short-staffed.</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {unplaced.length > 0 && (
+        <p style={{ fontSize: 12.5, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
+          Not listed, because their location isn't Bangalore, Warsaw or Mexico City:{' '}
+          {unplaced.map((p) => p.name).join(', ')}. Update their location under Direct Reports to schedule them.
+        </p>
+      )}
+      {replacing && (
+        <p style={{ fontSize: 12.5, color: 'var(--warn)', margin: '12px 0 0' }}>
+          ⚠ This replaces the existing {monthLabel(month)} schedule, including manual changes.
+        </p>
+      )}
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        <button className="btn primary" disabled={selected.size === 0}
+          onClick={() => onGenerate(candidates.filter((p) => selected.has(p.id)).map((p) => p.id))}>
+          ✦ Generate for {selected.size} {selected.size === 1 ? 'person' : 'people'}
+        </button>
+      </div>
+    </DraggableModal>
+  )
+}
+
 function ReplaceScheduleModal({ existing, month, onReplace, onCancel }) {
   const when = existing.lastModified?.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   return (

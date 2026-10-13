@@ -21,7 +21,7 @@
 import CryptoJS from 'crypto-js'
 import ExcelJS from 'exceljs'
 import PDFDocument from 'pdfkit'
-import { CENTERS, getCenter, centerHoursForMonth } from '../src/lib/scheduleGenerator.js'
+import { CENTERS, getCenter, centerHoursForMonth, SCHEDULE_TEAM, scheduleMembers } from '../src/lib/scheduleGenerator.js'
 import { getDaysInMonth } from '../src/lib/holidays.js'
 import {
   buildScheduleWorkbook, dayCode,
@@ -46,7 +46,7 @@ const BRANCH = BRANCH_RAW || 'main'
 // this hits if SCHEDULE_EMAIL_TO points anywhere else.
 const TO_EMAIL = SCHEDULE_EMAIL_TO || 'henry.ai.server@gmail.com'
 const FROM_EMAIL = SCHEDULE_EMAIL_FROM || 'PeopleOS <onboarding@resend.dev>'
-const TEAM_NAME = '24/7 Core Operations' // must match WorkSchedule.jsx's TEAM_NAME
+const TEAM_NAME = SCHEDULE_TEAM
 const TIMEZONE = 'Europe/Vienna'
 
 function requireEnv(name, val) {
@@ -213,16 +213,17 @@ async function main() {
   console.log(`Building work schedule email for ${monthKey}…`)
 
   const allPeople = await readCollection('direct-reports.json')
-  const people = allPeople.filter((p) => p.team === TEAM_NAME)
-  if (!people.length) {
-    console.error(`No team members found in "${TEAM_NAME}" — nothing to send.`)
-    process.exit(1)
-  }
-
   const schedules = await readCollection('schedules.json')
   const schedule = schedules.find((s) => s.month === monthKey)
   if (!schedule) {
     console.error(`No saved schedule found for ${monthKey}. Generate and save one in the app first.`)
+    process.exit(1)
+  }
+
+  // The people ticked when this month was generated (older schedules: the whole 24/7 team).
+  const people = scheduleMembers(allPeople, schedule)
+  if (!people.length) {
+    console.error(`No people on the ${monthKey} schedule — nothing to send.`)
     process.exit(1)
   }
 
