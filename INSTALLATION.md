@@ -360,7 +360,13 @@ Whoever presses **Upload to SharePoint** must still be able to write to the fold
 the site's **Owners** group, or get their own Edit/Contribute permission on the folder (same page →
 **Grant Permissions**). Otherwise uploads fail with a "no edit rights" message after step 4.
 
-After each upload PeopleOS checks the file's permissions. The message says
+After each upload, a **Share in Teams** window opens with a short announcement for your channel.
+It says a new (or updated) schedule is published for that month, with a link to the file. The
+announcement is already copied to your clipboard; just paste it into Teams. If the browser
+blocked the automatic copy (Safari on iPhone/iPad often does after an upload), click
+**📋 Copy message** in that window.
+
+After each upload PeopleOS also checks the file's permissions. The message says
 **"Members can view only ✓"**, warns if Members can still edit, or notes when it couldn't verify
 (Graph only shows the full permission list to site owners). PeopleOS doesn't change permissions
 itself: Microsoft Graph can't reliably override inherited SharePoint permissions on a single

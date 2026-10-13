@@ -62,6 +62,7 @@ export default function WorkSchedule() {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
+  const [teamsPost,   setTeamsPost]   = useState(null)  // after an upload: { text, html, webUrl, name, replaced, access, copied }
   const [toast, setToast] = useState(null)  // { msg, href?, linkLabel?, tone?: 'warn' }
 
   function showToast(msg, opts) {
@@ -276,11 +277,11 @@ export default function WorkSchedule() {
       // Members should only be able to view: that comes from the folder's own permissions (one-time
       // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
       const access = await checkMembersAccess(res)
-      const done = `☁️ ${res.name} ${res.replaced ? 'updated' : 'uploaded'} on SharePoint`
-      const link = { href: res.webUrl, linkLabel: 'Open →' }
-      if (access.status === 'readOnly') showToast(`${done} · Members can view only ✓`, link)
-      else if (access.status === 'canEdit') showToast(`${done} — but site Members can still edit it. Make the "${SHAREPOINT_FOLDER}" folder view-only for Members in SharePoint (one-time, see INSTALLATION.md).`, { ...link, tone: 'warn' })
-      else showToast(`${done} (couldn't verify Members' permissions).`, link)
+      // Ready-to-paste Teams announcement → clipboard. Copying can be refused this long after the
+      // click (Safari/iOS especially); the "Share in Teams" modal then offers a Copy button.
+      const msg = teamsMessage(month, res)
+      const copied = await copyRichText(msg.html, msg.text)
+      setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, copied })
     } catch (e) { setError(e.message) }
     finally { setUploadingSp(false) }
   }
@@ -545,6 +546,12 @@ export default function WorkSchedule() {
       )}
 
       {/* ── Comment modal ── */}
+      {teamsPost && (
+        <TeamsPostModal post={teamsPost} folder={SHAREPOINT_FOLDER}
+          onCopy={async () => { const ok = await copyRichText(teamsPost.html, teamsPost.text); setTeamsPost((p) => ({ ...p, copied: ok, copyFailed: !ok })) }}
+          onClose={() => setTeamsPost(null)} />
+      )}
+
       {commentModal && (
         <div className="overlay no-print" onMouseDown={(e) => e.target===e.currentTarget&&setCommentModal(null)}>
           <div className="modal" style={{ maxWidth:400 }}>
@@ -661,6 +668,70 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!toPerson} onClick={() => onSwap(toPerson)}>{current ? 'Swap' : 'Assign'}</button>
         </div>
+      </div>
+    </DraggableModal>
+  )
+}
+
+// ── Teams announcement after "Upload to SharePoint" ─────────────────────────────
+function monthLabel(month) {
+  return new Date(month + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+}
+
+/** Short channel post: plain text (any app) + HTML (Teams keeps the bold title and the link). */
+function teamsMessage(month, { webUrl, replaced }) {
+  const m = monthLabel(month)
+  const title = replaced ? `📅 24/7 work schedule updated: ${m}` : `📅 New 24/7 work schedule published: ${m}`
+  const body = replaced
+    ? `The work schedule for ${m} has been updated on SharePoint. Please check the latest version:`
+    : `The work schedule for ${m} is now available on SharePoint:`
+  return {
+    text: `${title}\n${body}\n${webUrl}`,
+    html: `<p><strong>${escapeHtml(title)}</strong></p><p>${escapeHtml(body)} <a href="${escapeHtml(webUrl)}">Open the ${escapeHtml(m)} schedule</a></p>`,
+  }
+}
+
+/** Copies HTML + plain text where supported, plain text otherwise. Resolves true/false, never throws. */
+async function copyRichText(html, text) {
+  try {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html':  new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      })])
+      return true
+    }
+  } catch { /* fall through to plain text */ }
+  try { await navigator.clipboard.writeText(text); return true } catch { return false }
+}
+
+function TeamsPostModal({ post, folder, onCopy, onClose }) {
+  const statusLine = post.access === 'readOnly' ? <span style={{ color: 'var(--good)' }}>Members can view only ✓</span>
+    : post.access === 'canEdit' ? <span style={{ color: 'var(--warn)' }}>⚠ Site Members can still edit this file. Make the "{folder}" folder view-only for Members (one-time, see INSTALLATION.md).</span>
+    : <span style={{ color: 'var(--text-faint)' }}>Couldn't verify Members' permissions.</span>
+  const [title, ...rest] = post.text.split('\n')
+  return (
+    <DraggableModal title="📣 Share in Teams" onClose={onClose} maxWidth={500}>
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+        ☁️ <strong style={{ color: 'var(--text)' }}>{post.name}</strong> {post.replaced ? 'updated' : 'uploaded'} on SharePoint.<br />{statusLine}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: post.copied ? 'var(--good)' : 'var(--text-dim)' }}>
+        {post.copied ? '✓ Teams message copied: paste it into your channel (Ctrl+V / ⌘V).'
+          : post.copyFailed ? 'Copying was blocked by the browser. Select the text below and copy it manually.'
+          : 'Click "Copy message", then paste it into your Teams channel.'}
+      </div>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--bg)', fontSize: 13.5, lineHeight: 1.55, userSelect: 'text', overflowWrap: 'anywhere' }}>
+        <div style={{ fontWeight: 700 }}>{title}</div>
+        <div>{rest[0]}</div>
+        <a href={post.webUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12.5 }}>{rest[1]}</a>
+      </div>
+      <div className="modal-actions">
+        <a className="btn ghost" href={post.webUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open file</a>
+        <button className="btn" onClick={onCopy}>{post.copied ? '✓ Copied: copy again' : '📋 Copy message'}</button>
+        <button className="btn primary" onClick={onClose}>Done</button>
       </div>
     </DraggableModal>
   )
