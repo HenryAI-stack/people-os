@@ -9,7 +9,7 @@
  * Tokens expire after ~1 hour — refresh from Graph Explorer and update it there when
  * sync stops working.
  */
-import { getMsGraphToken } from './settings.js'
+import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES } from './settings.js'
 
 const BASE    = 'https://graph.microsoft.com/v1.0/me/todo'
 const LIST_NAME = 'PeopleOS Follow-ups'
@@ -158,7 +158,14 @@ const GRAPH = 'https://graph.microsoft.com/v1.0'
 
 function graphError(status, what) {
   if (status === 401) return new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
-  if (status === 403) return new Error(`Your Microsoft token isn't allowed to ${what}. In Graph Explorer, open "Modify permissions", consent to Sites.ReadWrite.All (or Files.ReadWrite.All), then copy a fresh token to the Settings page.`)
+  if (status === 403) {
+    // Tell "the token lacks the permission" apart from "your account lacks rights on the site".
+    const info = getMsGraphTokenInfo()
+    if (info && !tokenHasAnyScope(info, SHAREPOINT_WRITE_SCOPES)) {
+      return new Error(`Your Microsoft token doesn't include SharePoint write permission, so it can't ${what}. In Graph Explorer, check that Sites.ReadWrite.All shows as consented (greyed out with consent type "AllPrincipals" means an admin already granted it), sign out and back in to Graph Explorer, then copy a fresh token to the Settings page — it shows which permissions the token has.`)
+    }
+    return new Error(`Microsoft refused to ${what} even though your token includes SharePoint write permission — your account probably doesn't have edit rights on that SharePoint site/folder. Ask a site owner for Edit (Member) access.`)
+  }
   if (status === 404) return new Error('SharePoint site not found — check the site address, and that your account has access to it.')
   if (status === 423) return new Error('The file is locked on SharePoint (probably open for editing). Close it and try again.')
   return new Error(`Graph API error (${status}) while trying to ${what}.`)

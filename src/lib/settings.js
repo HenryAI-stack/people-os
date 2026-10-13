@@ -20,3 +20,31 @@ export function setMsGraphToken(token) {
     else localStorage.removeItem(MS_GRAPH_TOKEN_KEY)
   } catch {}
 }
+
+// ── Token details (display-only hints) ──────────────────────────────────────
+// A Graph Explorer access token is a JWT; reading its payload shows which permissions (`scp`)
+// it carries and when it expires, so the Settings page can say *before* an action fails
+// whether e.g. "Upload to SharePoint" will work. No signature check: Graph is still the
+// authority, this is only a hint. Returns null for anything that doesn't parse.
+export const TODO_SCOPES = ['Tasks.ReadWrite']
+export const SHAREPOINT_WRITE_SCOPES = ['Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Sites.Manage.All', 'Sites.FullControl.All']
+
+export function getMsGraphTokenInfo(token = getMsGraphToken()) {
+  try {
+    const part = (token || '').split('.')[1]
+    if (!part) return null
+    const bytes = Uint8Array.from(atob(part.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))
+    const p = JSON.parse(new TextDecoder().decode(bytes))
+    return {
+      scopes: String(p.scp || '').split(' ').filter(Boolean),
+      expiresAt: p.exp ? new Date(p.exp * 1000) : null,
+      account: p.upn || p.preferred_username || p.unique_name || '',
+    }
+  } catch {
+    return null
+  }
+}
+
+export function tokenHasAnyScope(info, scopes) {
+  return !!info && info.scopes.some((s) => scopes.includes(s))
+}
