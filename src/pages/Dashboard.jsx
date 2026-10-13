@@ -110,7 +110,7 @@ function ShiftBlock({ shift, now, kind, photoById }) {
         {shift.center.id}
       </div>
       <div style={{ fontSize:12, color:'var(--text-dim)', margin:'3px 0 8px' }}>
-        <div>{fmtShiftDay(shift.date)} · {shift.center.hours} local</div>
+        <div>{fmtShiftDay(shift.date)} · {shift.hours} local</div>
         <div style={{ color:'var(--text-faint)' }}>{fmtViewerTime(shift.start)}–{fmtViewerTime(shift.end)} your time · {rel}</div>
       </div>
       {shift.people.length === 0

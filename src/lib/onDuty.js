@@ -1,10 +1,11 @@
-import { CENTERS } from './scheduleGenerator.js'
+import { CENTERS, centerHours } from './scheduleGenerator.js'
 import { zonedToUtc, localDateStr } from './worldClock.js'
 
 // Turns saved work schedules into real-time shift instances so the Dashboard can show
 // who is on duty now, who was before, and who is next. Each center's `hours` are local
 // to its own `tz`, so every shift is converted to an absolute instant via Intl — no
-// timezone library, and correct across DST changes in Warsaw.
+// timezone library, and correct across DST changes in Warsaw (whose shift also starts an hour
+// earlier in winter time — see centerHours()).
 
 function shiftDate(dateStr, delta) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -18,7 +19,7 @@ function parseHours(hours) {
 
 /**
  * @returns {{ current: Shift[], previous: Shift|null, next: Shift|null, hasSchedule: boolean }}
- * Shift = { center, date, start, end, people: [{ personId, personName }] }
+ * Shift = { center, date, hours, start, end, people: [{ personId, personName }] }
  * `current` is an array because shifts can briefly overlap (or be empty during a coverage gap).
  */
 export function getShiftTimeline(schedules, now = new Date()) {
@@ -37,7 +38,7 @@ export function getShiftTimeline(schedules, now = new Date()) {
     for (const delta of [-1, 0, 1]) {
       const date = shiftDate(today, delta)
       const { start, end } = shiftWindow(center, date)
-      shifts.push({ center, date, start, end, people: byKey[`${date}|${center.id}`] || [] })
+      shifts.push({ center, date, hours: centerHours(center, date), start, end, people: byKey[`${date}|${center.id}`] || [] })
     }
   }
 
@@ -54,7 +55,7 @@ export function getShiftTimeline(schedules, now = new Date()) {
  * On-duty calendar sync (onDutyCalendar.js).
  */
 export function shiftWindow(center, date) {
-  const hrs = parseHours(center.hours)
+  const hrs = parseHours(centerHours(center, date))
   if (!hrs || !center.tz) return null
   const [sh, sm, eh, em] = hrs
   const [y, m, d] = date.split('-').map(Number)

@@ -3,7 +3,7 @@
 // center's shift (its own local hours → absolute UTC instants, so the calendar shows it in
 // every viewer's own time zone). The Graph writing lives in msGraph.js (syncOnDutyCalendar);
 // this module stays pure so it's easy to test.
-import { CENTERS } from './scheduleGenerator.js'
+import { CENTERS, centerHours } from './scheduleGenerator.js'
 import { shiftWindow } from './onDuty.js'
 
 /**
@@ -33,7 +33,7 @@ export function buildOnDutyEntries(month, schedule) {
         start: new Date(win.start).toISOString(),
         end: new Date(win.end).toISOString(),
         location: center.label,
-        description: `24/7 on duty, ${center.hours} ${center.label} local time. ${calendarMarker(month)} Created by PeopleOS from the uploaded work schedule.`,
+        description: `24/7 on duty, ${centerHours(center, date)} ${center.label} local time. ${calendarMarker(month)} Created by PeopleOS from the uploaded work schedule.`,
       })
     }
   }

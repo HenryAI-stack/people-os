@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
-import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
+import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
 import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
@@ -428,7 +428,7 @@ export default function WorkSchedule() {
                 onClick={() => setActiveCenter(c.id)}>
                 <img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} />
                 {c.label}
-                <span style={{ fontSize:11, marginLeft:6, opacity:0.7 }}>{c.hours}</span>
+                <span style={{ fontSize:11, marginLeft:6, opacity:0.7 }}>{centerHoursForMonth(c, month).label}</span>
               </button>
             ))}
           </div>
@@ -464,7 +464,7 @@ export default function WorkSchedule() {
             <div key={c.id} className={`ws-center-block ${activeCenter===c.id?'':'hidden-screen'}`}>
               {/* Print header per center */}
               <div className="print-only ws-print-header">
-                <h2><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label} — {c.hours}</h2>
+                <h2><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label} — {centerHoursForMonth(c, month).label}</h2>
                 <p>{new Date(month+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}</p>
               </div>
 
@@ -651,7 +651,7 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
       <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--text-dim)', marginBottom:14, flexWrap:'wrap' }}>
         <img className="ws-tab-flag" src={flagUrl(center.country)} alt={center.country} />
         <strong style={{ color:'var(--text)' }}>{center.label}</strong>
-        <span>· {fmtDate(shift.date)} · {center.hours}</span>
+        <span>· {fmtDate(shift.date)} · {centerHours(center, shift.date)}</span>
         {tag && <span className="badge warn" style={{ fontSize:11 }}>{tag}</span>}
       </div>
 

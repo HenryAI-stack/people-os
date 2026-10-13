@@ -27,6 +27,17 @@ export function zonedToUtc(y, m, d, hh, mm, tz) {
   return guess - tzOffsetMs(tz, new Date(first))
 }
 
+/**
+ * True when `tz` is on its standard ("winter") time on calendar day 'YYYY-MM-DD', i.e. its offset
+ * that day is below the year's daylight-saving offset. Always false for zones without DST
+ * (India, Mexico City since 2022). Checked at 12:00 UTC, after the EU's 01:00 UTC switch.
+ */
+export function isWinterTime(tz, dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const offsetOn = (mm, dd) => tzOffsetMs(tz, new Date(Date.UTC(y, mm - 1, dd, 12)))
+  return offsetOn(m, d) < Math.max(offsetOn(1, 1), offsetOn(7, 1))
+}
+
 /** 'YYYY-MM-DD' calendar date of `date` in `tz`. */
 export function localDateStr(tz, date) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)

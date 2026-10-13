@@ -1,4 +1,4 @@
-import { CENTERS, getCenter } from './scheduleGenerator.js'
+import { CENTERS, getCenter, centerHoursForMonth } from './scheduleGenerator.js'
 import { getDaysInMonth, getHoliday } from './holidays.js'
 
 // Fills mirror the app's own on-screen colors (--accent for an on-shift chip,
@@ -88,13 +88,14 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
   const lastCol = 1 + days.length
   sheet.mergeCells(1, 1, 1, lastCol)
   const title = sheet.getCell(1, 1)
-  title.value = `${center.label} | ${monthLabel} | Shift ${center.hours}`
+  const hours = centerHoursForMonth(center, month)
+  title.value = `${center.label} | ${monthLabel} | Shift ${hours.label}`
   title.font = { bold: true, size: 16, color: { argb: TITLE_COLOR } }
   title.alignment = { horizontal: 'left' }
   sheet.getRow(1).height = 26
 
   // Row 3 — legend
-  addLegend(sheet, 3, center.hours)
+  addLegend(sheet, 3, hours.mixed ? '(hours above)' : hours.label)
   sheet.getRow(3).height = 24
 
   // Row 6 — weekday abbreviations, Row 7 — "Employee name" + real dates (d-mmm)
