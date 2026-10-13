@@ -178,19 +178,53 @@ function graphError(status, what) {
  * keeps the old one in SharePoint's version history.
  * Returns { name, webUrl, replaced, driveId, itemId }.
  */
-export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, data, contentType }) {
+function graphAuth() {
   const token = getMsGraphToken()
   if (!token) throw new Error('No Microsoft Graph token set. Add one on the Settings page.')
-  const auth = { Authorization: `Bearer ${token}` }
+  return { Authorization: `Bearer ${token}` }
+}
 
+// Site URL → Graph site id. Cached: the id never changes, and a pre-upload existence check plus the
+// upload itself would otherwise look the site up twice.
+const _siteIds = new Map()
+async function resolveSiteId(siteUrl, auth) {
+  if (_siteIds.has(siteUrl)) return _siteIds.get(siteUrl)
   const u = new URL(siteUrl)
   const sitePath = decodeURIComponent(u.pathname).replace(/\/+$/, '')
   const siteRes = await fetch(`${GRAPH}/sites/${u.hostname}:${encodeURI(sitePath)}?$select=id,webUrl`, { headers: auth })
   if (!siteRes.ok) throw graphError(siteRes.status, 'read the SharePoint site')
-  const site = await siteRes.json()
+  const { id } = await siteRes.json()
+  _siteIds.set(siteUrl, id)
+  return id
+}
 
-  const path = [...folder.split('/'), filename].filter(Boolean).map(encodeURIComponent).join('/')
-  const up = await fetch(`${GRAPH}/sites/${site.id}/drive/root:/${path}:/content`, {
+function libraryPath(folder, filename) {
+  return [...folder.split('/'), filename].filter(Boolean).map(encodeURIComponent).join('/')
+}
+
+/**
+ * Is there already a file at folder/filename in the site's Shared Documents? Returns null when not,
+ * else { name, webUrl, lastModified (Date|null), lastModifiedBy } — used to ask before replacing.
+ */
+export async function findSharePointFile({ siteUrl, folder = '', filename }) {
+  const auth = graphAuth()
+  const siteId = await resolveSiteId(siteUrl, auth)
+  const res = await fetch(`${GRAPH}/sites/${siteId}/drive/root:/${libraryPath(folder, filename)}?$select=name,webUrl,lastModifiedDateTime,lastModifiedBy`, { headers: auth })
+  if (res.status === 404) return null
+  if (!res.ok) throw graphError(res.status, 'check SharePoint for an existing file')
+  const item = await res.json()
+  return {
+    name: item.name,
+    webUrl: item.webUrl,
+    lastModified: item.lastModifiedDateTime ? new Date(item.lastModifiedDateTime) : null,
+    lastModifiedBy: item.lastModifiedBy?.user?.displayName || '',
+  }
+}
+
+export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, data, contentType }) {
+  const auth = graphAuth()
+  const siteId = await resolveSiteId(siteUrl, auth)
+  const up = await fetch(`${GRAPH}/sites/${siteId}/drive/root:/${libraryPath(folder, filename)}:/content`, {
     method: 'PUT',
     headers: { ...auth, 'Content-Type': contentType || 'application/octet-stream' },
     body: data,
