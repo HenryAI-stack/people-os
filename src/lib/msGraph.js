@@ -1,6 +1,6 @@
 /**
  * Microsoft Graph API — two-way sync of PeopleOS follow-ups with a "PeopleOS Follow-ups"
- * list in Microsoft To Do. This module only talks to Graph; the reconciliation logic
+ * list in Microsoft To Do, plus the Work Schedule's "Upload to SharePoint" (bottom of file). This module only talks to Graph; the reconciliation logic
  * (deciding whether a given follow-up should push, pull, or get imported) lives in
  * FollowUps.jsx, per this repo's "page components own their data" convention.
  *
@@ -148,4 +148,47 @@ export async function deleteOutlookTask(taskId) {
   })
   if (res.status === 401) throw new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
   if (!res.ok && res.status !== 404) throw new Error(`Could not delete task (${res.status})`)
+}
+
+// ── SharePoint upload (Work Schedule → "Upload to SharePoint") ───────────────────────────────
+// Same Graph Explorer token as the To Do sync, but it additionally needs a SharePoint write
+// permission consented in Graph Explorer ("Modify permissions"): Sites.ReadWrite.All or
+// Files.ReadWrite.All. Without it, Graph answers 403 and we say exactly that.
+const GRAPH = 'https://graph.microsoft.com/v1.0'
+
+function graphError(status, what) {
+  if (status === 401) return new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
+  if (status === 403) return new Error(`Your Microsoft token isn't allowed to ${what}. In Graph Explorer, open "Modify permissions", consent to Sites.ReadWrite.All (or Files.ReadWrite.All), then copy a fresh token to the Settings page.`)
+  if (status === 404) return new Error('SharePoint site not found — check the site address, and that your account has access to it.')
+  if (status === 423) return new Error('The file is locked on SharePoint (probably open for editing). Close it and try again.')
+  return new Error(`Graph API error (${status}) while trying to ${what}.`)
+}
+
+/**
+ * Uploads (or replaces) one file in a SharePoint site's default document library
+ * ("Shared Documents"). `siteUrl` is the site address, e.g. https://contoso.sharepoint.com/sites/Team;
+ * `folder` is an optional path inside the library ('' = library root). Replacing an existing file
+ * keeps the old one in SharePoint's version history.
+ * Returns { name, webUrl, replaced }.
+ */
+export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, data, contentType }) {
+  const token = getMsGraphToken()
+  if (!token) throw new Error('No Microsoft Graph token set. Add one on the Settings page.')
+  const auth = { Authorization: `Bearer ${token}` }
+
+  const u = new URL(siteUrl)
+  const sitePath = decodeURIComponent(u.pathname).replace(/\/+$/, '')
+  const siteRes = await fetch(`${GRAPH}/sites/${u.hostname}:${encodeURI(sitePath)}?$select=id,webUrl`, { headers: auth })
+  if (!siteRes.ok) throw graphError(siteRes.status, 'read the SharePoint site')
+  const site = await siteRes.json()
+
+  const path = [...folder.split('/'), filename].filter(Boolean).map(encodeURIComponent).join('/')
+  const up = await fetch(`${GRAPH}/sites/${site.id}/drive/root:/${path}:/content`, {
+    method: 'PUT',
+    headers: { ...auth, 'Content-Type': contentType || 'application/octet-stream' },
+    body: data,
+  })
+  if (!up.ok) throw graphError(up.status, 'upload files to SharePoint')
+  const item = await up.json()
+  return { name: item.name, webUrl: item.webUrl, replaced: up.status === 200 } // 201 = new file, 200 = replaced
 }
