@@ -10,6 +10,7 @@
  * sync stops working.
  */
 import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES } from './settings.js'
+import { planCalendarDiff } from './onDutyCalendar.js'
 
 const BASE    = 'https://graph.microsoft.com/v1.0/me/todo'
 const LIST_NAME = 'PeopleOS Follow-ups'
@@ -375,10 +376,12 @@ async function graphBatch(requests, auth) {
 }
 
 /**
- * Replaces this month's PeopleOS entries in the On-duty calendar with `entries` (from
- * buildOnDutyEntries). Entries are recognized by `marker` in their description (or, if the list has
- * no description column, by their "Center: …" title within the month). Hand-made entries are kept.
- * Returns { listName, created, deleted, failed }.
+ * Brings this month's PeopleOS entries in the On-duty calendar in line with `entries` (from
+ * buildOnDutyEntries), touching only what changed: new days are created, changed days updated,
+ * days no longer in the schedule deleted, unchanged days left alone (planCalendarDiff). Entries are
+ * recognized by `marker` in their description (or, if the list has no description column, by their
+ * "Center: …" title within the month). Hand-made entries are never touched.
+ * Returns { listName, created, updated, deleted, unchanged, failed }.
  */
 export async function syncOnDutyCalendar({ siteUrl, pageName, month, marker, entries }) {
   const auth = graphAuth()
@@ -389,8 +392,8 @@ export async function syncOnDutyCalendar({ siteUrl, pageName, month, marker, ent
   const f = await calendarFieldMap(siteId, listId, auth)
 
   // Existing PeopleOS entries for this month
-  const select = [f.title, f.start, f.description].filter(Boolean).join(',')
-  const mine = []
+  const select = [f.title, f.start, f.end, f.description, f.location].filter(Boolean).join(',')
+  const existing = []
   let next = `/sites/${siteId}/lists/${listId}/items?$expand=fields($select=${select})&$top=200`
   while (next) {
     const page = await graphJson(next, auth, 'read the On-duty calendar entries')
@@ -399,28 +402,48 @@ export async function syncOnDutyCalendar({ siteUrl, pageName, month, marker, ent
       const isMine = f.description
         ? String(fl[f.description] || '').includes(marker)
         : /^(Bangalore|Warsaw|Mexico City): /.test(fl.Title || '') && String(fl[f.start] || '').slice(0, 7) === month
-      if (isMine) mine.push(it.id)
+      if (isMine) existing.push({
+        id: it.id, title: fl[f.title], start: Date.parse(fl[f.start]),
+        end: f.end ? Date.parse(fl[f.end]) : undefined,
+        location: f.location ? (fl[f.location] ?? '') : undefined,
+      })
     }
     next = page['@odata.nextLink'] || null
   }
 
+  const plan = planCalendarDiff(entries, existing)
   const base = `/sites/${siteId}/lists/${listId}/items`
-  const deletes = mine.map((id) => ({ method: 'DELETE', url: `${base}/${id}` }))
-  const creates = entries.map((e) => {
+  const fieldsOf = (e) => {
     const fields = { [f.title]: e.title, [f.start]: e.start }
     if (f.end) fields[f.end] = e.end
     if (f.description) fields[f.description] = e.description
     if (f.location) fields[f.location] = e.location
     if (f.allDay) fields[f.allDay] = false
-    return { method: 'POST', url: base, headers: { 'Content-Type': 'application/json' }, body: { fields } }
+    return fields
+  }
+  const json = { 'Content-Type': 'application/json' }
+  return runCalendarPlan(plan, listName, auth, {
+    create: (e) => ({ method: 'POST', url: base, headers: json, body: { fields: fieldsOf(e) } }),
+    update: (id, e) => ({ method: 'PATCH', url: `${base}/${id}/fields`, headers: json, body: fieldsOf(e) }),
+    remove: (id) => ({ method: 'DELETE', url: `${base}/${id}` }),
   })
+}
+
+/** Sends a planCalendarDiff plan as $batch calls (deletes first) and counts what went through. */
+async function runCalendarPlan(plan, listName, auth, req) {
+  const deletes = plan.deletes.map(req.remove)
+  const writes = [...plan.updates.map((u) => req.update(u.id, u.entry)), ...plan.creates.map(req.create)]
   const failedDeletes = await graphBatch(deletes, auth)
-  const failedCreates = await graphBatch(creates, auth)
+  const failedWrites = await graphBatch(writes, auth)
+  const failedOf = (method) => failedWrites.filter((r) => r.method === method).length
   return {
     listName,
+    created: plan.creates.length - failedOf('POST'),
+    updated: plan.updates.length - failedOf('PATCH'),
     deleted: deletes.length - failedDeletes.length,
-    created: creates.length - failedCreates.length,
-    failed: failedDeletes.length + failedCreates.length,
+    unchanged: plan.unchanged,
+    failed: failedDeletes.length + failedWrites.length,
+    allWritesForbidden: writes.length > 0 && failedWrites.length === writes.length && failedWrites.every((r) => r.status === 403),
   }
 }
 
@@ -449,16 +472,20 @@ async function syncGroupCalendar({ siteId, groupId, month, marker, entries, auth
   if (info && !tokenHasAnyScope(info, GROUP_CALENDAR_SCOPES)) throw groupPermissionError()
   const gid = groupId || await groupIdForSite(siteId, auth)
 
-  // This month's PeopleOS events (a day of margin each side for time-zone spill-over)
+  // This month's PeopleOS events (a day of margin each side for time-zone spill-over), times in UTC
   const [y, m] = month.split('-').map(Number)
   const from = new Date(Date.UTC(y, m - 1, 0)).toISOString()
   const to = new Date(Date.UTC(y, m, 2)).toISOString()
-  const mine = []
-  let next = `/groups/${gid}/calendar/calendarView?startDateTime=${from}&endDateTime=${to}&$select=id,subject,bodyPreview&$top=200`
+  const utcMs = (t) => Date.parse(`${String(t?.dateTime || '').slice(0, 19)}Z`)
+  const existing = []
+  let next = `/groups/${gid}/calendar/calendarView?startDateTime=${from}&endDateTime=${to}&$select=id,subject,bodyPreview,start,end,location&$top=200`
   try {
     while (next) {
-      const page = await graphJson(next, auth, 'read the group calendar')
-      for (const ev of page.value || []) if (String(ev.bodyPreview || '').includes(marker)) mine.push(ev.id)
+      const page = await graphJson(next, auth, 'read the group calendar', { headers: { Prefer: 'outlook.timezone="UTC"' } })
+      for (const ev of page.value || []) {
+        if (!String(ev.bodyPreview || '').includes(marker)) continue
+        existing.push({ id: ev.id, title: ev.subject, start: utcMs(ev.start), end: utcMs(ev.end), location: ev.location?.displayName ?? '' })
+      }
       next = page['@odata.nextLink'] || null
     }
   } catch (e) {
@@ -466,25 +493,19 @@ async function syncGroupCalendar({ siteId, groupId, month, marker, entries, auth
     throw e
   }
 
-  const deletes = mine.map((id) => ({ method: 'DELETE', url: `/groups/${gid}/events/${id}` }))
-  const creates = entries.map((e) => ({
-    method: 'POST', url: `/groups/${gid}/events`, headers: { 'Content-Type': 'application/json' },
-    body: {
-      subject: e.title,
-      body: { contentType: 'text', content: e.description },
-      start: { dateTime: graphUtc(e.start), timeZone: 'UTC' },
-      end: { dateTime: graphUtc(e.end), timeZone: 'UTC' },
-      location: { displayName: e.location },
-      isReminderOn: false, showAs: 'free', responseRequested: false,
-    },
-  }))
-  const failedDeletes = await graphBatch(deletes, auth)
-  const failedCreates = await graphBatch(creates, auth)
-  if (creates.length && failedCreates.length === creates.length && failedCreates.every((r) => r.status === 403)) throw groupPermissionError()
-  return {
-    listName: 'Microsoft 365 group calendar',
-    deleted: deletes.length - failedDeletes.length,
-    created: creates.length - failedCreates.length,
-    failed: failedDeletes.length + failedCreates.length,
-  }
+  const eventOf = (e) => ({
+    subject: e.title,
+    body: { contentType: 'text', content: e.description },
+    start: { dateTime: graphUtc(e.start), timeZone: 'UTC' },
+    end: { dateTime: graphUtc(e.end), timeZone: 'UTC' },
+    location: { displayName: e.location },
+  })
+  const json = { 'Content-Type': 'application/json' }
+  const result = await runCalendarPlan(planCalendarDiff(entries, existing), 'Microsoft 365 group calendar', auth, {
+    create: (e) => ({ method: 'POST', url: `/groups/${gid}/events`, headers: json, body: { ...eventOf(e), isReminderOn: false, showAs: 'free', responseRequested: false } }),
+    update: (id, e) => ({ method: 'PATCH', url: `/groups/${gid}/events/${id}`, headers: json, body: eventOf(e) }),
+    remove: (id) => ({ method: 'DELETE', url: `/groups/${gid}/events/${id}` }),
+  })
+  if (result.allWritesForbidden) throw groupPermissionError()
+  return result
 }

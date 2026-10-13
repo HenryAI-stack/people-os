@@ -298,7 +298,8 @@ export default function WorkSchedule() {
     // Members should only be able to view: that comes from the folder's own permissions (one-time
     // setup, see INSTALLATION.md) — here we just verify it and warn if it isn't so.
     const access = await checkMembersAccess(res)
-    // On-duty calendar: replace this month's PeopleOS entries (one per center per day). Never fails
+    // On-duty calendar: sync this month's PeopleOS entries (one per center per day), changing only
+    // the days that differ. Never fails
     // the upload — the result (or the reason it didn't work) is shown in the Teams modal.
     let calendar
     try {
@@ -307,7 +308,7 @@ export default function WorkSchedule() {
     } catch (e) { calendar = { ok: false, error: e.message } }
     // Ready-to-paste Teams announcement → clipboard. Copying can be refused this long after the
     // click (Safari/iOS especially); the "Share in Teams" modal then offers a Copy button.
-    const msg = teamsMessage(month, res, calendar.ok && calendar.created > 0)
+    const msg = teamsMessage(month, res, calendar.ok && calendar.failed === 0)
     const copied = await copyRichText(msg.html, msg.text)
     setTeamsPost({ ...msg, webUrl: res.webUrl, name: res.name, replaced: res.replaced, access: access.status, calendar, copied })
   }
@@ -712,6 +713,15 @@ function escapeHtml(s) {
 }
 
 /** Short channel post: plain text (any app) + HTML (Teams keeps the bold title and the link). */
+/** "📅 On-duty calendar updated in “…”: 2 changed, 1 added, 90 unchanged ✓" (only the non-zero parts). */
+function calendarSummary(c) {
+  const parts = [[c.updated, 'changed'], [c.created, 'added'], [c.deleted, 'removed'], [c.failed, 'failed']]
+    .filter(([n]) => n > 0).map(([n, what]) => `${n} ${what}`)
+  if (!parts.length) return `📅 On-duty calendar already up to date in “${c.listName}” (${c.unchanged} ${c.unchanged === 1 ? 'entry' : 'entries'}, nothing changed) ✓`
+  if (c.unchanged) parts.push(`${c.unchanged} unchanged`)
+  return `📅 On-duty calendar updated in “${c.listName}”: ${parts.join(', ')}${c.failed ? '' : ' ✓'}`
+}
+
 function teamsMessage(month, { webUrl, replaced }, calendarUpdated = false) {
   const m = monthLabel(month)
   const title = replaced ? `📅 24/7 work schedule updated: ${m}` : `📅 New 24/7 work schedule published: ${m}`
@@ -749,10 +759,7 @@ function TeamsPostModal({ post, folder, onCopy, onClose }) {
       <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
         ☁️ <strong style={{ color: 'var(--text)' }}>{post.name}</strong> {post.replaced ? 'updated' : 'uploaded'} on SharePoint.<br />{statusLine}
         {post.calendar && <><br />{post.calendar.ok
-          ? <span style={{ color: post.calendar.failed ? 'var(--warn)' : 'var(--good)' }}>
-              📅 On-duty calendar updated: {post.calendar.created} {post.calendar.created === 1 ? 'entry' : 'entries'} in “{post.calendar.listName}”
-              {post.calendar.deleted > 0 && <> (replaced {post.calendar.deleted} old)</>}{post.calendar.failed > 0 && <>, {post.calendar.failed} failed</>}{!post.calendar.failed && ' ✓'}
-            </span>
+          ? <span style={{ color: post.calendar.failed ? 'var(--warn)' : 'var(--good)' }}>{calendarSummary(post.calendar)}</span>
           : <span style={{ color: 'var(--warn)' }}>⚠ On-duty calendar not updated: {post.calendar.error}</span>}</>}
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: post.copied ? 'var(--good)' : 'var(--text-dim)' }}>

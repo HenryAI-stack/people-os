@@ -216,8 +216,8 @@ Browser (React SPA)
     the modal shows whether it was copied and a "📋 Copy message" button that runs on a fresh click.
     It also shows a preview, "Open file" and "Done". There's no Teams API call: posting stays
     manual by design.
-    **On-duty calendar:** every upload also replaces that month's entries in the site's On-duty
-    calendar. The team opens it as a *page*, `ONDUTY_CALENDAR_PAGE` = `SitePages/On-Duty-Calendar.aspx`
+    **On-duty calendar:** every upload also syncs that month's entries in the site's On-duty
+    calendar, changing only what differs (see "Update-only-what-changed" below). The team opens it as a *page*, `ONDUTY_CALENDAR_PAGE` = `SitePages/On-Duty-Calendar.aspx`
     in `WorkSchedule.jsx`. `syncOnDutyCalendar()` (msGraph.js) reads that page via Graph
     (`/pages/{id}/microsoft.graph.sitePage?$expand=canvasLayout`), takes the list id from its Events
     web part (`20745d7d-…`) or any web part with a `…ListId` GUID property, and falls back to a
@@ -226,26 +226,37 @@ Browser (React SPA)
     returns `{ kind: 'group', groupId }` (from the web part's `groupId`-like property, else
     `groupIdForSite()` = `/sites/{id}/drive?$select=owner` → `owner.group.id`) and
     `syncGroupCalendar()` writes Outlook events instead: `calendarView` over the month (±2 days,
-    paged) finds events whose `bodyPreview` has the marker, deletes them via
-    `DELETE /groups/{gid}/events/{id}`, then `POST /groups/{gid}/events` (UTC `start`/`end`,
-    `isReminderOn: false`, `showAs: 'free'`, `responseRequested: false`). This needs
+    paged, `Prefer: outlook.timezone="UTC"` so start/end compare as UTC) finds events whose
+    `bodyPreview` has the marker; then `POST /groups/{gid}/events` for new days (UTC `start`/`end`,
+    `isReminderOn: false`, `showAs: 'free'`, `responseRequested: false`), `PATCH
+    /groups/{gid}/events/{id}` for changed ones, `DELETE` for days gone. This needs
     **Group.ReadWrite.All** (`GROUP_CALENDAR_SCOPES` in settings.js; a ✓/✗ row on the Settings
     page): without it in the token's `scp`, it throws before writing anything, and all-403
-    creates throw the same message. Known side effect: group members who follow the group in their
-    inbox get an email per created event (~90 per month), accepted by the user.
+    writes throw the same message. Known side effect: group members who follow the group in their
+    inbox get an email per created/changed event — ~90 on a month's first upload, then only for the
+    days that actually changed (the reason for update-only-what-changed; accepted by the user).
     `calendarFieldMap()` maps columns (classic Events: Title/EventDate/EndDate/Description/
     Location/fAllDayEvent; otherwise the first start/end-looking dateTime columns). Entries come
     from `onDutyCalendar.js`'s pure `buildOnDutyEntries(month, schedule)`: **one per center per
     day**, title "Bangalore: Ravi Kumar, Priya Sharma", spanning that center's shift via
     `onDuty.js`'s `shiftWindow()` (local hours → UTC instants, DST-correct, shared with the
-    Dashboard timeline). Cleared assignments and empty days are skipped. **Replace semantics:**
-    each entry's description carries `calendarMarker(month)` = `[PeopleOS YYYY-MM]`. A re-upload
-    deletes only items with that marker (or, without a description column, "Center: …" titles in
-    that month) before creating the new ones, so hand-made entries are never touched. Deletes and
-    creates go through Graph `$batch` (20 per call, 429s retried with Retry-After). The calendar
-    step never fails the upload. The Teams modal shows "📅 On-duty calendar updated: N entries in
-    "…"" (or the error), and the Teams message adds "The On-duty calendar is updated as well."
-    only when it worked.
+    Dashboard timeline). Cleared assignments and empty days are skipped. **Update-only-what-changed:**
+    each entry's description carries `calendarMarker(month)` = `[PeopleOS YYYY-MM]`, which is how
+    PeopleOS recognizes its own items (or, without a description column, "Center: …" titles in that
+    month), so hand-made entries are never touched. `onDutyCalendar.js`'s pure
+    `planCalendarDiff(entries, existing)` matches existing items to entries by center (title
+    prefix) + that center's *local* date of the item's start, so a day whose hours changed (e.g.
+    the Warsaw winter switch) is PATCHed, not duplicated. Equal title/start/end/location →
+    untouched; different → update; no existing item → create; leftover items and duplicates (one
+    center-day twice) → delete. The description isn't compared (it only repeats center/hours/marker).
+    Both paths (`syncOnDutyCalendar` for a list: PATCH `…/items/{id}/fields`; `syncGroupCalendar`)
+    hand the plan to `runCalendarPlan()`, which sends it via Graph `$batch` (deletes first; 20 per
+    call, 429s retried with Retry-After) and returns `{ listName, created, updated, deleted,
+    unchanged, failed }`. Earlier versions deleted and re-created every entry on each upload; don't
+    go back to that (it re-sent ~90 emails per upload). The calendar step never fails the upload.
+    The Teams modal shows `calendarSummary()`: "📅 On-duty calendar updated in "…": 2 changed,
+    1 added, 90 unchanged ✓", or "already up to date … nothing changed", or the error. The Teams
+    message adds "The On-duty calendar is updated as well." when the sync had no failures.
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
@@ -489,8 +500,9 @@ src/
     onDuty.js          getShiftTimeline — who's on 24/7 duty now / before / next, from saved
                        schedules + each center's local shift hours (Dashboard); shiftWindow()
                        (one center-day's shift as UTC instants) is shared with onDutyCalendar.js
-    onDutyCalendar.js  buildOnDutyEntries()/calendarMarker() — the SharePoint On-duty calendar
-                       entries for a month (pure; msGraph.js's syncOnDutyCalendar() writes them)
+    onDutyCalendar.js  buildOnDutyEntries()/calendarMarker()/planCalendarDiff() — the SharePoint
+                       On-duty calendar entries for a month and the create/update/delete plan
+                       against what's there (pure; msGraph.js's syncOnDutyCalendar() writes them)
     cadence.js         lastOneOnOne/cadenceBadge/isOverdue — 1:1 cadence derived from
                        interviews, used by Dashboard.jsx and DirectReports.jsx
     birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —

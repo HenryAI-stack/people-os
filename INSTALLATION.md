@@ -346,8 +346,9 @@ The target site and folder are the `SHAREPOINT_SITE` / `SHAREPOINT_FOLDER` const
 
 Every upload also updates the site's **On-duty calendar** (the `On-Duty-Calendar.aspx` page). For
 each day and center there's one entry, e.g. "Bangalore: Ravi Kumar, Priya Sharma", covering that
-center's shift hours. It shows in each viewer's own time zone. Uploading a month again replaces the
-entries PeopleOS made for that month; entries added by hand stay. PeopleOS finds the calendar's list
+center's shift hours. It shows in each viewer's own time zone. Uploading a month again only
+changes the days that differ from what's already in the calendar (changed days are updated, new
+days added, removed days deleted); unchanged days and entries added by hand stay as they are. PeopleOS finds the calendar's list
 through the page itself. The page name is the `ONDUTY_CALENDAR_PAGE` constant in
 `src/pages/WorkSchedule.jsx`.
 
@@ -363,7 +364,8 @@ but only with one more permission: **Group.ReadWrite.All**.
 
 Without it, the upload still works, nothing is written to the calendar, and the "Share in Teams"
 window says the permission is missing. Note: group members who follow the group in their inbox
-get an email for each new calendar event (about 90 per uploaded month). They can switch that off
+get an email for each new or changed calendar event: about 90 on a month's first upload, then only
+for the days that changed on later uploads. They can switch that off
 under the group's settings ("Following in inbox" → "Receive only replies to you").
 
 ### Make uploaded schedules view-only for site Members (one-time, needs site Owner)
