@@ -192,8 +192,17 @@ Browser (React SPA)
     `/drives/{d}/items/{i}/permissions` after each upload and reports `readOnly` / `canEdit` /
     `unknown`, using the permission whose `grantedToV2.siteGroup.displayName` ends in "Members"
     (roles other than `read` = can edit). `unknown` covers non-owners, to whom Graph shows only
-    part of the list. It never throws. `WorkSchedule.jsx` turns that into the upload toast
-    ("Members can view only ✓", a `tone: 'warn'` toast if they can edit, or "couldn't verify").
+    part of the list. It never throws. `WorkSchedule.jsx` shows the result in the post-upload
+    `TeamsPostModal` ("Members can view only ✓", an amber warning if they can edit, or "couldn't
+    verify"). **Teams announcement:** after each upload, `teamsMessage(month, res)` builds a short
+    channel post: "📅 New 24/7 work schedule published: October 2026" (or "…updated…" when the
+    file was replaced), one sentence, and the file's SharePoint link. `copyRichText()` puts it on the
+    clipboard as `text/html` (Teams keeps the bold title and link) plus `text/plain` via
+    `ClipboardItem`, falling back to `writeText`. It never throws, it just returns false.
+    Browsers, especially Safari/iOS, may refuse a clipboard write this long after the click, so
+    the modal shows whether it was copied and a "📋 Copy message" button that runs on a fresh click.
+    It also shows a preview, "Open file" and "Done". There's no Teams API call: posting stays
+    manual by design.
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
