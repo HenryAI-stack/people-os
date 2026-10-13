@@ -30,7 +30,8 @@ export default function Settings() {
         <h3 style={{ marginTop: 0, marginBottom: 6 }}>Microsoft Graph token</h3>
         <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
           Powers the "Sync to Outlook" buttons on the Follow-ups page — they push follow-ups
-          into a <strong>PeopleOS Follow-ups</strong> list in Microsoft To Do. Graph Explorer
+          into a <strong>PeopleOS Follow-ups</strong> list in Microsoft To Do — and the Work
+          Schedule's <strong>Upload to SharePoint</strong> button. Graph Explorer
           tokens expire after about an hour, so come back and paste a fresh one here whenever
           sync starts failing with an expired-token error.
         </p>
@@ -41,6 +42,11 @@ export default function Settings() {
               Microsoft Graph Explorer
             </a>{' '}
             and sign in with your Outlook / Microsoft 365 account.
+          </li>
+          <li>
+            <em>For Upload to SharePoint (one-time):</em> click your profile picture →{' '}
+            <strong>Consent to permissions</strong> (or the <strong>Modify permissions</strong> tab), search
+            for <strong>Sites.ReadWrite.All</strong> and click <strong>Consent</strong>.
           </li>
           <li>Click your profile picture in the top right, then <strong>Access token</strong>, and copy the whole thing.</li>
           <li>Paste it below and click Save. It only lives in this browser's local storage.</li>

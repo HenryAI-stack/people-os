@@ -179,7 +179,13 @@ export function buildScheduleWorkbook(workbook, month, people, schedule) {
  * exceljs (~270KB gzipped) is dynamically imported here rather than at the top
  * of the file, so it's only ever downloaded when someone actually exports —
  * not added to every page's bundle. */
-export async function downloadScheduleExcel(month, people, schedule) {
+export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+/**
+ * Builds the schedule .xlsx in the browser (exceljs dynamically imported — its own chunk).
+ * Shared by "Export Excel" (download) and "Upload to SharePoint", so both produce the same file.
+ */
+export async function buildScheduleExcelFile(month, people, schedule) {
   const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'PeopleOS'
@@ -188,11 +194,16 @@ export async function downloadScheduleExcel(month, people, schedule) {
   buildScheduleWorkbook(workbook, month, people, schedule)
 
   const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  return { buffer, filename: `work-schedule-${month}.xlsx`, mimeType: XLSX_MIME }
+}
+
+export async function downloadScheduleExcel(month, people, schedule) {
+  const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
+  const blob = new Blob([buffer], { type: mimeType })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `work-schedule-${month}.xlsx`
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   a.remove()

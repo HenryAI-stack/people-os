@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS } from '../lib/scheduleGenerator.js'
-import { downloadScheduleExcel } from '../lib/scheduleExcel.js'
+import { downloadScheduleExcel, buildScheduleExcelFile } from '../lib/scheduleExcel.js'
+import { uploadFileToSharePoint } from '../lib/msGraph.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
 import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
@@ -10,6 +11,8 @@ import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
 const TEAM_NAME = '24/7 Core Operations'
+// "Upload to SharePoint" target: this site's default document library (Shared Documents), root folder.
+const SHAREPOINT_SITE = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // dateStr is a plain 'YYYY-MM-DD' calendar date with no timezone of its own.
@@ -57,9 +60,10 @@ export default function WorkSchedule() {
   const [shiftModal,  setShiftModal]  = useState(null)  // { date, center, personId } — click-to-swap/remove
   const [exportingExcel, setExportingExcel] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-  const [toast, setToast] = useState('')
+  const [uploadingSp, setUploadingSp] = useState(false)
+  const [toast, setToast] = useState(null)  // { msg, href?, linkLabel? }
 
-  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 4000) }
+  function showToast(msg, link) { setToast({ msg, ...link }); setTimeout(() => setToast(null), link ? 9000 : 4000) }
 
   // Auto-save 1.5s after any change to the schedule
   useEffect(() => {
@@ -251,9 +255,23 @@ export default function WorkSchedule() {
     setSendingEmail(true); setError('')
     try {
       await sendScheduleEmailNow(month)
-      showToast(`📧 Schedule email for ${month} queued — check your inbox in a minute.`)
+      showToast(`📧 Schedule email for ${month} queued — check your inbox in a minute.`, { href: SCHEDULE_ACTIONS_URL, linkLabel: 'View run →' })
     } catch (e) { setError(e.message) }
     finally { setSendingEmail(false) }
+  }
+
+  // ── Upload to SharePoint ─────────────────────────────────────────────────
+  // Builds the same .xlsx as "Export Excel" and PUTs it into the 24/7 site's Shared Documents
+  // via Microsoft Graph (token from the Settings page). Re-uploading a month replaces the file;
+  // SharePoint keeps the previous one in its version history.
+  async function handleUploadSharePoint() {
+    setUploadingSp(true); setError(''); setToast(null)
+    try {
+      const { buffer, filename, mimeType } = await buildScheduleExcelFile(month, people, schedule)
+      const res = await uploadFileToSharePoint({ siteUrl: SHAREPOINT_SITE, filename, data: buffer, contentType: mimeType })
+      showToast(`☁️ ${res.name} ${res.replaced ? 'updated' : 'uploaded'} on SharePoint.`, { href: res.webUrl, linkLabel: 'Open →' })
+    } catch (e) { setError(e.message) }
+    finally { setUploadingSp(false) }
   }
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -337,6 +355,12 @@ export default function WorkSchedule() {
             <button className="btn" onClick={handleSendEmail} disabled={sendingEmail} style={{ fontSize:13 }}
               title={`Email the ${month} schedule (PDF + Excel) — recipient set by SCHEDULE_EMAIL_TO in schedule-email.yml`}>
               {sendingEmail ? '⏳ Queuing…' : '📧 Send via Email'}
+            </button>
+          )}
+          {schedule && (
+            <button className="btn" onClick={handleUploadSharePoint} disabled={uploadingSp} style={{ fontSize:13 }}
+              title="Upload this month's Excel file to the 24/7 Core Operations SharePoint (Shared Documents)">
+              {uploadingSp ? '⏳ Uploading…' : '☁️ Upload to SharePoint'}
             </button>
           )}
         </div>
@@ -531,8 +555,8 @@ export default function WorkSchedule() {
 
       {toast && (
         <div className="no-print" style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-card)', border: '1px solid var(--good)', color: 'var(--good)', borderRadius: 10, padding: '11px 20px', fontSize: 13.5, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 100, maxWidth: '90vw' }}>
-          {toast}{' '}
-          <a href={SCHEDULE_ACTIONS_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--good)', textDecoration: 'underline' }}>View run →</a>
+          {toast.msg}{' '}
+          {toast.href && <a href={toast.href} target="_blank" rel="noreferrer" style={{ color: 'var(--good)', textDecoration: 'underline' }}>{toast.linkLabel}</a>}
         </div>
       )}
     </div>

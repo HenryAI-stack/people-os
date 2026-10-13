@@ -163,6 +163,19 @@ Browser (React SPA)
     appeared to work one-way. Comparing real timestamps directly has no such gap.
   - Deleting a follow-up (`handleDelete`) also best-effort deletes its linked Outlook task,
     so it doesn't reappear as an "imported" follow-up on the next sync.
+  - The same token also powers the Work Schedule's **"☁️ Upload to SharePoint"** button:
+    `uploadFileToSharePoint({ siteUrl, folder, filename, data, contentType })` (bottom of
+    `msGraph.js`) resolves the site (`GET /sites/{host}:{path}`) and PUTs the file to its
+    default document library — "Shared Documents" — via
+    `/sites/{id}/drive/root:/{path}:/content` (simple upload; fine for these small files). 201 =
+    new file, 200 = replaced (SharePoint keeps the old one as a version). This needs a
+    SharePoint write permission the To Do sync didn't: the Graph Explorer token must have
+    **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented; a 403 is turned into an error
+    saying exactly that, and the Settings page instructions include the one-time consent step.
+    The target is `SHAREPOINT_SITE` in `WorkSchedule.jsx`
+    (`https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations`, library root); the file is
+    the same `work-schedule-YYYY-MM.xlsx` "Export Excel" downloads: both go through
+    `scheduleExcel.js`'s `buildScheduleExcelFile()`, which returns `{ buffer, filename, mimeType }`.
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
@@ -379,13 +392,16 @@ src/
     crypto.js          AES encrypt/decrypt helpers
     ai.js              chat() helper — the only LLM call site (OpenRouter)
     autoTags.js        Prompts on top of ai.js: tags / takeaways / follow-up topics
-    msGraph.js         Microsoft Graph push of follow-ups to Microsoft To Do
+    msGraph.js         Microsoft Graph: follow-ups ↔ Microsoft To Do sync, plus
+                       uploadFileToSharePoint() for the Work Schedule's SharePoint upload
     githubActions.js   Fires the accomplishments-email and schedule-email workflows via
                        workflow_dispatch
     scheduleGenerator.js  CENTERS + generateSchedule() rota builder for WorkSchedule
     scheduleExcel.js   buildScheduleWorkbook() (shared with scripts/send-schedule-email.mjs)
-                       + downloadScheduleExcel() — multi-sheet .xlsx export of the work
-                       schedule via exceljs (dynamically imported, its own chunk, browser only)
+                       + buildScheduleExcelFile() (→ { buffer, filename, mimeType }, shared by
+                       "Export Excel" and "Upload to SharePoint") + downloadScheduleExcel() —
+                       multi-sheet .xlsx of the work schedule via exceljs (dynamically imported,
+                       its own chunk)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
     onDuty.js          getShiftTimeline — who's on 24/7 duty now / before / next, from saved
                        schedules + each center's local shift hours (Dashboard)
