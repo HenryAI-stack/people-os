@@ -170,8 +170,14 @@ Browser (React SPA)
     `/sites/{id}/drive/root:/{path}:/content` (simple upload; fine for these small files). 201 =
     new file, 200 = replaced (SharePoint keeps the old one as a version). This needs a
     SharePoint write permission the To Do sync didn't: the Graph Explorer token must have
-    **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented; a 403 is turned into an error
-    saying exactly that, and the Settings page instructions include the one-time consent step.
+    **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented. In UL's tenant that permission is
+    already admin-granted for Graph Explorer: it shows greyed out with consent type
+    **"AllPrincipals"** (tenant-wide admin consent), so there's no Consent button and nothing to do.
+    `settings.js`'s `getMsGraphTokenInfo()` decodes the pasted token's JWT payload (`scp`, `exp`,
+    `upn`; display-only, no signature check) so the Settings page's `TokenStatus` shows expiry and
+    ✓/✗ for "Outlook / To Do sync" (`TODO_SCOPES`) and "Upload to SharePoint"
+    (`SHAREPOINT_WRITE_SCOPES`). The 403 handler uses the same info to tell "token lacks the
+    permission" apart from "account lacks edit rights on the site/folder".
     The target is `SHAREPOINT_SITE` + `SHAREPOINT_FOLDER` in `WorkSchedule.jsx`
     (`https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations`, folder `Work schedule` inside
     Shared Documents; Graph's path-based upload creates the folder if it's missing); the file is
@@ -434,9 +440,10 @@ src/
                         converter; also the one Intl wall-clock↔instant helper set
                         (zonedToUtc/localDateStr/localTimeStr) that onDuty.js imports too
     imageUtils.js      Client-side avatar photo resizing before storing as base64
-    settings.js        Browser-local (localStorage) user settings — currently just
-                        getMsGraphToken()/setMsGraphToken(), read by msGraph.js and
-                        written by the Settings page
+    settings.js        Browser-local (localStorage) user settings — getMsGraphToken()/
+                        setMsGraphToken() (read by msGraph.js, written by the Settings page),
+                        plus getMsGraphTokenInfo()/tokenHasAnyScope() + TODO_SCOPES/
+                        SHAREPOINT_WRITE_SCOPES: decodes the token's scopes/expiry for display
     pwa.js             Service-worker registration + update banner state, install prompt
                         capture (subscribePwa/applyUpdate/promptInstall/isStandalone/isIOS)
   sw-template.js       Service-worker source; NOT imported — vite.config.js's serviceWorker()

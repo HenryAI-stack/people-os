@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMsGraphToken, setMsGraphToken } from '../lib/settings.js'
+import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES } from '../lib/settings.js'
 import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
 
 export default function Settings() {
@@ -45,8 +45,10 @@ export default function Settings() {
           </li>
           <li>
             <em>For Upload to SharePoint (one-time):</em> click your profile picture →{' '}
-            <strong>Consent to permissions</strong> (or the <strong>Modify permissions</strong> tab), search
-            for <strong>Sites.ReadWrite.All</strong> and click <strong>Consent</strong>.
+            <strong>Consent to permissions</strong> (or the <strong>Modify permissions</strong> tab) and search
+            for <strong>Sites.ReadWrite.All</strong>. If it has a <strong>Consent</strong> button, click it. If it's
+            greyed out with consent type <strong>AllPrincipals</strong>, an admin has already granted it for
+            everyone, so there's nothing to do. The token check below confirms it either way.
           </li>
           <li>Click your profile picture in the top right, then <strong>Access token</strong>, and copy the whole thing.</li>
           <li>Paste it below and click Save. It only lives in this browser's local storage.</li>
@@ -75,15 +77,51 @@ export default function Settings() {
           </div>
         </form>
 
-        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-faint)' }}>
-          {token
-            ? <>Status: token set, ending in <code>{token.slice(-6)}</code>.</>
-            : 'Status: no token set — Outlook sync will show an error until one is added.'}
-        </div>
+        <TokenStatus token={token.trim()} />
       </div>
 
       <InstallCard />
     </>
+  )
+}
+
+// What the pasted Graph token can do — read from the token itself (settings.js, display-only).
+function TokenStatus({ token }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t) }, [])
+  const box = { marginTop: 14, fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.7 }
+  if (!token) return <div style={box}>Status: no token set — Outlook sync and SharePoint upload will show an error until one is added.</div>
+
+  const info = getMsGraphTokenInfo(token)
+  if (!info) return <div style={box}>Status: token set, ending in <code>{token.slice(-6)}</code> (its details couldn't be read — it will still be tried as-is).</div>
+
+  const mins = info.expiresAt ? Math.round((info.expiresAt.getTime() - now) / 60000) : null
+  const expired = mins !== null && mins <= 0
+  const ready = (hasScope, label, need) => {
+    const ok = hasScope && !expired
+    return (
+      <div><span style={{ color: ok ? 'var(--good)' : 'var(--bad)', fontWeight: 600 }}>{ok ? '✓' : '✗'}</span> {label}
+        {!hasScope ? <span style={{ color: 'var(--text-faint)' }}> — needs {need}</span>
+          : expired ? <span style={{ color: 'var(--text-faint)' }}> — token expired</span> : null}</div>
+    )
+  }
+  return (
+    <div style={box}>
+      <div>
+        Token{info.account ? <> for <strong>{info.account}</strong></> : ''}:{' '}
+        {mins === null ? 'no expiry info'
+          : expired ? <span style={{ color: 'var(--bad)', fontWeight: 600 }}>expired — paste a fresh one</span>
+          : <span style={{ color: mins < 10 ? 'var(--warn)' : 'var(--good)' }}>valid for {mins} more min</span>}
+      </div>
+      {ready(tokenHasAnyScope(info, TODO_SCOPES), 'Outlook / To Do sync', 'Tasks.ReadWrite')}
+      {ready(tokenHasAnyScope(info, SHAREPOINT_WRITE_SCOPES), 'Upload to SharePoint', 'Sites.ReadWrite.All (or Files.ReadWrite.All)')}
+      <details style={{ marginTop: 4 }}>
+        <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>Permissions in this token ({info.scopes.length})</summary>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+          {info.scopes.map((s) => <span key={s} className="badge" style={{ fontSize: 10.5 }}>{s}</span>)}
+        </div>
+      </details>
+    </div>
   )
 }
 

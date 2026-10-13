@@ -334,8 +334,11 @@ It uses the same Microsoft Graph token as the Outlook sync (Settings page), whic
 needs permission to write to SharePoint. One-time setup in
 [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer): profile picture →
 **Consent to permissions** (or the **Modify permissions** tab) → search **Sites.ReadWrite.All** →
-**Consent**. Then copy a fresh access token to the Settings page as usual. If your organization
-blocks that consent, an admin has to approve it for Graph Explorer.
+**Consent**. If it's greyed out with consent type **AllPrincipals**, an admin has already granted it
+for everyone and there's nothing to do. Then copy a fresh access token to the Settings page as usual.
+Under the token field, the Settings page shows whether the token can do "Upload to SharePoint"
+(✓/✗) and which permissions it contains. If the permission is missing from the token even though
+it's consented, sign out of Graph Explorer and back in, then copy a new token.
 
 The target site and folder are the `SHAREPOINT_SITE` / `SHAREPOINT_FOLDER` constants at the top of
 `src/pages/WorkSchedule.jsx`.
