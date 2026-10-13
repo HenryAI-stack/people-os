@@ -348,10 +348,23 @@ Every upload also updates the site's **On-duty calendar** (the `On-Duty-Calendar
 each day and center there's one entry, e.g. "Bangalore: Ravi Kumar, Priya Sharma", covering that
 center's shift hours. It shows in each viewer's own time zone. Uploading a month again replaces the
 entries PeopleOS made for that month; entries added by hand stay. PeopleOS finds the calendar's list
-through the page itself, so no setup is needed. If the page uses the Microsoft 365 *group*
-calendar instead of a SharePoint list, the upload still works but the "Share in Teams" window says
-the calendar couldn't be updated (that would need an extra permission). The page name is the
-`ONDUTY_CALENDAR_PAGE` constant in `src/pages/WorkSchedule.jsx`.
+through the page itself. The page name is the `ONDUTY_CALENDAR_PAGE` constant in
+`src/pages/WorkSchedule.jsx`.
+
+UL's page shows the site's **Microsoft 365 group calendar**, which PeopleOS writes to as well,
+but only with one more permission: **Group.ReadWrite.All**.
+
+1. In Graph Explorer → **Modify permissions** (or search under permissions), find
+   **Group.ReadWrite.All**.
+2. If it's greyed out with consent type **"AllPrincipals"**, it's already granted for the whole
+   tenant: sign out of Graph Explorer and back in, then copy a fresh token. Otherwise click
+   **Consent**; if that needs an admin, a UL admin has to approve it.
+3. Paste the token in PeopleOS **Settings**. "On-duty calendar (group calendar)" should show ✓.
+
+Without it, the upload still works, nothing is written to the calendar, and the "Share in Teams"
+window says the permission is missing. Note: group members who follow the group in their inbox
+get an email for each new calendar event (about 90 per uploaded month). They can switch that off
+under the group's settings ("Following in inbox" → "Receive only replies to you").
 
 ### Make uploaded schedules view-only for site Members (one-time, needs site Owner)
 

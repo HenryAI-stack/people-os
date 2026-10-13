@@ -28,6 +28,8 @@ export function setMsGraphToken(token) {
 // authority, this is only a hint. Returns null for anything that doesn't parse.
 export const TODO_SCOPES = ['Tasks.ReadWrite']
 export const SHAREPOINT_WRITE_SCOPES = ['Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Sites.Manage.All', 'Sites.FullControl.All']
+// Writing to a Microsoft 365 group calendar (the On-duty calendar page's Group calendar web part).
+export const GROUP_CALENDAR_SCOPES = ['Group.ReadWrite.All']
 
 export function getMsGraphTokenInfo(token = getMsGraphToken()) {
   try {

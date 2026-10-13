@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES } from '../lib/settings.js'
+import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES } from '../lib/settings.js'
 import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
 
 export default function Settings() {
@@ -115,6 +115,7 @@ function TokenStatus({ token }) {
       </div>
       {ready(tokenHasAnyScope(info, TODO_SCOPES), 'Outlook / To Do sync', 'Tasks.ReadWrite')}
       {ready(tokenHasAnyScope(info, SHAREPOINT_WRITE_SCOPES), 'Upload to SharePoint', 'Sites.ReadWrite.All (or Files.ReadWrite.All)')}
+      {ready(tokenHasAnyScope(info, GROUP_CALENDAR_SCOPES), 'On-duty calendar (group calendar)', 'Group.ReadWrite.All')}
       <details style={{ marginTop: 4 }}>
         <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>Permissions in this token ({info.scopes.length})</summary>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
