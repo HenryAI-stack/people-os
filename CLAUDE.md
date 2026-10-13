@@ -221,8 +221,18 @@ Browser (React SPA)
     in `WorkSchedule.jsx`. `syncOnDutyCalendar()` (msGraph.js) reads that page via Graph
     (`/pages/{id}/microsoft.graph.sitePage?$expand=canvasLayout`), takes the list id from its Events
     web part (`20745d7d-…`) or any web part with a `…ListId` GUID property, and falls back to a
-    site list named like "On-duty…" or with the `events` template. A Group-calendar web part
-    (`6676088b-…`) would need Group.ReadWrite.All, so that case throws a clear error instead.
+    site list named like "On-duty…" or with the `events` template. **UL's page actually shows the
+    Microsoft 365 group calendar** (Group-calendar web part `6676088b-…`): `findOnDutyList()` then
+    returns `{ kind: 'group', groupId }` (from the web part's `groupId`-like property, else
+    `groupIdForSite()` = `/sites/{id}/drive?$select=owner` → `owner.group.id`) and
+    `syncGroupCalendar()` writes Outlook events instead: `calendarView` over the month (±2 days,
+    paged) finds events whose `bodyPreview` has the marker, deletes them via
+    `DELETE /groups/{gid}/events/{id}`, then `POST /groups/{gid}/events` (UTC `start`/`end`,
+    `isReminderOn: false`, `showAs: 'free'`, `responseRequested: false`). This needs
+    **Group.ReadWrite.All** (`GROUP_CALENDAR_SCOPES` in settings.js; a ✓/✗ row on the Settings
+    page): without it in the token's `scp`, it throws before writing anything, and all-403
+    creates throw the same message. Known side effect: group members who follow the group in their
+    inbox get an email per created event (~90 per month), accepted by the user.
     `calendarFieldMap()` maps columns (classic Events: Title/EventDate/EndDate/Description/
     Location/fAllDayEvent; otherwise the first start/end-looking dateTime columns). Entries come
     from `onDutyCalendar.js`'s pure `buildOnDutyEntries(month, schedule)`: **one per center per

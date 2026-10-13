@@ -9,7 +9,7 @@
  * Tokens expire after ~1 hour — refresh from Graph Explorer and update it there when
  * sync stops working.
  */
-import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES } from './settings.js'
+import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES } from './settings.js'
 
 const BASE    = 'https://graph.microsoft.com/v1.0/me/todo'
 const LIST_NAME = 'PeopleOS Follow-ups'
@@ -291,6 +291,13 @@ function pageWebParts(page) {
   return out
 }
 
+function findGroupIdProp(obj) {
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (typeof v === 'string' && /group.?id$/i.test(k) && GUID.test(v)) return v.replace(/[{}]/g, '')
+  }
+  return null
+}
+
 /** First property value whose key looks like a list id (selectedListId, listId, …) and holds a GUID. */
 function findListIdProp(obj, depth = 0) {
   if (!obj || typeof obj !== 'object' || depth > 4) return null
@@ -311,25 +318,23 @@ async function findOnDutyList(siteId, pageName, auth) {
       const page = await graphJson(`/sites/${siteId}/pages/${pg.id}/microsoft.graph.sitePage?$expand=canvasLayout`, auth, 'read the On-duty calendar page')
       const parts = pageWebParts(page)
       seen.push(`page web parts: ${parts.map((w) => w.title || w.type).join(', ') || 'none'}`)
-      if (parts.some((w) => w.type === WP_GROUP_CALENDAR)) {
-        throw new Error('The On-duty calendar page shows the Microsoft 365 group calendar. Updating that needs the Group.ReadWrite.All permission, which PeopleOS does not use yet.')
-      }
+      const groupWp = parts.find((w) => w.type === WP_GROUP_CALENDAR)
+      if (groupWp) return { kind: 'group', groupId: findGroupIdProp(groupWp.properties) }
       const wp = parts.find((w) => w.type === WP_EVENTS && findListIdProp(w.properties)) || parts.find((w) => findListIdProp(w.properties))
       if (wp) {
         const listId = findListIdProp(wp.properties)
         const list = await graphJson(`/sites/${siteId}/lists/${listId}?$select=id,displayName`, auth, 'read the On-duty calendar list')
-        return { listId: list.id, listName: list.displayName }
+        return { kind: 'list', listId: list.id, listName: list.displayName }
       }
     } else seen.push(`page "${pageName}" not found`)
   } catch (e) {
-    if (/group calendar/.test(e.message)) throw e
     seen.push(`page lookup failed (${e.message.slice(0, 60)})`)
   }
   // 2) Fallback: a list that looks like the on-duty calendar
   const lists = await graphJson(`/sites/${siteId}/lists?$select=id,displayName,list&$top=200`, auth, 'read the site lists')
   const all = lists.value || []
   const hit = all.find((l) => /on.?duty/i.test(l.displayName)) || all.find((l) => l.list?.template === 'events')
-  if (hit) return { listId: hit.id, listName: hit.displayName }
+  if (hit) return { kind: 'list', listId: hit.id, listName: hit.displayName }
   throw new Error(`Couldn't find the On-duty calendar's list (${seen.join('; ')}; lists: ${all.map((l) => l.displayName).join(', ') || 'none'}).`)
 }
 
@@ -378,7 +383,9 @@ async function graphBatch(requests, auth) {
 export async function syncOnDutyCalendar({ siteUrl, pageName, month, marker, entries }) {
   const auth = graphAuth()
   const siteId = await resolveSiteId(siteUrl, auth)
-  const { listId, listName } = await findOnDutyList(siteId, pageName, auth)
+  const target = await findOnDutyList(siteId, pageName, auth)
+  if (target.kind === 'group') return syncGroupCalendar({ siteId, groupId: target.groupId, month, marker, entries, auth })
+  const { listId, listName } = target
   const f = await calendarFieldMap(siteId, listId, auth)
 
   // Existing PeopleOS entries for this month
@@ -411,6 +418,71 @@ export async function syncOnDutyCalendar({ siteUrl, pageName, month, marker, ent
   const failedCreates = await graphBatch(creates, auth)
   return {
     listName,
+    deleted: deletes.length - failedDeletes.length,
+    created: creates.length - failedCreates.length,
+    failed: failedDeletes.length + failedCreates.length,
+  }
+}
+
+// ── Microsoft 365 group calendar variant ──────────────────────────────────────────────────────
+// Used when the On-duty calendar page shows a Group calendar web part. Needs Group.ReadWrite.All
+// on the token (Microsoft's only delegated permission for group calendars; admin consent). Events
+// are created with reminders off and showAs "free" so they don't block anyone's own calendar.
+// Note: members who follow the group in their inbox get a copy of each group event — that's a
+// group/member setting PeopleOS can't change.
+function groupPermissionError() {
+  return new Error('Your Microsoft token doesn\'t include Group.ReadWrite.All, which the group calendar needs. In Graph Explorer, search for it under permissions: if it\'s greyed out with consent type "AllPrincipals", sign out and back in and copy a fresh token; otherwise a UL admin has to approve it. The Settings page shows whether the token has it.')
+}
+
+/** Group-connected sites: the default document library's owner is the Microsoft 365 group. */
+async function groupIdForSite(siteId, auth) {
+  const drive = await graphJson(`/sites/${siteId}/drive?$select=owner`, auth, 'find the site\'s Microsoft 365 group')
+  const id = drive.owner?.group?.id
+  if (!id) throw new Error('The On-duty calendar is a group calendar, but this site isn\'t connected to a Microsoft 365 group PeopleOS can find.')
+  return id
+}
+
+const graphUtc = (iso) => iso.replace(/\.\d{3}Z$|Z$/, '') // Graph dateTimeTimeZone wants no "Z" when timeZone is given
+
+async function syncGroupCalendar({ siteId, groupId, month, marker, entries, auth }) {
+  const info = getMsGraphTokenInfo()
+  if (info && !tokenHasAnyScope(info, GROUP_CALENDAR_SCOPES)) throw groupPermissionError()
+  const gid = groupId || await groupIdForSite(siteId, auth)
+
+  // This month's PeopleOS events (a day of margin each side for time-zone spill-over)
+  const [y, m] = month.split('-').map(Number)
+  const from = new Date(Date.UTC(y, m - 1, 0)).toISOString()
+  const to = new Date(Date.UTC(y, m, 2)).toISOString()
+  const mine = []
+  let next = `/groups/${gid}/calendar/calendarView?startDateTime=${from}&endDateTime=${to}&$select=id,subject,bodyPreview&$top=200`
+  try {
+    while (next) {
+      const page = await graphJson(next, auth, 'read the group calendar')
+      for (const ev of page.value || []) if (String(ev.bodyPreview || '').includes(marker)) mine.push(ev.id)
+      next = page['@odata.nextLink'] || null
+    }
+  } catch (e) {
+    if (/isn't allowed|refused|token/i.test(e.message)) throw groupPermissionError()
+    throw e
+  }
+
+  const deletes = mine.map((id) => ({ method: 'DELETE', url: `/groups/${gid}/events/${id}` }))
+  const creates = entries.map((e) => ({
+    method: 'POST', url: `/groups/${gid}/events`, headers: { 'Content-Type': 'application/json' },
+    body: {
+      subject: e.title,
+      body: { contentType: 'text', content: e.description },
+      start: { dateTime: graphUtc(e.start), timeZone: 'UTC' },
+      end: { dateTime: graphUtc(e.end), timeZone: 'UTC' },
+      location: { displayName: e.location },
+      isReminderOn: false, showAs: 'free', responseRequested: false,
+    },
+  }))
+  const failedDeletes = await graphBatch(deletes, auth)
+  const failedCreates = await graphBatch(creates, auth)
+  if (creates.length && failedCreates.length === creates.length && failedCreates.every((r) => r.status === 403)) throw groupPermissionError()
+  return {
+    listName: 'Microsoft 365 group calendar',
     deleted: deletes.length - failedDeletes.length,
     created: creates.length - failedCreates.length,
     failed: failedDeletes.length + failedCreates.length,
