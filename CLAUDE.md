@@ -365,6 +365,18 @@ Browser (React SPA)
   Schedules saved before this existed (no `memberIds`) fall back to the whole 24/7 team, as before.
   `WorkSchedule.jsx` loads all direct reports (`allPeople`) and derives `people` from that; its old
   local `TEAM_NAME` is gone, and `send-schedule-email.mjs` imports `SCHEDULE_TEAM` too.
+- **"📈 Overview" (`WorkSchedule.jsx`)**: a toolbar button (shown once a month has a schedule) that
+  opens `ShiftOverviewModal`: everyone on this month's schedule (`people`, i.e. `scheduleMembers`),
+  grouped by center, with two column groups, **this month** and **Total**, each split into Days /
+  Wknd / Hol. Counting is the page-local `countShifts(assignments)`: non-cleared assignments per
+  `personId`; weekend/holiday come from the *date* (`isWeekend`, `getHoliday` with the center's
+  country), not the stored `isWeekend`/`isHoliday` flags, because a drag-and-drop move doesn't update
+  those. A holiday on a weekend counts in both. "This month" uses the on-screen `schedule` (unsaved
+  edits included). "Total" = every saved schedule *before* this month (`schedulesStore.list()`,
+  fetched when the button is clicked) plus this month, so viewing October never counts an
+  already-generated November. The footnote names the month range. On phones the table scrolls
+  sideways inside `.ws-ov-wrap`, with the name column and center headings `position: sticky`.
+  This is display-only: the generator's fairness still uses `fairnessSnapshot`.
 - **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
   plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who

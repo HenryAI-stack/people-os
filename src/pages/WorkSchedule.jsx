@@ -66,6 +66,7 @@ export default function WorkSchedule() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
   const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
+  const [overview,    setOverview]    = useState(null)  // "Overview" modal: { schedules } (null = closed, schedules null = loading)
   const [picker,      setPicker]      = useState(null)  // "Select employees" step before generating: { initial: [ids] }
   const [teamsPost,   setTeamsPost]   = useState(null)  // after an upload: { text, html, webUrl, name, replaced, access, copied }
   const [toast, setToast] = useState(null)  // { msg, href?, linkLabel?, tone?: 'warn' }
@@ -264,6 +265,13 @@ export default function WorkSchedule() {
   function handlePrint() { window.print() }
 
   // ── Excel export ─────────────────────────────────────────────────────────
+  // Worked days / weekends / holidays per person: this month and all saved months up to it.
+  async function openOverview() {
+    setOverview({ schedules: null })
+    try { setOverview({ schedules: await schedulesStore.list() }) }
+    catch (e) { setOverview(null); setError(e.message) }
+  }
+
   async function handleExportExcel() {
     setExportingExcel(true); setError('')
     try { await downloadScheduleExcel(month, people, schedule) }
@@ -413,6 +421,12 @@ export default function WorkSchedule() {
             <button className="btn" onClick={handleSendEmail} disabled={sendingEmail} style={{ fontSize:13 }}
               title={`Email the ${month} schedule (PDF + Excel) — recipient set by SCHEDULE_EMAIL_TO in schedule-email.yml`}>
               {sendingEmail ? '⏳ Queuing…' : '📧 Send via Email'}
+            </button>
+          )}
+          {schedule && (
+            <button className="btn" onClick={openOverview} style={{ fontSize:13 }}
+              title="Worked days, weekends and holidays per person: this month and in total">
+              📈 Overview
             </button>
           )}
           {schedule && (
@@ -595,6 +609,11 @@ export default function WorkSchedule() {
       {/* ── Comment modal ── */}
       {replaceAsk && (
         <ReplaceScheduleModal existing={replaceAsk} month={month} onReplace={confirmReplace} onCancel={() => setReplaceAsk(null)} />
+      )}
+
+      {overview && (
+        <ShiftOverviewModal month={month} people={people} schedule={schedule} schedules={overview.schedules}
+          onClose={() => setOverview(null)} />
       )}
 
       {picker && (
@@ -873,6 +892,98 @@ function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, 
           onClick={() => onGenerate(candidates.filter((p) => selected.has(p.id)).map((p) => p.id))}>
           ✦ Generate for {selected.size} {selected.size === 1 ? 'person' : 'people'}
         </button>
+      </div>
+    </DraggableModal>
+  )
+}
+
+/**
+ * Shift counts per person from a list of assignments → { [personId]: { days, weekends, holidays } }.
+ * Cleared assignments don't count. Weekend/holiday come from the date and the center's country
+ * (not the stored flags, which a drag to another day doesn't update). A shift on a holiday that
+ * falls on a weekend counts as both.
+ */
+function countShifts(assignments) {
+  const out = {}
+  for (const a of assignments || []) {
+    if (a.cleared) continue
+    const c = (out[a.personId] ||= { days: 0, weekends: 0, holidays: 0 })
+    c.days++
+    if (isWeekend(a.date)) c.weekends++
+    if (getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')) c.holidays++
+  }
+  return out
+}
+
+/**
+ * "📈 Overview": everyone on this month's schedule, grouped by center, with worked days / weekends /
+ * holidays for this month (the on-screen schedule, unsaved edits included) and in total over every
+ * saved schedule up to and including this month.
+ */
+function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
+  const loading = !schedules
+  const past = (schedules || []).filter((s) => s.month < month)
+  const months = [...past.map((s) => s.month), month].sort()
+  const thisMonth = countShifts(schedule?.assignments)
+  const total = countShifts([...past.flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])])
+  const zero = { days: 0, weekends: 0, holidays: 0 }
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
+  const cells = (c = zero) => (<>
+    <td className="ws-ov-num ws-ov-first">{c.days}</td><td className="ws-ov-num">{c.weekends}</td><td className="ws-ov-num">{c.holidays}</td>
+  </>)
+  return (
+    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={640}>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>⏳ Loading all schedules…</div> : (<>
+        <div className="ws-ov-wrap">
+          <table className="ws-ov">
+            <thead>
+              <tr>
+                <th rowSpan={2} className="ws-ov-name">Employee</th>
+                <th colSpan={3} className="ws-ov-group">{monthLabel(month)}</th>
+                <th colSpan={3} className="ws-ov-group">Total</th>
+              </tr>
+              <tr>
+                {[0, 1].map((i) => (
+                  <React.Fragment key={i}>
+                    <th className="ws-ov-num ws-ov-first" title="Worked days">Days</th>
+                    <th className="ws-ov-num" title="Of those, on a Saturday or Sunday">Wknd</th>
+                    <th className="ws-ov-num" title="Of those, on a public holiday of the person's country">Hol</th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {CENTERS.map((c) => {
+                const list = people.filter((p) => getCenter(p) === c.id).sort(byName)
+                if (!list.length) return null
+                return (
+                  <React.Fragment key={c.id}>
+                    <tr className="ws-ov-center"><td colSpan={7}>
+                      <span><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label}</span>
+                    </td></tr>
+                    {list.map((p) => (
+                      <tr key={p.id}>
+                        <td className="ws-ov-name">
+                          <span className="ws-ov-person"><Avatar photo={p.photo} name={p.name} size={20} /> {p.name}</span>
+                        </td>
+                        {cells(thisMonth[p.id])}
+                        {cells(total[p.id])}
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
+          Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
+          weekend counts in both). Total covers {months.length === 1 ? 'this month only, the first saved schedule'
+            : `${monthLabel(months[0])} – ${monthLabel(month)} (${months.length} months)`}.
+        </p>
+      </>)}
+      <div className="modal-actions">
+        <button className="btn primary" onClick={onClose}>Close</button>
       </div>
     </DraggableModal>
   )
