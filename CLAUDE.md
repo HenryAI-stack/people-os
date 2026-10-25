@@ -117,7 +117,8 @@ Browser (React SPA)
   builds a tiny CRUD wrapper (`list` / `upsert` / `remove`) around one JSON file in the data
   repo (e.g. `direct-reports.json`). `upsert`/`remove` re-fetch the file's current SHA first
   (`readCollection(filename, true)`) to avoid 409 conflicts; there's a 60s in-memory read
-  cache (`_cache` / `CACHE_TTL`) keyed by filename that writes update in place. Records get
+  cache (`_cache` / `CACHE_TTL`) keyed by filename that writes update in place;
+  `list({ fresh: true })` bypasses it. Records get
   `id` (`crypto.randomUUID()`), `createdAt`, `updatedAt` stamped automatically.
 - **Encryption**: `src/lib/crypto.js` — `encrypt`/`decrypt` via `CryptoJS.AES` using
   `VITE_ENCRYPTION_SECRET` as the passphrase. **This secret must never change once real data
@@ -257,6 +258,30 @@ Browser (React SPA)
     The Teams modal shows `calendarSummary()`: "📅 On-duty calendar updated in "…": 2 changed,
     1 added, 90 unchanged ✓", or "already up to date … nothing changed", or the error. The Teams
     message adds "The On-duty calendar is updated as well." when the sync had no failures.
+- **Workflows (`Workflows.jsx`)**: reusable checklist templates for recurring processes (e.g. the
+  monthly work schedule), nav item "✅ Workflows". Two collections: `workflows.json` (templates:
+  `{ name, description, items }`) and `workflow-runs.json` (runs: `{ workflowId, workflowName, name,
+  items, completedAt }`). Items are `{ id, type: 'step' | 'section', title, notes }`; sections are
+  plain headings in the same ordered array (no nesting), run steps add `done`/`doneAt`. **Starting a
+  run copies the template's items**, so editing a template only affects new runs, never one under
+  way or finished (the editor says so). `completedAt` is set automatically when the last step is
+  ticked and cleared when one is unticked. The editor (`TemplateForm`, a `DraggableModal`) uses ↑/↓
+  buttons rather than drag-and-drop (works on phones); Enter in a step title adds the next step
+  below. Notes are plain text; http(s) URLs in them render as links.
+  **Pop-out window:** "⧉ Open in separate window" calls `popOutRun(id)` → `window.open('#/checklist/:id',
+  'peopleos-checklist-<id>', 'popup,width=460,height=820')` (one named window per run, so clicking
+  again refocuses it). `App.jsx` renders any `/checklist/…` route without the sidebar/topbar
+  (`.popout-shell`); Firebase auth is shared across same-origin windows, so no second login. In-app
+  runs live at `/workflows/run/:id`; both render `WorkflowRun` (`popout` prop). **Sync between
+  windows** is a `BroadcastChannel('peopleos-workflows')`: every tick posts the whole run, other
+  windows (run views and the list page) adopt it immediately, and a window that opens a run posts
+  `hello` so a window holding newer unsaved state replies with it. Only the window where the tick
+  happened writes to GitHub. Writes are **serialised** (`flush()`: one upsert in flight; ticks
+  during it set `dirty` and trigger one more write of the latest state; one retry on failure, e.g. a
+  409 from the other window) — firing an upsert per click raced and lost ticks. A "Saving…/Saved ✓/
+  ⚠ Retry save" indicator shows state, and `beforeunload` warns while a write is pending. Runs are
+  read with `workflowRunsStore.list({ fresh: true })` (bypasses the 60s cache, which is per window
+  and wouldn't see the other window's writes).
 - **Notes**: `Notes.jsx` stores a plain `archived` boolean per record (alongside the existing
   `pinned` one) — no separate collection or soft-delete tombstone. A `showArchived` toggle
   switches the whole page between the active list and the archived list (`!!n.archived ===
@@ -584,6 +609,9 @@ src/
     Notes.jsx          Freeform scratchpad; pin, archive/unarchive, search
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
+    Workflows.jsx      Checklist templates + runs (list page, TemplateForm editor, WorkflowRun
+                        checklist used in-app and as the /checklist/:id pop-out window; exports
+                        popOutRun)
     Settings.jsx       Browser-local settings — the Microsoft Graph token form
                         (backs msGraph.js via settings.js), with instructions for generating
                         one from Graph Explorer, plus the "Install on your phone" PWA card
@@ -636,7 +664,8 @@ scripts/
 
 Data collections (each a JSON file in the **separate, private** data repo — default name
 `people-os-data` — encrypted at rest): `direct-reports.json`, `interviews.json`, `notes.json`,
-`follow-ups.json`, `schedules.json`, `accomplishments.json`.
+`follow-ups.json`, `schedules.json`, `accomplishments.json`, `workflows.json`,
+`workflow-runs.json`.
 
 ## Conventions to follow when editing
 

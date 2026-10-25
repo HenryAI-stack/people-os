@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { onAuth, loginWithGoogle, completeRedirectLogin, logout } from './lib/auth.js'
 import { subscribePwa, applyUpdate } from './lib/pwa.js'
 
@@ -12,6 +12,7 @@ import WorkSchedule  from './pages/WorkSchedule.jsx'
 import Accomplishments from './pages/Accomplishments.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
 import Settings from './pages/Settings.jsx'
+import Workflows, { WorkflowRun } from './pages/Workflows.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
 import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from './lib/worldClock.js'
 
@@ -31,6 +32,8 @@ export default function App() {
   const [collapsed,   setCollapsed]   = usePref('peopleos-sidebar-collapsed', false)
 
   const [navOpen,     setNavOpen]     = useState(false)  // mobile drawer (≤760px only)
+  // A workflow checklist popped out into its own window (window.open) renders without the shell.
+  const popout = useLocation().pathname.startsWith('/checklist/')
 
   useEffect(() => {
     document.body.classList.toggle('light', light)
@@ -53,6 +56,14 @@ export default function App() {
   if (authLoading) return <Centered>Loading PeopleOS…</Centered>
   if (!user)       return <LoginPage onLogin={handleLogin} authError={authError} />
 
+  if (popout) return (
+    <div className="popout-shell">
+      <Routes>
+        <Route path="/checklist/:id" element={<WorkflowRun popout />} />
+      </Routes>
+    </div>
+  )
+
   return (
     <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
       <header className="mobile-topbar">
@@ -74,6 +85,8 @@ export default function App() {
           <Route path="/follow-ups"          element={<FollowUps />} />
           <Route path="/accomplishments"     element={<Accomplishments />} />
           <Route path="/work-schedule"       element={<WorkSchedule />} />
+          <Route path="/workflows"           element={<Workflows />} />
+          <Route path="/workflows/run/:id"   element={<WorkflowRun />} />
           <Route path="/settings"            element={<Settings />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
@@ -95,6 +108,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onNa
           <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
           <NavLink to="/accomplishments" title="Accomplishments"><span className="nav-icon">🏆</span><span className="nav-label">Accomplishments</span></NavLink>
           <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
+          <NavLink to="/workflows" title="Workflows"><span className="nav-icon">✅</span><span className="nav-label">Workflows</span></NavLink>
           <NavLink to="/settings" title="Settings"><span className="nav-icon">⚙️</span><span className="nav-label">Settings</span></NavLink>
         </nav>
       </div>

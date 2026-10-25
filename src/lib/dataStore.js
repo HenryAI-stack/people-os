@@ -77,8 +77,9 @@ export async function writeCollection(filename, items, sha, message) {
 
 export function makeStore(filename) {
   return {
-    async list() {
-      const { items } = await readCollection(filename)
+    // { fresh: true } skips the 60s cache — for data another window may have just written
+    async list({ fresh = false } = {}) {
+      const { items } = await readCollection(filename, fresh)
       return items.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
     },
 
@@ -109,3 +110,5 @@ export const notesStore           = makeStore('notes.json')
 export const followUpsStore       = makeStore('follow-ups.json')
 export const schedulesStore       = makeStore('schedules.json')
 export const accomplishmentsStore = makeStore('accomplishments.json')
+export const workflowsStore       = makeStore('workflows.json')
+export const workflowRunsStore    = makeStore('workflow-runs.json')
