@@ -12,7 +12,7 @@ import WorkSchedule  from './pages/WorkSchedule.jsx'
 import Accomplishments from './pages/Accomplishments.jsx'
 import PersonDetail from './pages/PersonDetail.jsx'
 import Settings from './pages/Settings.jsx'
-import Workflows, { WorkflowRun } from './pages/Workflows.jsx'
+import Checklists, { ChecklistRun } from './pages/Checklists.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
 import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from './lib/worldClock.js'
 
@@ -32,7 +32,7 @@ export default function App() {
   const [collapsed,   setCollapsed]   = usePref('peopleos-sidebar-collapsed', false)
 
   const [navOpen,     setNavOpen]     = useState(false)  // mobile drawer (≤760px only)
-  // A workflow checklist popped out into its own window (window.open) renders without the shell.
+  // A checklist run popped out into its own window (window.open) renders without the shell.
   const popout = useLocation().pathname.startsWith('/checklist/')
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function App() {
   if (popout) return (
     <div className="popout-shell">
       <Routes>
-        <Route path="/checklist/:id" element={<WorkflowRun popout />} />
+        <Route path="/checklist/:id" element={<ChecklistRun popout />} />
       </Routes>
     </div>
   )
@@ -85,8 +85,9 @@ export default function App() {
           <Route path="/follow-ups"          element={<FollowUps />} />
           <Route path="/accomplishments"     element={<Accomplishments />} />
           <Route path="/work-schedule"       element={<WorkSchedule />} />
-          <Route path="/workflows"           element={<Workflows />} />
-          <Route path="/workflows/run/:id"   element={<WorkflowRun />} />
+          <Route path="/checklists"          element={<Checklists />} />
+          <Route path="/checklists/run/:id"  element={<ChecklistRun />} />
+          <Route path="/workflows/*"         element={<Navigate to="/checklists" replace />} />
           <Route path="/settings"            element={<Settings />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
@@ -108,7 +109,7 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onNa
           <NavLink to="/follow-ups" title="Follow-ups"><span className="nav-icon">📋</span><span className="nav-label">Follow-ups</span></NavLink>
           <NavLink to="/accomplishments" title="Accomplishments"><span className="nav-icon">🏆</span><span className="nav-label">Accomplishments</span></NavLink>
           <NavLink to="/work-schedule" title="Work Schedule"><span className="nav-icon">🗓️</span><span className="nav-label">Work Schedule</span></NavLink>
-          <NavLink to="/workflows" title="Workflows"><span className="nav-icon">✅</span><span className="nav-label">Workflows</span></NavLink>
+          <NavLink to="/checklists" title="Checklists"><span className="nav-icon">✅</span><span className="nav-label">Checklists</span></NavLink>
           <NavLink to="/settings" title="Settings"><span className="nav-icon">⚙️</span><span className="nav-label">Settings</span></NavLink>
         </nav>
       </div>

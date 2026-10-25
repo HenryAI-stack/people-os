@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { workflowsStore, workflowRunsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
-// Workflows = reusable checklist templates (workflows.json) + runs started from them
-// (workflow-runs.json). A run copies the template's items when it starts, so editing a template
+// Checklists = reusable checklist templates + runs started from them. Stored as workflows.json /
+// workflow-runs.json (the feature's first name — kept so existing data stays readable). A run copies the template's items when it starts, so editing a template
 // later never changes a run that's already under way or done.
 //
 // Item shape (template and run): { id, type: 'step' | 'section', title, notes }
@@ -70,7 +70,7 @@ function ErrorBox({ children }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // List page: templates + runs
 // ══════════════════════════════════════════════════════════════════════════════
-export default function Workflows() {
+export default function Checklists() {
   const navigate = useNavigate()
   const [templates, setTemplates] = useState([])
   const [runs,      setRuns]      = useState([])
@@ -112,7 +112,7 @@ export default function Workflows() {
   }
 
   async function deleteTemplate(t) {
-    if (!confirm(`Delete the workflow "${t.name}"?\nRuns already started from it are kept.`)) return
+    if (!confirm(`Delete the checklist "${t.name}"?\nRuns already started from it are kept.`)) return
     setError('')
     try { await workflowsStore.remove(t.id); await load() }
     catch (e) { setError('Delete failed: ' + e.message) }
@@ -130,7 +130,7 @@ export default function Workflows() {
     })
     setStarting(null)
     if (popOut) { popOutRun(run.id); await load() }
-    else navigate(`/workflows/run/${run.id}`)
+    else navigate(`/checklists/run/${run.id}`)
   }
 
   async function deleteRun(r) {
@@ -142,10 +142,10 @@ export default function Workflows() {
 
   return (
     <>
-      <div className="page-header"><h1>Workflows</h1><p>Checklist templates for recurring processes — start a run each time you go through one.</p></div>
+      <div className="page-header"><h1>Checklists</h1><p>Reusable checklists for recurring processes — start a run each time you go through one.</p></div>
       <div className="toolbar">
         <div />
-        <button className="btn primary" onClick={() => setEditing({ name: '', description: '', items: [] })}>+ New workflow</button>
+        <button className="btn primary" onClick={() => setEditing({ name: '', description: '', items: [] })}>+ New checklist</button>
       </div>
       {error && <ErrorBox>{error}</ErrorBox>}
       {loading && <div className="empty-state">Loading…</div>}
@@ -154,16 +154,16 @@ export default function Workflows() {
         <>
           <div className="section-title" style={{ marginTop: 8 }}>In progress</div>
           {activeRuns.length === 0
-            ? <div className="wf-hint">Nothing in progress. Start a run from one of the workflows below.</div>
+            ? <div className="wf-hint">Nothing in progress. Start a run from one of the checklists below.</div>
             : <div className="list">{activeRuns.map((r) => (
                 <RunRow key={r.id} run={r} onDelete={() => deleteRun(r)} />
               ))}</div>}
 
-          <div className="section-title">Workflows</div>
+          <div className="section-title">Checklists</div>
           {templates.length === 0 ? (
             <div className="empty-state" style={{ padding: '36px 20px' }}>
               <div className="icon">✅</div>
-              No workflows yet. Create one with “+ New workflow”.
+              No checklists yet. Create one with “+ New checklist”.
             </div>
           ) : (
             <div className="grid cols-2">
@@ -216,7 +216,7 @@ function RunRow({ run, onDelete }) {
   const { done, total } = progress(run.items)
   return (
     <div className="row-card wf-run-row">
-      <Link to={`/workflows/run/${run.id}`} className="row-main" style={{ textDecoration: 'none', flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+      <Link to={`/checklists/run/${run.id}`} className="row-main" style={{ textDecoration: 'none', flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span className="row-title">{run.name}</span>
           {run.completedAt
@@ -323,7 +323,7 @@ function TemplateForm({ initial, onCancel, onSave }) {
 
   let stepNo = 0
   return (
-    <DraggableModal title={isNew ? 'New workflow' : 'Edit workflow'} onClose={onCancel} maxWidth={680}>
+    <DraggableModal title={isNew ? 'New checklist' : 'Edit checklist'} onClose={onCancel} maxWidth={680}>
       <form onSubmit={submit}>
         {error && <ErrorBox>{error}</ErrorBox>}
         <div className="field"><label>Name</label>
@@ -388,9 +388,9 @@ function TemplateForm({ initial, onCancel, onSave }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// A run's checklist — in the app (/workflows/run/:id) or as a pop-out (/checklist/:id)
+// A run's checklist — in the app (/checklists/run/:id) or as a pop-out (/checklist/:id)
 // ══════════════════════════════════════════════════════════════════════════════
-export function WorkflowRun({ popout = false }) {
+export function ChecklistRun({ popout = false }) {
   const { id } = useParams()
   const [run, setRun]         = useState(null)
   const [loading, setLoading] = useState(true)
@@ -498,7 +498,7 @@ export function WorkflowRun({ popout = false }) {
   if (loading && !run) return <div className="empty-state">Loading…</div>
   if (!run) return (
     <>
-      {!popout && <Link to="/workflows" className="wf-back">← Workflows</Link>}
+      {!popout && <Link to="/checklists" className="wf-back">← Checklists</Link>}
       <ErrorBox>{error || 'Checklist not found.'}</ErrorBox>
     </>
   )
@@ -506,7 +506,7 @@ export function WorkflowRun({ popout = false }) {
   let stepNo = 0
   return (
     <div className={popout ? 'wf-run popout' : 'wf-run'}>
-      {!popout && <Link to="/workflows" className="wf-back">← Workflows</Link>}
+      {!popout && <Link to="/checklists" className="wf-back">← Checklists</Link>}
       <div className="wf-run-top">
       <div className="wf-run-head">
         <div className="wf-run-titles">

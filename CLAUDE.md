@@ -258,8 +258,12 @@ Browser (React SPA)
     The Teams modal shows `calendarSummary()`: "📅 On-duty calendar updated in "…": 2 changed,
     1 added, 90 unchanged ✓", or "already up to date … nothing changed", or the error. The Teams
     message adds "The On-duty calendar is updated as well." when the sync had no failures.
-- **Workflows (`Workflows.jsx`)**: reusable checklist templates for recurring processes (e.g. the
-  monthly work schedule), nav item "✅ Workflows". Two collections: `workflows.json` (templates:
+- **Checklists (`Checklists.jsx`)**: reusable checklist templates for recurring processes (e.g. the
+  monthly work schedule), nav item "✅ Checklists". The feature was first called "Workflows" and
+  renamed in the UI; the storage names were deliberately kept (`workflowsStore`/`workflowRunsStore`,
+  the `workflowId`/`workflowName` run fields, the `peopleos-workflows` channel), so don't rename the
+  data files — existing records would vanish. Old `#/workflows…` links redirect to `/checklists`.
+  Two collections: `workflows.json` (templates:
   `{ name, description, items }`) and `workflow-runs.json` (runs: `{ workflowId, workflowName, name,
   items, completedAt }`). Items are `{ id, type: 'step' | 'section', title, notes }`; sections are
   plain headings in the same ordered array (no nesting), run steps add `done`/`doneAt`. **Starting a
@@ -272,7 +276,7 @@ Browser (React SPA)
   'peopleos-checklist-<id>', 'popup,width=460,height=820')` (one named window per run, so clicking
   again refocuses it). `App.jsx` renders any `/checklist/…` route without the sidebar/topbar
   (`.popout-shell`); Firebase auth is shared across same-origin windows, so no second login. In-app
-  runs live at `/workflows/run/:id`; both render `WorkflowRun` (`popout` prop). **Sync between
+  runs live at `/checklists/run/:id`; both render `ChecklistRun` (`popout` prop). **Sync between
   windows** is a `BroadcastChannel('peopleos-workflows')`: every tick posts the whole run, other
   windows (run views and the list page) adopt it immediately, and a window that opens a run posts
   `hello` so a window holding newer unsaved state replies with it. Only the window where the tick
@@ -609,7 +613,7 @@ src/
     Notes.jsx          Freeform scratchpad; pin, archive/unarchive, search
     Accomplishments.jsx  Monthly wins log, per person or per team; "send this month's email"
     WorkSchedule.jsx   Monthly office/homeoffice rota with country holiday awareness
-    Workflows.jsx      Checklist templates + runs (list page, TemplateForm editor, WorkflowRun
+    Checklists.jsx     Checklist templates + runs (list page, TemplateForm editor, ChecklistRun
                         checklist used in-app and as the /checklist/:id pop-out window; exports
                         popOutRun)
     Settings.jsx       Browser-local settings — the Microsoft Graph token form

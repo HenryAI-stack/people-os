@@ -646,7 +646,7 @@ body.light .ws-chip { color: var(--accent); }
 }
 
 /* ════════════════════════════════
-   WORKFLOWS (checklist templates + runs) — see Workflows.jsx
+   CHECKLISTS (templates + runs) — see Checklists.jsx
    ════════════════════════════════ */
 .wf-hint { font-size: 13px; color: var(--text-faint); }
 .wf-meta { font-size: 12px; color: var(--text-faint); margin-top: 8px; }
