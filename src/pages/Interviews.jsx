@@ -28,6 +28,246 @@ const TYPE_LABEL = {
   team_meeting: 'Team meeting',
 }
 
+// ── Statistics helpers ──────────────────────────────────────────────
+// Date math splits the 'YYYY-MM-DD' string and uses local Date construction
+// (same approach as cadence.js) — no ISO-string parsing, so no timezone drift.
+// Weeks run Monday–Sunday.
+
+const STATS_PERIODS = [4, 8, 12, 26, 52]
+const STATS_OPEN_KEY = 'peopleos.interviewStats.open'
+const STATS_WEEKS_KEY = 'peopleos.interviewStats.weeks'
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function parseLocalDate(str) {
+  const [y, m, d] = (str || '').split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+function startOfWeek(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // back to Monday
+  return d
+}
+
+function addDays(date, n) {
+  const d = new Date(date); d.setDate(d.getDate() + n); return d
+}
+
+function fmtShort(date) {
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`
+}
+
+function isoWeekNumber(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)) // Thursday of this week
+  const jan4 = new Date(d.getFullYear(), 0, 4)
+  return 1 + Math.round(((d - jan4) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7)
+}
+
+function readPref(key, fallback) {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v) } catch { return fallback }
+}
+function writePref(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage unavailable — fine */ }
+}
+
+function computeStats(items, reports, weeks, today = new Date()) {
+  const thisWeek = startOfWeek(today)
+  const firstWeek = addDays(thisWeek, -7 * (weeks - 1))
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+  const buckets = Array.from({ length: weeks }, (_, i) => {
+    const start = addDays(firstWeek, i * 7)
+    return { start, end: addDays(start, 6), count: 0 }
+  })
+
+  // Person ranking: direct reports only (externals like hiring candidates would
+  // flood the "fewest" list). Matching mirrors cadence.js: personId, or a
+  // case-insensitive name match for older name-only interviews.
+  const byId = new Map(reports.map((r) => [r.id, r]))
+  const byName = new Map(reports.map((r) => [r.name?.trim().toLowerCase(), r]))
+  const perPerson = new Map()
+  let total = 0, external = 0
+
+  for (const iv of items) {
+    const d = parseLocalDate(iv.date)
+    if (!d || d < firstWeek || d > todayMidnight) continue // future = scheduled, not conducted
+    const idx = Math.floor(Math.round((d - firstWeek) / 86400000) / 7)
+    if (idx < 0 || idx >= weeks) continue
+    buckets[idx].count++
+    total++
+
+    const report = byId.get(iv.personId) || (iv.person && byName.get(iv.person.trim().toLowerCase()))
+    if (!report) { if (iv.person) external++; continue }
+    const entry = perPerson.get(report.id) || { report, count: 0, last: null }
+    entry.count++
+    if (!entry.last || iv.date > entry.last) entry.last = iv.date
+    perPerson.set(report.id, entry)
+  }
+
+  // Active reports with zero interviews in the period belong in the ranking too —
+  // they're exactly who "fewest" should surface.
+  for (const r of reports) {
+    if (r.status === 'active' && !perPerson.has(r.id)) perPerson.set(r.id, { report: r, count: 0, last: null })
+  }
+
+  const ranked = [...perPerson.values()]
+  const most = [...ranked].sort((a, b) =>
+    b.count - a.count || (b.last || '').localeCompare(a.last || '') || a.report.name.localeCompare(b.report.name))
+  const fewest = [...ranked].sort((a, b) =>
+    a.count - b.count || (a.last || '').localeCompare(b.last || '') || a.report.name.localeCompare(b.report.name))
+
+  // Don't show the same person in both lists when the team is small.
+  const topN = Math.min(5, Math.ceil(ranked.length / 2))
+  const mostList = most.slice(0, topN)
+  const shown = new Set(mostList.map((e) => e.report.id))
+  const fewestList = fewest.filter((e) => !shown.has(e.report.id)).slice(0, 5)
+
+  const activeCount = reports.filter((r) => r.status === 'active').length
+  const covered = ranked.filter((e) => e.count > 0 && e.report.status === 'active').length
+
+  return {
+    buckets,
+    total,
+    external,
+    thisWeekCount: buckets[weeks - 1].count,
+    lastWeekCount: weeks > 1 ? buckets[weeks - 2].count : 0,
+    avgPerWeek: total / weeks,
+    busiest: buckets.reduce((best, b) => (b.count > (best?.count ?? -1) ? b : best), null),
+    mostList,
+    fewestList,
+    maxPersonCount: most[0]?.count || 0,
+    activeCount,
+    covered,
+  }
+}
+
+function InterviewStats({ items, reports, filterType }) {
+  const [open,  setOpen]  = useState(() => readPref(STATS_OPEN_KEY, true))
+  const [weeks, setWeeks] = useState(() => {
+    const w = readPref(STATS_WEEKS_KEY, 12)
+    return STATS_PERIODS.includes(w) ? w : 12
+  })
+
+  const scoped = useMemo(
+    () => items.filter((i) => filterType === 'all' || i.type === filterType),
+    [items, filterType],
+  )
+  const stats = useMemo(() => computeStats(scoped, reports, weeks), [scoped, reports, weeks])
+
+  function toggle() { setOpen((o) => { writePref(STATS_OPEN_KEY, !o); return !o }) }
+  function changeWeeks(w) { setWeeks(w); writePref(STATS_WEEKS_KEY, w) }
+
+  const diff = stats.thisWeekCount - stats.lastWeekCount
+  const diffLabel = diff === 0 ? 'same as last week' : `${diff > 0 ? '+' : ''}${diff} vs last week`
+  const maxBucket = Math.max(1, ...stats.buckets.map((b) => b.count))
+  const labelEvery = weeks <= 12 ? 1 : weeks <= 26 ? 2 : 4
+  const showCounts = weeks <= 26
+  const typeNote = filterType === 'all' ? 'All types' : `${TYPE_LABEL[filterType] || filterType} only`
+
+  return (
+    <div className="iv-stats">
+      <div className="iv-stats-head">
+        <button type="button" className="iv-stats-toggle" onClick={toggle} aria-expanded={open}>
+          <span className={`iv-chevron${open ? ' open' : ''}`}>›</span>
+          📊 Statistics
+          <span className="iv-stats-scope">{typeNote}</span>
+        </button>
+        {open && (
+          <select className="search-input iv-period" value={weeks} onChange={(e) => changeWeeks(Number(e.target.value))}>
+            {STATS_PERIODS.map((w) => <option key={w} value={w}>Last {w} weeks</option>)}
+          </select>
+        )}
+      </div>
+
+      {open && (
+        <>
+          <div className="grid cols-3">
+            <div className="card stat-card">
+              <div className="label">This week</div>
+              <div className="value">{stats.thisWeekCount}</div>
+              <div className="sub">{diffLabel}</div>
+            </div>
+            <div className="card stat-card">
+              <div className="label">Last {weeks} weeks</div>
+              <div className="value">{stats.total}</div>
+              <div className="sub">
+                Ø {stats.avgPerWeek.toFixed(1)} / week
+                {stats.busiest?.count > 0 && ` · peak ${stats.busiest.count} (wk of ${fmtShort(stats.busiest.start)})`}
+              </div>
+            </div>
+            <div className="card stat-card">
+              <div className="label">Active reports covered</div>
+              <div className="value">{stats.covered}<span className="iv-of"> / {stats.activeCount}</span></div>
+              <div className="sub">
+                {stats.activeCount - stats.covered > 0
+                  ? `${stats.activeCount - stats.covered} without an interview`
+                  : stats.activeCount > 0 ? 'everyone covered' : 'no active reports'}
+              </div>
+            </div>
+          </div>
+
+          <div className="card iv-chart-card">
+            <div className="iv-card-title">Interviews per week</div>
+            <div className="iv-chart" role="img" aria-label={`Interviews per week over the last ${weeks} weeks`}>
+              {stats.buckets.map((b, i) => {
+                const current = i === stats.buckets.length - 1
+                return (
+                  <div className="iv-bar-col" key={i}
+                    title={`${fmtShort(b.start)} – ${fmtShort(b.end)}: ${b.count} interview${b.count === 1 ? '' : 's'}`}>
+                    <div className="iv-bar-count">{showCounts && b.count > 0 ? b.count : ''}</div>
+                    <div className="iv-bar-track">
+                      <div className={`iv-bar${current ? ' current' : ''}${b.count === 0 ? ' empty' : ''}`}
+                        style={{ height: `${(b.count / maxBucket) * 100}%` }} />
+                    </div>
+                    <div className="iv-bar-label">
+                      {(stats.buckets.length - 1 - i) % labelEvery === 0 ? `W${isoWeekNumber(b.start)}` : ''}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="iv-chart-foot">
+              {fmtShort(stats.buckets[0].start)} – {fmtShort(stats.buckets[stats.buckets.length - 1].end)}
+              {stats.external > 0 && ` · includes ${stats.external} with external people`}
+            </div>
+          </div>
+
+          <div className="grid cols-2 iv-rank-grid">
+            <RankList title="🏆 Most interviews" entries={stats.mostList} max={stats.maxPersonCount} tone="good" />
+            <RankList title="🔻 Fewest interviews" entries={stats.fewestList} max={stats.maxPersonCount} tone="bad" />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function RankList({ title, entries, max, tone }) {
+  return (
+    <div className="card">
+      <div className="iv-card-title">{title}</div>
+      {entries.length === 0 && <div className="iv-rank-empty">No direct reports to rank yet.</div>}
+      {entries.map((e) => {
+        const last = parseLocalDate(e.last)
+        return (
+          <div className="iv-rank-row" key={e.report.id}>
+            <div className="iv-rank-name">
+              <span>{e.report.name}</span>
+              <span className="iv-rank-sub">{last ? `last ${fmtShort(last)}` : 'none in period'}</span>
+            </div>
+            <div className="iv-rank-bar-track">
+              <div className={`iv-rank-bar ${tone}`} style={{ width: max ? `${(e.count / max) * 100}%` : 0 }} />
+            </div>
+            <span className={`badge ${e.count === 0 ? 'bad' : ''}`}>{e.count}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Interviews() {
   const [items,      setItems]      = useState([])
   const [reports,    setReports]    = useState([])
@@ -109,6 +349,10 @@ export default function Interviews() {
         </select>
         <button className="btn primary" onClick={() => setEditing({ ...EMPTY, date: todayDate() })}>+ Log entry</button>
       </div>
+
+      {!loading && items.length > 0 && (
+        <InterviewStats items={items} reports={reports} filterType={filterType} />
+      )}
 
       {loading && <div className="empty-state">Loading…</div>}
 

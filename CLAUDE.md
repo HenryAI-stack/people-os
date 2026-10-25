@@ -332,6 +332,18 @@ Browser (React SPA)
   record (editable on existing interviews too; records without it read as `false`). Both
   interview lists and the Dashboard's "Recent conversations" show a "🤝 Face-to-face" badge next
   to the type badge when it's set.
+- **Interview statistics**: a collapsible "📊 Statistics" panel at the top of `Interviews.jsx`
+  (page-local `InterviewStats` + `RankList` + pure `computeStats()`), derived entirely from
+  `interviews.json` — nothing stored. Period selector (last 4/8/12/26/52 weeks, default 12) and
+  open/closed state are per-browser prefs in `localStorage` (`peopleos.interviewStats.*`, wrapped in
+  try/catch). It follows the page's Type filter but ignores the search box. Shows: this week vs last
+  week, total + Ø/week + peak week, active reports covered; a Monday–Sunday weekly bar chart (plain
+  CSS flex bars, `.iv-*` classes in `styles.css`, ISO week labels); and "Most" / "Fewest interviews"
+  lists (top 5 each, never the same person in both). Ranking counts direct reports only (matched by
+  `personId` or case-insensitive name, like `cadence.js`); active reports with zero interviews in the
+  period are included so they surface under "Fewest"; externals count toward totals only.
+  Future-dated entries are excluded (scheduled, not conducted). Date math is split-string + local
+  `Date`, same as `cadence.js`.
 - **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
   (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 14`, i.e. a fortnightly rhythm) finds each person's most recent
   interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
@@ -604,7 +616,8 @@ src/
                        interview `date`, not storage order; same day → latest `createdAt` first)
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
     PersonDetail.jsx   Per-person profile + interview history + AI follow-up topics
-    Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log
+    Interviews.jsx     1:1 / skip-level / hiring / exit / performance / team-meeting log,
+                       plus the statistics panel (weekly chart, most/fewest interviews)
     FollowUps.jsx      Action-item tracker, optional person link (dropdown sorted A–Z by
                         first name, i.e. `localeCompare` on the stored "First Last" name), optional Outlook sync
                         (per-row one-way push, or "Sync with Outlook" for a full two-way
