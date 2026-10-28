@@ -155,6 +155,26 @@ body.light .modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 .field .check-label input { width: 17px; height: 17px; padding: 0; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
+/* ── World Clock (sidebar) ──
+   Dark-grey panel in both themes so it stands out from the rest of the nav. The colour
+   variables are re-scoped inside it so text/badges stay readable on the dark background
+   even in light mode. */
+.world-clock {
+  --bg: #262a31;
+  --border: #474d57;
+  --text: #f1f3f5;
+  --text-dim: #b9bfc8;
+  --text-faint: #8b929d;
+  --accent: #e09a62;
+  --accent-soft: rgba(224, 154, 98, 0.18);
+  background: #33373f;
+  border: 1px solid #474d57;
+  border-radius: var(--radius);
+  margin: 6px 8px 4px;
+  padding: 8px 8px 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
 /* ── World Map ── */
 .world-clock-title-btn { border-radius: 6px; transition: background 0.15s, color 0.15s; }
 .world-clock-title-btn:hover { background: var(--accent-soft); color: var(--accent); }

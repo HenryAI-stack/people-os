@@ -184,7 +184,7 @@ function WorldClock() {
   // Hidden via CSS (not unmounted) when collapsed, so the mobile drawer — which ignores the
   // desktop collapse preference — still shows it.
   return (
-    <div className="world-clock" style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+    <div className="world-clock">
       <button
         className="world-clock-title-btn"
         onClick={() => setMapOpen(true)}
