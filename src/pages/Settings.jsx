@@ -81,6 +81,7 @@ export default function Settings() {
       </div>
 
       <InstallCard />
+      <CaptionGrabberCard />
     </>
   )
 }
@@ -163,6 +164,66 @@ function InstallCard() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// Quick links to the Teams caption grabber: the browser bookmarklet's install page
+// (public/tools/caption-grabber.html) and the Windows app (desktop/caption-grabber, GitHub release).
+const CAPTION_GRABBER_LINKS = [
+  {
+    title: 'Browser bookmarklet',
+    sub: 'For Teams in Edge or Chrome. Open the page and drag the yellow button to your bookmarks bar.',
+    url: new URL(import.meta.env.BASE_URL + 'tools/caption-grabber.html', window.location.origin).href,
+  },
+  {
+    title: 'Windows app (CaptionGrabber.exe)',
+    sub: 'For the Teams desktop app. Needs IT approval before installing.',
+    url: 'https://github.com/HenryAI-stack/people-os/releases/latest/download/CaptionGrabber.exe',
+  },
+  {
+    title: 'Details for IT',
+    sub: 'What the Windows app reads and stores, for the approval request.',
+    url: 'https://github.com/HenryAI-stack/people-os/tree/main/desktop/caption-grabber#for-it-what-it-does-and-doesnt-do',
+  },
+]
+
+function CaptionGrabberCard() {
+  const [copied, setCopied] = useState('')
+
+  async function copy(url) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(url)
+      setTimeout(() => setCopied((c) => (c === url ? '' : c)), 2000)
+    } catch {
+      window.prompt?.('Copy this link:', url)
+    }
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 640, marginTop: 20 }}>
+      <h3 style={{ marginTop: 0, marginBottom: 6 }}>🎙️ Teams caption grabber</h3>
+      <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
+        Keeps the live captions of a Teams call and copies them as a transcript for the interview notes.
+        Copy a link to open it on your work laptop.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {CAPTION_GRABBER_LINKS.map((l) => (
+          <div key={l.url} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+            <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{l.title}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>{l.sub}</div>
+            </div>
+            <div className="row-actions" style={{ display: 'flex', gap: 8 }}>
+              <a className="btn" href={l.url} target="_blank" rel="noreferrer">Open</a>
+              <button className="btn" type="button" onClick={() => copy(l.url)}>
+                {copied === l.url ? 'Copied ✓' : 'Copy link'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

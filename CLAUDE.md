@@ -649,7 +649,9 @@ src/
                         popOutRun)
     Settings.jsx       Browser-local settings — the Microsoft Graph token form
                         (backs msGraph.js via settings.js), with instructions for generating
-                        one from Graph Explorer, plus the "Install on your phone" PWA card
+                        one from Graph Explorer, plus the "Install on your phone" PWA card and the
+                        "Teams caption grabber" card (Open / Copy link for the bookmarklet page, the
+                        Windows exe release download and its IT sheet)
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
