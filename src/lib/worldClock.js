@@ -1,11 +1,14 @@
 // Shared by the sidebar World Clock widget (App.jsx) and the clocks table + time converter in
 // WorldMapModal.jsx, so both list the same cities with the same formatting. `region` is the
 // label the converter's dropdown uses (USA = Chicago, the US city on the clock).
+// The first entry (Warsaw) is the reference city: the others show their offset from it, computed
+// live by fmtOffsetFrom() — never hardcode it, it changes with DST (EU and US switch on different
+// dates, India/Mexico City don't switch at all).
 export const CLOCKS = [
-  { city: 'Warsaw',      country: 'PL', region: 'Poland', tz: 'Europe/Warsaw',       offset: null    },
-  { city: 'Chicago',     country: 'US', region: 'USA',    tz: 'America/Chicago',     offset: '−7h'   },
-  { city: 'Bangalore',   country: 'IN', region: 'India',  tz: 'Asia/Kolkata',        offset: '+3.5h' },
-  { city: 'Mexico City', country: 'MX', region: 'Mexico', tz: 'America/Mexico_City', offset: '−8h'   },
+  { city: 'Warsaw',      country: 'PL', region: 'Poland', tz: 'Europe/Warsaw'       },
+  { city: 'Chicago',     country: 'US', region: 'USA',    tz: 'America/Chicago'     },
+  { city: 'Bangalore',   country: 'IN', region: 'India',  tz: 'Asia/Kolkata'        },
+  { city: 'Mexico City', country: 'MX', region: 'Mexico', tz: 'America/Mexico_City' },
 ]
 
 // ── Wall-clock ↔ instant conversion via Intl (no timezone library; DST-correct) ──
@@ -46,6 +49,18 @@ export function localDateStr(tz, date) {
 /** 'HH:MM' wall-clock time of `date` in `tz` (24h). */
 export function localTimeStr(tz, date) {
   return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)
+}
+
+/**
+ * Current offset of `tz` relative to `baseTz` as a short label, e.g. '−6h', '+4.5h', '±0h'.
+ * DST-correct for `now`, since both offsets come from Intl.
+ */
+export function fmtOffsetFrom(now, baseTz, tz) {
+  const mins = Math.round((tzOffsetMs(tz, now) - tzOffsetMs(baseTz, now)) / 60000)
+  if (mins === 0) return '±0h'
+  const sign = mins > 0 ? '+' : '−'
+  const h = Math.abs(mins) / 60
+  return `${sign}${Number.isInteger(h) ? h : +h.toFixed(2)}h`
 }
 
 export function fmtTime(now, tz) {

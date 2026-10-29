@@ -14,7 +14,7 @@ import PersonDetail from './pages/PersonDetail.jsx'
 import Settings from './pages/Settings.jsx'
 import Checklists, { ChecklistRun } from './pages/Checklists.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
-import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull } from './lib/worldClock.js'
+import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull, fmtOffsetFrom } from './lib/worldClock.js'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -200,7 +200,7 @@ function WorldClock() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
             <img src={flagUrl(c.country)} alt={c.country} style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
             <span style={{ fontSize: 11.5, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.city}</span>
-            {c.offset && <span style={{ fontSize: 9.5, color: 'var(--text-faint)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>{c.offset}</span>}
+            {c.tz !== CLOCKS[0].tz && <span style={{ fontSize: 9.5, color: 'var(--text-faint)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>{fmtOffsetFrom(now, CLOCKS[0].tz, c.tz)}</span>}
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
