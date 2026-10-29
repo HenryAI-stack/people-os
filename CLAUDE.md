@@ -365,7 +365,13 @@ Browser (React SPA)
   display order everywhere: tabs, default tab, print view, Excel sheets, PDF pages), matching
   people to a center by free-text `location`. Holiday awareness and month/weekend helpers
   come from `src/lib/holidays.js` (`getHoliday`, `isWeekend`, `getDaysInMonth`; hardcoded
-  PL/IN/MX holiday tables for 2024–2027). Key rota rules, encoded in `generateSchedule`:
+  PL/IN/MX holiday tables for 2024–2027). **The `IN` table is the Bangalore center's official
+  company holiday calendar** (from 2026): the intranet "Holiday Calendar" lists for "India" plus
+  "India - Bangalore", combined — so it includes Karnataka/Bangalore location holidays (Sankranthi,
+  Ugadi, Rajyotsava, Deepavali…), not just national days. Always add a new year from that company
+  calendar (ask the user for it), never from a generic India or Karnataka list. 2027 is still the
+  old generic list, marked provisional. `MX` = LFT Art. 74 federal rest days plus Nov 2 (Día de
+  Muertos), a company day off. Key rota rules, encoded in `generateSchedule`:
   weekdays need ≥2 people, weekends/holidays exactly 1; each special day is re-ranked so it
   goes to whoever has the lightest weekend/holiday load (this month's `specialUsed` +
   cross-month `fairnessSnapshot`), so it rotates instead of piling on one person; a soft

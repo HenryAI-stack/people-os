@@ -38,8 +38,11 @@ export const HOLIDAYS = {
   },
 
   // ── INDIA ─────────────────────────────────────────────────────────────────
-  // Nov 1 (from 2026) is a state holiday, not national: Haryana Day and
-  // Karnataka Rajyotsava (Bangalore) both fall on it.
+  // From 2026 on, this table is the Bangalore center's OFFICIAL COMPANY holiday
+  // calendar: the intranet "Holiday Calendar" entries for "India" (company-wide)
+  // PLUS "India - Bangalore" (location holidays) — not a generic national or
+  // Karnataka-government list. When a new year is published, copy both lists.
+  // 2024–2025 are the older generic list, kept so past schedules don't change.
   IN: {
     // 2024
     '2024-01-26': 'Republic Day', '2024-03-25': 'Holi',
@@ -53,14 +56,16 @@ export const HOLIDAYS = {
     '2025-08-15': 'Independence Day', '2025-10-02': 'Gandhi Jayanti / Dussehra',
     '2025-10-20': 'Diwali',
     '2025-11-05': 'Guru Nanak Jayanti', '2025-12-25': 'Christmas Day',
-    // 2026
-    '2026-01-26': 'Republic Day', '2026-03-03': 'Holi',
-    '2026-04-03': 'Good Friday', '2026-04-14': 'Ambedkar Jayanti',
-    '2026-08-15': 'Independence Day', '2026-10-02': 'Gandhi Jayanti',
-    '2026-10-21': 'Dussehra', '2026-11-01': 'Haryana Day / Karnataka Rajyotsava',
-    '2026-11-08': 'Diwali',
-    '2026-11-24': 'Guru Nanak Jayanti', '2026-12-25': 'Christmas Day',
-    // 2027
+    // 2026 — company calendar (India + India - Bangalore)
+    '2026-01-01': 'New Year', '2026-01-15': 'Sankranthi',
+    '2026-01-26': 'Republic Day', '2026-03-19': 'Ugadi / Gudi Padwa',
+    '2026-05-01': 'May Day', '2026-05-28': 'Bakrid',
+    '2026-08-15': 'Independence Day', '2026-09-14': 'Varasiddhi Vinayaka Vrata',
+    '2026-10-02': 'Mahatma Gandhi Jayanti', '2026-10-21': 'Vijayadashami',
+    '2026-11-01': 'Rajyotsava / Haryana Day', '2026-11-09': 'Diwali / Deepavali',
+    '2026-11-10': 'Diwali / Deepavali', '2026-12-25': 'Christmas Day',
+    // 2027 — PROVISIONAL (old generic list): replace with the company calendar
+    // once 2027 is published on the intranet.
     '2027-01-26': 'Republic Day', '2027-03-22': 'Holi',
     '2027-03-26': 'Good Friday', '2027-04-14': 'Ambedkar Jayanti',
     '2027-08-15': 'Independence Day', '2027-10-02': 'Gandhi Jayanti',
