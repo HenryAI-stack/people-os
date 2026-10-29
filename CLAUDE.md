@@ -814,3 +814,16 @@ environment or preview-deploy step — `main` is production. The `accomplishment
 and `schedule-email.yml` workflows are independent of deploy: the former is a Thursday cron
 plus manual `workflow_dispatch`, the latter `workflow_dispatch`-only — both fired from the
 app via `githubActions.js`.
+
+## Standalone tools (`public/tools/`)
+
+Plain HTML pages that ship next to the app but are not part of the React SPA, served at
+`/people-os/tools/…`. The service worker deliberately skips this path (see `src/sw-template.js`),
+so these pages always load from the network instead of being replaced by the app shell.
+
+- `caption-grabber.html` — install page for the Teams caption grabber bookmarklet (captures Teams
+  web live captions during a call and copies the transcript for interview notes). The bookmarklet
+  is embedded as a minified, URI-encoded `javascript:` string in the page's script; the readable
+  source is `caption-grabber.js`. After editing the source, re-minify it (e.g. terser) and replace
+  the `BM` string in the HTML. Teams enforces Trusted Types, so the bookmarklet builds its panel
+  with DOM APIs only (no `innerHTML`).

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Teams Caption Grabber</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single readable column; a "caption strip" motif (dark band, yellow subtitle text) anchors the install step */
+:root{
+  --bg:#f4f5f8; --surface:#ffffff; --fg:#1b1d27; --muted:#5c6072; --line:#dcdfe8;
+  --strip:#14161f; --strip-fg:#f3f3f6; --caption:#f2c94c; --accent:#3d4bd1; --ok:#1f8a55;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101219; --surface:#181b25; --fg:#eceef4; --muted:#9ea2b5; --line:#2b2f3e;
+  --strip:#07080c; --strip-fg:#f3f3f6; --caption:#f2c94c; --accent:#8e98ff; --ok:#5fd59a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101219; --surface:#181b25; --fg:#eceef4; --muted:#9ea2b5; --line:#2b2f3e;
+  --strip:#07080c; --strip-fg:#f3f3f6; --caption:#f2c94c; --accent:#8e98ff; --ok:#5fd59a; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 var(--body)}
+.wrap{max-width:720px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:32px}
+h1{font:800 clamp(30px,6vw,44px)/1.05 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font:600 22px/1.2 var(--display);margin:0 0 10px;text-wrap:balance}
+p{margin:0;max-width:65ch}
+.lede{color:var(--muted);font-size:17px;margin-top:12px}
+.strip{background:var(--strip);color:var(--strip-fg);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.strip .cap{font:500 15px/1.5 var(--mono);color:var(--caption)}
+.strip .cap b{color:var(--strip-fg);font-weight:500}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.bm{display:inline-flex;align-items:center;gap:8px;background:var(--caption);color:#1b1d27;text-decoration:none;font:600 15px/1 var(--body);padding:12px 16px;border-radius:8px;cursor:grab;border:2px dashed transparent}
+.bm:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button{font:600 14px/1 var(--body);padding:11px 14px;border-radius:8px;border:1px solid #4a4f63;background:#2a2e3d;color:#f3f3f6;cursor:pointer}
+.hint{font-size:13px;color:#a8abbb}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:20px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:32px 1fr;gap:12px;counter-increment:s}
+.steps li::before{content:counter(s);font:600 14px/32px var(--mono);text-align:center;width:32px;height:32px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--accent)}
+.steps li>div{min-width:0}
+.steps strong{display:block;font-weight:600}
+.steps p{color:var(--muted)}
+kbd,code{font:500 .88em var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.sample{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sample header{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sample pre{margin:0;padding:14px;font:13px/1.6 var(--mono);white-space:pre-wrap;overflow-x:auto}
+.notes{display:flex;flex-direction:column;gap:10px;color:var(--muted);font-size:15px}
+.notes p b{color:var(--fg);font-weight:600}
+.toast{font-size:13px;color:var(--caption);min-height:1em}
+textarea#code{width:100%;height:90px;font:12px/1.4 var(--mono);background:#0d0e14;color:#c9cbd6;border:1px solid #2b2f3e;border-radius:6px;padding:8px}
+@media (prefers-reduced-motion:no-preference){.bm{transition:transform .15s}.bm:hover{transform:translateY(-1px)}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Teams Caption Grabber</h1>
+    <p class="lede">Collects Teams live captions while you talk, then copies the whole conversation in one click so you can paste it into the PeopleOS interview. It is a bookmark, so nothing gets installed.</p>
+  </header>
+
+  <section class="strip" aria-labelledby="install">
+    <h2 id="install" style="color:var(--strip-fg)">Add it to your browser</h2>
+    <p class="cap"><b>[once]</b> Drag the yellow button onto your bookmarks bar.</p>
+    <div class="row">
+      <a class="bm" id="bm" href="#" title="Drag me to the bookmarks bar">▤ Caption Grabber</a>
+      <button id="copyCode" type="button">Copy code instead</button>
+    </div>
+    <p class="hint">Bookmarks bar hidden? Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>. If dragging doesn't work: copy the code, create a new bookmark, name it "Caption Grabber" and paste the code into the URL field.</p>
+    <div class="toast" id="toast" role="status"></div>
+    <textarea id="code" aria-label="Bookmarklet code" readonly hidden></textarea>
+  </section>
+
+  <section aria-labelledby="use">
+    <h2 id="use">In every call</h2>
+    <ol class="steps">
+      <li><div><strong>Join in the browser, not the desktop app</strong><p>Open the meeting at <code>teams.microsoft.com</code> in Edge or Chrome. The bookmark can only read captions in a browser tab.</p></div></li>
+      <li><div><strong>Turn on live captions</strong><p>More (…) → Language and speech → Show live captions. Set the spoken language there if it isn't detected correctly.</p></div></li>
+      <li><div><strong>Click the Caption Grabber bookmark</strong><p>A small panel appears bottom right and counts lines as people speak. You can hide it with ×; it keeps capturing.</p></div></li>
+      <li><div><strong>After the call: Copy transcript</strong><p>Paste into the PeopleOS interview notes. "Download .txt" saves a file as backup.</p></div></li>
+    </ol>
+  </section>
+
+  <section class="sample" aria-label="Example output">
+    <header><span>Example of what you paste</span><span>sample data</span></header>
+    <pre>Teams call transcript (live captions) – 29.10.2026 11:00
+
+[11:00] Max: Thanks for joining. Could you walk me through your last role?
+
+[11:01] Anna Kowalska: Sure. I led a support team of eight in Warsaw. We moved the team to a follow-the-sun model with Mexico City.
+
+[11:03] Max: What was the hardest part of that change?</pre>
+  </section>
+
+  <section class="notes" aria-labelledby="good">
+    <h2 id="good" style="color:var(--fg)">Good to know</h2>
+    <p><b>Keep the tab open until you've copied.</b> The transcript is also autosaved in the browser; if the page reloads, click the bookmark again and choose "Restore earlier".</p>
+    <p><b>Quality equals Teams' captions.</b> Names and technical terms come out as Teams heard them, so give the text a quick read before saving.</p>
+    <p><b>Check your company's rules and tell the candidate.</b> If transcription is switched off by policy, capturing captions may need the same approval and consent a recording would.</p>
+    <p><b>If nothing is captured,</b> Teams may have changed its page structure. Tell Claude and the selectors can be updated.</p>
+  </section>
+</div>
+
+<script>
+const BM = "javascript:void%20(()%3D%3E%7Bif(window.__ccg)return%20void%20window.__ccg.show()%3Bconst%20t%3D%22ccg-transcript-v1%22%2Ce%3D%5B%5D%2Cn%3Dnew%20WeakMap%3Blet%20o%3D!1%2Ca%3D0%3Bconst%20r%3Dt%3D%3E(t%7C%7C%22%22).replace(%2F%5Cs%2B%2Fg%2C%22%20%22).trim()%3Bfunction%20i()%7Bif(o)return%3Blet%20t%3D!1%2Ca%3D0%3Bfor(const%20o%20of%20function()%7Bconst%20t%3D%5Bdocument%5D%3Bfor(const%20e%20of%20document.querySelectorAll(%22iframe%22))try%7Be.contentDocument%26%26t.push(e.contentDocument)%7Dcatch(t)%7B%7Dreturn%20t%7D())for(const%20i%20of%20o.querySelectorAll('%5Bdata-tid%3D%22closed-caption-text%22%5D'))%7Ba%2B%2B%3Bconst%20o%3Dr(i.textContent)%3Bif(!o)continue%3Bconst%20s%3Di.closest('.fui-ChatMessageCompact%2C%20.ui-chat__item%2C%20%5Brole%3D%22listitem%22%5D%2C%20%5Bdata-tid%3D%22closed-caption-message%22%5D')%7C%7Ci.parentElement%2Cc%3Ds%26%26s.querySelector('%5Bdata-tid%3D%22author%22%5D%2C%20.ui-chat__message__author%2C%20%5Bdata-tid%3D%22closed-caption-author%22%5D')%2Cl%3Dr(c%26%26c.textContent)%7C%7C%22Unknown%22%3Blet%20p%3Dn.get(i)%3Bif(!p)%7Bfor(let%20t%3De.length-1%3Bt%3E%3DMath.max(0%2Ce.length-8)%3Bt--)%7Bconst%20n%3De%5Bt%5D%3Bif(n.speaker%3D%3D%3Dl%26%26(n.text%3D%3D%3Do%7C%7Co.startsWith(n.text)%7C%7Cn.text.startsWith(o)))%7Bp%3Dn%3Bbreak%7D%7Dp%7C%7C(p%3D%7Bspeaker%3Al%2Ctext%3Ao%2Ct%3Anew%20Date%7D%2Ce.push(p)%2Ct%3D!0)%2Cn.set(i%2Cp)%7Dif(o!%3D%3Dp.text)%7Bconst%20a%3Dp.text.slice(0%2CMath.min(12%2Cp.text.length))%3Bo.startsWith(a)%3F(p.text%3Do%2Ct%3D!0)%3A(p%3D%7Bspeaker%3Al%2Ctext%3Ao%2Ct%3Anew%20Date%7D%2Ce.push(p)%2Cn.set(i%2Cp)%2Ct%3D!0)%7D%22Unknown%22!%3D%3Dl%26%26p.speaker!%3D%3Dl%26%26(p.speaker%3Dl%2Ct%3D!0)%7Ds%3Da%3E0%2Ct%3F(I()%2Cd())%3As!%3D%3Dc%26%26I()%2Cc%3Ds%7Dlet%20s%3D!1%2Cc%3Dnull%3Bconst%20l%3Dt%3D%3EString(t.getHours()).padStart(2%2C%220%22)%2B%22%3A%22%2BString(t.getMinutes()).padStart(2%2C%220%22)%3Bfunction%20p()%7Bconst%20t%3D%5B%5D%3Bfor(const%20n%20of%20e)%7Bconst%20e%3Dt%5Bt.length-1%5D%3Be%26%26e.speaker%3D%3D%3Dn.speaker%3Fe.lines.push(n.text)%3At.push(%7Bspeaker%3An.speaker%2Ct%3An.t%2Clines%3A%5Bn.text%5D%7D)%7Dconst%20n%3De%5B0%5D%3Fe%5B0%5D.t%3Anew%20Date%3Breturn%22Teams%20call%20transcript%20(live%20captions)%20%E2%80%93%20%22%2Bn.toLocaleDateString()%2B%22%20%22%2Bl(n)%2B%22%5Cn%5Cn%22%2Bt.map(t%3D%3E%22%5B%22%2Bl(t.t)%2B%22%5D%20%22%2Bt.speaker%2B%22%3A%20%22%2Bt.lines.join(%22%20%22)).join(%22%5Cn%5Cn%22)%2B%22%5Cn%22%7Dfunction%20d(n)%7Bconst%20o%3DDate.now()%3Bif(n%7C%7C!(o-a%3C3e3))%7Ba%3Do%3Btry%7BlocalStorage.setItem(t%2CJSON.stringify(%7Bat%3Ao%2Centries%3Ae.map(t%3D%3E%5Bt.speaker%2Ct.text%2Ct.t.getTime()%5D)%7D))%7Dcatch(t)%7B%7D%7D%7Dconst%20u%3D(t%2Ce%2Cn)%3D%3E%7Bconst%20o%3Ddocument.createElement(t)%3Breturn%20Object.assign(o.style%2Ce%7C%7C%7B%7D)%2Cnull!%3Dn%26%26(o.textContent%3Dn)%2Co%7D%2Cx%3D%7Bfont%3A%22600%2012px%2F1%20system-ui%2Csans-serif%22%2Cpadding%3A%228px%2010px%22%2Cborder%3A%221px%20solid%20%234a4f63%22%2CborderRadius%3A%226px%22%2Cbackground%3A%22%232a2e3d%22%2Ccolor%3A%22%23f3f3f6%22%2Ccursor%3A%22pointer%22%7D%2Cf%3D(t%2Ce%2Cn)%3D%3E%7Bconst%20o%3Du(%22button%22%2CObject.assign(%7B%7D%2Cx%2Cn%3F%7Bbackground%3A%22%23f2c94c%22%2Ccolor%3A%22%231b1d27%22%2CborderColor%3A%22%23f2c94c%22%7D%3A%7B%7D)%2Ct)%3Breturn%20o.addEventListener(%22click%22%2Ce)%2Co%7D%2Cg%3Du(%22div%22%2C%7Bposition%3A%22fixed%22%2Cright%3A%2216px%22%2Cbottom%3A%2288px%22%2CzIndex%3A%222147483647%22%2Cwidth%3A%22270px%22%2Cbackground%3A%22%231b1d27%22%2Ccolor%3A%22%23f3f3f6%22%2Cborder%3A%221px%20solid%20%233a3e52%22%2CborderRadius%3A%2210px%22%2CboxShadow%3A%220%208px%2028px%20rgba(0%2C0%2C0%2C.45)%22%2Cfont%3A%2213px%2F1.4%20system-ui%2Csans-serif%22%2Cpadding%3A%2212px%22%2Cdisplay%3A%22flex%22%2CflexDirection%3A%22column%22%2Cgap%3A%228px%22%7D)%2Ch%3Du(%22div%22%2C%7Bdisplay%3A%22flex%22%2CjustifyContent%3A%22space-between%22%2CalignItems%3A%22center%22%7D)%2Cm%3Du(%22div%22%2C%7BfontWeight%3A%22700%22%7D%2C%22Caption%20Grabber%22)%2Cb%3Du(%22button%22%2C%7Bbackground%3A%22none%22%2Cborder%3A%22none%22%2Ccolor%3A%22%23a8abbb%22%2CfontSize%3A%2218px%22%2Ccursor%3A%22pointer%22%2ClineHeight%3A%221%22%7D%2C%22%C3%97%22)%3Bb.title%3D%22Hide%20panel%20(keeps%20recording%20%E2%80%93%20click%20the%20bookmark%20to%20show%20again)%22%2Cb.addEventListener(%22click%22%2C()%3D%3E%7Bg.style.display%3D%22none%22%7D)%2Ch.append(m%2Cb)%3Bconst%20w%3Du(%22div%22%2C%7BfontSize%3A%2212px%22%2Ccolor%3A%22%23c9cbd6%22%7D)%2Cy%3Du(%22div%22%2C%7BfontSize%3A%2212px%22%2Ccolor%3A%22%23f2c94c%22%2Cbackground%3A%22%2311131a%22%2CborderRadius%3A%226px%22%2Cpadding%3A%226px%208px%22%2CminHeight%3A%2218px%22%2CmaxHeight%3A%2254px%22%2Coverflow%3A%22hidden%22%7D)%2Ck%3Du(%22div%22%2C%7Bdisplay%3A%22flex%22%2Cgap%3A%226px%22%7D)%2CC%3Du(%22div%22%2C%7Bdisplay%3A%22flex%22%2Cgap%3A%226px%22%2CflexWrap%3A%22wrap%22%7D)%2Cv%3Df(%22Copy%20transcript%22%2Casync%20function()%7Bconst%20t%3Dp()%3Btry%7Breturn%20await%20navigator.clipboard.writeText(t)%2Cvoid%20E(%22Copied%20%22%2Be.length%2B%22%20lines%22)%7Dcatch(t)%7B%7Dconst%20n%3Ddocument.createElement(%22textarea%22)%3Bn.value%3Dt%2Cn.style.position%3D%22fixed%22%2Cn.style.opacity%3D%220%22%2Cdocument.body.appendChild(n)%2Cn.select()%3Blet%20o%3D!1%3Btry%7Bo%3Ddocument.execCommand(%22copy%22)%7Dcatch(t)%7B%7Dn.remove()%2CE(o%3F%22Copied%20%22%2Be.length%2B%22%20lines%22%3A%22Copy%20blocked%20%E2%80%93%20use%20Download%22)%7D%2C!0)%3Bv.style.flex%3D%221%22%3Bconst%20S%3Df(%22Download%20.txt%22%2Cfunction()%7Bconst%20t%3Dnew%20Blob(%5Bp()%5D%2C%7Btype%3A%22text%2Fplain%3Bcharset%3Dutf-8%22%7D)%2Cn%3Ddocument.createElement(%22a%22)%2Co%3De%5B0%5D%3Fe%5B0%5D.t%3Anew%20Date%3Bn.href%3DURL.createObjectURL(t)%2Cn.download%3D%22teams-transcript-%22%2Bo.toISOString().slice(0%2C10)%2B%22-%22%2Bl(o).replace(%22%3A%22%2C%22%22)%2B%22.txt%22%2Cdocument.body.appendChild(n)%2Cn.click()%2Cn.remove()%2CsetTimeout(()%3D%3EURL.revokeObjectURL(n.href)%2C5e3)%7D)%2CD%3Df(%22Pause%22%2C()%3D%3E%7Bo%3D!o%2CD.textContent%3Do%3F%22Resume%22%3A%22Pause%22%2CI()%7D)%2C_%3D%7Bon%3A!1%7D%2CL%3Df(%22Clear%22%2C()%3D%3E%7Bif(!_.on)return%20_.on%3D!0%2CL.textContent%3D%22Click%20again%20to%20clear%22%2Cvoid%20setTimeout(()%3D%3E%7B_.on%3D!1%2CL.textContent%3D%22Clear%22%7D%2C3e3)%3Be.length%3D0%2C_.on%3D!1%2CL.textContent%3D%22Clear%22%2Cd(!0)%2CI()%7D)%3Bk.append(v%2CS)%2CC.append(D%2CL)%3Bconst%20R%3Dfunction()%7Btry%7Bconst%20e%3DJSON.parse(localStorage.getItem(t)%7C%7C%22null%22)%3Bif(e%26%26e.entries%26%26e.entries.length%26%26Date.now()-e.at%3C864e5)return%20e%7Dcatch(t)%7B%7Dreturn%20null%7D()%3Blet%20O%3Dnull%3BR%26%26(O%3Df(%22Restore%20earlier%20(%22%2BR.entries.length%2B%22)%22%2C()%3D%3E%7Bconst%20t%3DR.entries.map((%5Bt%2Ce%2Cn%5D)%3D%3E(%7Bspeaker%3At%2Ctext%3Ae%2Ct%3Anew%20Date(n)%7D))%3Be.unshift(...t)%2CO.remove()%2CI()%2Cd(!0)%7D)%2CC.append(O))%3Bconst%20T%3Du(%22div%22%2C%7BfontSize%3A%2212px%22%2Ccolor%3A%22%237ee2a8%22%2CminHeight%3A%220%22%7D)%3Blet%20j%3Bfunction%20E(t)%7BT.textContent%3Dt%2CclearTimeout(j)%2Cj%3DsetTimeout(()%3D%3E%7BT.textContent%3D%22%22%7D%2C3e3)%7Dfunction%20I()%7Bconst%20t%3De.length%3Bw.textContent%3Do%3F%22%E2%8F%B8%20Paused%20%C2%B7%20%22%2Bt%2B%22%20lines%22%3As%3F%22%E2%97%8F%20Capturing%20%C2%B7%20%22%2Bt%2B%22%20lines%22%3A%22%E2%9A%A0%20No%20captions%20on%20screen.%20Turn%20on%3A%20More%20(%E2%80%A6)%20%E2%86%92%20Language%20and%20speech%20%E2%86%92%20Show%20live%20captions%20%C2%B7%20%22%2Bt%2B%22%20lines%22%3Bconst%20n%3De%5Bt-1%5D%3By.textContent%3Dn%3Fn.speaker%2B%22%3A%20%22%2Bn.text%3A%22Waiting%20for%20the%20first%20caption%E2%80%A6%22%7Dg.append(h%2Cw%2Cy%2Ck%2CC%2CT)%2Cdocument.body.appendChild(g)%3Bconst%20M%3Dnew%20MutationObserver(i)%3BM.observe(document.body%2C%7BchildList%3A!0%2Csubtree%3A!0%2CcharacterData%3A!0%7D)%3Bconst%20W%3DsetInterval(i%2C1e3)%3Bwindow.addEventListener(%22beforeunload%22%2C()%3D%3Ed(!0))%2Cwindow.__ccg%3D%7Bshow%3A()%3D%3E%7Bg.style.display%3D%22flex%22%7D%2Centries%3Ae%2Ctranscript%3Ap%2Cstop%3A()%3D%3E%7BM.disconnect()%2CclearInterval(W)%7D%7D%2Ci()%2CI()%7D)()";
+const bm = document.getElementById('bm'), toast = document.getElementById('toast'), ta = document.getElementById('code');
+bm.setAttribute('href', BM);
+bm.addEventListener('click', e => { e.preventDefault(); toast.textContent = 'Drag this button to your bookmarks bar, then click it inside a Teams call.'; });
+document.getElementById('copyCode').addEventListener('click', () => {
+  navigator.clipboard.writeText(BM).then(() => { toast.textContent = 'Code copied. Paste it as the URL of a new bookmark.'; })
+  .catch(() => { ta.hidden = false; ta.value = BM; ta.focus(); ta.select(); toast.textContent = 'Press Ctrl+C to copy the selected code.'; });
+});
+</script>
+</body>
+</html>

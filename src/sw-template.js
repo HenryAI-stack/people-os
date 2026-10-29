@@ -38,6 +38,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
   if (url.origin !== self.location.origin || !url.href.startsWith(SCOPE)) return
 
+  // Standalone pages under public/tools/ (e.g. the Teams caption grabber) are not part of the
+  // app shell: let the network serve them, or every navigation there would open PeopleOS instead.
+  if (url.href.startsWith(SCOPE + 'tools/')) return
+
   // App navigations (HashRouter, so always …/people-os/ or …/index.html): serve the cached shell
   // for an instant, offline-capable launch; fall back to the network if it's somehow missing.
   if (req.mode === 'navigate') {
