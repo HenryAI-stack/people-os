@@ -38,6 +38,8 @@ export const HOLIDAYS = {
   },
 
   // ── INDIA ─────────────────────────────────────────────────────────────────
+  // Nov 1 (from 2026) is a state holiday, not national: Haryana Day and
+  // Karnataka Rajyotsava (Bangalore) both fall on it.
   IN: {
     // 2024
     '2024-01-26': 'Republic Day', '2024-03-25': 'Holi',
@@ -55,13 +57,15 @@ export const HOLIDAYS = {
     '2026-01-26': 'Republic Day', '2026-03-03': 'Holi',
     '2026-04-03': 'Good Friday', '2026-04-14': 'Ambedkar Jayanti',
     '2026-08-15': 'Independence Day', '2026-10-02': 'Gandhi Jayanti',
-    '2026-10-21': 'Dussehra', '2026-11-08': 'Diwali',
+    '2026-10-21': 'Dussehra', '2026-11-01': 'Haryana Day / Karnataka Rajyotsava',
+    '2026-11-08': 'Diwali',
     '2026-11-24': 'Guru Nanak Jayanti', '2026-12-25': 'Christmas Day',
     // 2027
     '2027-01-26': 'Republic Day', '2027-03-22': 'Holi',
     '2027-03-26': 'Good Friday', '2027-04-14': 'Ambedkar Jayanti',
     '2027-08-15': 'Independence Day', '2027-10-02': 'Gandhi Jayanti',
     '2027-10-10': 'Dussehra', '2027-10-29': 'Diwali',
+    '2027-11-01': 'Haryana Day / Karnataka Rajyotsava',
     '2027-11-14': 'Guru Nanak Jayanti', '2027-12-25': 'Christmas Day',
   },
 
