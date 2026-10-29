@@ -55,18 +55,27 @@ button { font-family: inherit; cursor: pointer; }
 .brand .brand-text { transition: opacity 0.15s, max-width 0.22s cubic-bezier(.4,0,.2,1); max-width: 160px; overflow: hidden; }
 .sidebar.collapsed .brand-text { opacity: 0; max-width: 0; }
 
-.sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 8px; scrollbar-width: none; }
+.sidebar-scroll {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 8px 14px; scrollbar-width: none;
+  /* Fade over the bottom padding: invisible when the nav fits, and when the window is too short
+     the last items fade out (and scroll) instead of running into the World Clock. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+}
 .sidebar-scroll::-webkit-scrollbar { display: none; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
-.nav a { text-decoration: none; color: var(--text-dim); font-size: 14px; font-weight: 500; padding: 9px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px; white-space: nowrap; min-width: 0; transition: background 0.15s, color 0.15s; }
+.nav a { text-decoration: none; color: var(--text-dim); font-size: 14px; font-weight: 500; padding: 8px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px; white-space: nowrap; min-width: 0; transition: background 0.15s, color 0.15s; }
 .nav a:hover { background: var(--bg-card); color: var(--text); }
 .nav a.active { background: var(--accent-soft); color: var(--accent); }
 .nav-icon { flex-shrink: 0; font-size: 16px; width: 24px; text-align: center; line-height: 1; }
 .nav-label { overflow: hidden; transition: opacity 0.15s, max-width 0.22s cubic-bezier(.4,0,.2,1); max-width: 160px; }
 .sidebar.collapsed .nav-label { opacity: 0; max-width: 0; }
 
-.sidebar-bottom { flex-shrink: 0; border-top: 1px solid var(--border); padding: 8px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-bottom { flex-shrink: 0; border-top: 1px solid var(--border); padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-controls { display: flex; align-items: center; gap: 2px; }
+.sidebar-controls .theme-row { flex: 1; min-width: 0; }
+.sidebar.collapsed .sidebar-controls { flex-direction: column; align-items: stretch; }
 
 .theme-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; white-space: nowrap; cursor: default; }
 .theme-label { font-size: 13px; color: var(--text-dim); font-weight: 500; overflow: hidden; transition: opacity 0.15s, max-width 0.22s cubic-bezier(.4,0,.2,1); max-width: 160px; }
@@ -80,20 +89,18 @@ button { font-family: inherit; cursor: pointer; }
 .toggle-pill input:checked ~ .toggle-thumb { transform: translateX(15px); }
 .sidebar.collapsed .toggle-pill { display: none; }
 
-.collapse-btn { display: flex; align-items: center; gap: 10px; padding: 8px 8px; border-radius: 8px; border: none; background: none; color: var(--text-dim); font-size: 13px; font-weight: 500; white-space: nowrap; transition: background 0.15s, color 0.15s; width: 100%; text-align: left; cursor: pointer; }
+.collapse-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 7px 4px; border-radius: 8px; border: none; background: none; color: var(--text-dim); font-size: 13px; transition: background 0.15s, color 0.15s; cursor: pointer; }
 .collapse-btn:hover { background: var(--bg-card); color: var(--text); }
 .collapse-btn-icon { flex-shrink: 0; font-size: 13px; width: 24px; text-align: center; transition: transform 0.22s cubic-bezier(.4,0,.2,1); display: inline-block; }
 .sidebar.collapsed .collapse-btn-icon { transform: rotate(180deg); }
-.collapse-btn-label { overflow: hidden; transition: opacity 0.15s, max-width 0.22s cubic-bezier(.4,0,.2,1); max-width: 160px; }
-.sidebar.collapsed .collapse-btn-label { opacity: 0; max-width: 0; }
 
-.sidebar-footer { padding: 10px 6px 14px; display: flex; align-items: center; gap: 10px; min-width: 0; border-top: 1px solid var(--border); margin-top: 4px; }
+.sidebar-footer { padding: 8px 6px 4px; display: flex; align-items: center; gap: 10px; min-width: 0; border-top: 1px solid var(--border); margin-top: 2px; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--accent-soft); flex-shrink: 0; }
 .user-mini { font-size: 12.5px; line-height: 1.3; min-width: 0; overflow: hidden; transition: opacity 0.15s, max-width 0.22s cubic-bezier(.4,0,.2,1); max-width: 160px; }
 .sidebar.collapsed .user-mini { opacity: 0; max-width: 0; }
 .user-mini .name { color: var(--text); font-weight: 600; white-space: nowrap; }
 .user-mini .email { color: var(--text-faint); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-.signout-btn { background: none; border: none; color: var(--text-faint); font-size: 12px; padding: 4px 0; text-align: left; cursor: pointer; display: block; }
+.signout-btn { background: none; border: none; color: var(--text-faint); font-size: 12px; padding: 2px 0 0; text-align: left; cursor: pointer; display: block; }
 .signout-btn:hover { color: var(--bad); }
 
 /* ── Main ── */
@@ -187,10 +194,19 @@ body.light .modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
   background: #636a74;
   border: 1px solid #7a818c;
   border-radius: var(--radius);
-  margin: 6px 8px 4px;
-  padding: 8px 8px 4px;
+  flex-shrink: 0;
+  margin: 4px 8px 6px;
+  padding: 6px 6px 5px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
+.world-clock-title-btn { display: flex; align-items: center; gap: 5px; width: 100%; margin-bottom: 3px; padding: 2px 3px; background: none; border: none; cursor: pointer; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); }
+.wc-row { display: flex; align-items: center; gap: 5px; padding: 3px 3px; border-radius: 6px; cursor: default; }
+.wc-row:hover { background: rgba(255,255,255,0.08); }
+.wc-flag { width: 16px; height: 12px; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
+.wc-city { font-size: 11.5px; color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-offset { font-size: 9.5px; color: var(--text-faint); background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; flex-shrink: 0; }
+.wc-time { margin-left: auto; flex-shrink: 0; display: flex; align-items: baseline; gap: 3px; font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+.wc-day { font-size: 9px; font-weight: 600; color: var(--accent); letter-spacing: 0; }
 
 /* ── World Map ── */
 .world-clock-title-btn { border-radius: 6px; transition: background 0.15s, color 0.15s; }

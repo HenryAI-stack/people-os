@@ -14,7 +14,7 @@ import PersonDetail from './pages/PersonDetail.jsx'
 import Settings from './pages/Settings.jsx'
 import Checklists, { ChecklistRun } from './pages/Checklists.jsx'
 import WorldMapModal from './components/WorldMapModal.jsx'
-import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull, fmtOffsetFrom } from './lib/worldClock.js'
+import { CLOCKS, fmtTime, fmtDate, fmtTzAbbr, fmtTzFull, fmtOffsetFrom, localDateStr } from './lib/worldClock.js'
 
 function usePref(key, def) {
   const [val, setVal] = useState(() => {
@@ -115,23 +115,25 @@ function Sidebar({ user, light, onToggleTheme, collapsed, onToggleCollapse, onNa
       </div>
       <WorldClock />
       <div className="sidebar-bottom">
-        <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
-          <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
-          <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
-          <label className="toggle-pill">
-            <input type="checkbox" checked={light} onChange={onToggleTheme} />
-            <span className="toggle-track" /><span className="toggle-thumb" />
-          </label>
+        {/* Theme toggle and collapse share one row (stacked again when collapsed). */}
+        <div className="sidebar-controls">
+          <div className="theme-row" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+            <span className="nav-icon" style={{ fontSize: 14 }}>{light ? '☀️' : '🌙'}</span>
+            <span className="theme-label">{light ? 'Light mode' : 'Dark mode'}</span>
+            <label className="toggle-pill">
+              <input type="checkbox" checked={light} onChange={onToggleTheme} />
+              <span className="toggle-track" /><span className="toggle-thumb" />
+            </label>
+          </div>
+          <button className="collapse-btn" onClick={onToggleCollapse}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+            <span className="collapse-btn-icon">◀</span>
+          </button>
         </div>
-        <button className="collapse-btn" onClick={onToggleCollapse}>
-          <span className="collapse-btn-icon">◀</span>
-          <span className="collapse-btn-label">Collapse</span>
-        </button>
-        <div className="sidebar-footer">
+        <div className="sidebar-footer" title={user.email}>
           {user.photoURL ? <img className="avatar" src={user.photoURL} alt="" /> : <div className="avatar" />}
           <div className="user-mini">
             <div className="name">{user.displayName || 'You'}</div>
-            <div className="email">{user.email}</div>
             <button className="signout-btn" onClick={logout}>Sign out</button>
           </div>
         </div>
@@ -181,36 +183,35 @@ function WorldClock() {
     return () => clearInterval(t)
   }, [])
 
+  // One line per city keeps the panel short so it never crowds the nav. The date shows only as a
+  // "+1d"/"−1d" marker when a city is on a different day than the reference clock (Warsaw);
+  // full date and time-zone name are in the row's tooltip (and in the world map's table).
   // Hidden via CSS (not unmounted) when collapsed, so the mobile drawer — which ignores the
   // desktop collapse preference — still shows it.
+  const baseDate = localDateStr(CLOCKS[0].tz, now)
   return (
     <div className="world-clock">
-      <button
-        className="world-clock-title-btn"
-        onClick={() => setMapOpen(true)}
-        title="Open world map"
-        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-faint)', marginBottom: 6, paddingLeft: 2, background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}
-      >
+      <button className="world-clock-title-btn" onClick={() => setMapOpen(true)} title="Open world map">
         <span aria-hidden="true">🌐</span> World Clock
         <span className="world-map-icon" aria-hidden="true">🗺️</span>
       </button>
       {mapOpen && <WorldMapModal onClose={() => setMapOpen(false)} />}
-      {CLOCKS.map((c) => (
-        <div key={c.city} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 4px', borderRadius: 6, marginBottom: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-            <img src={flagUrl(c.country)} alt={c.country} style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
-            <span style={{ fontSize: 11.5, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.city}</span>
-            {c.tz !== CLOCKS[0].tz && <span style={{ fontSize: 9.5, color: 'var(--text-faint)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>{fmtOffsetFrom(now, CLOCKS[0].tz, c.tz)}</span>}
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
+      {CLOCKS.map((c) => {
+        const d = localDateStr(c.tz, now)
+        const dayDiff = d === baseDate ? '' : (d > baseDate ? '+1d' : '−1d')
+        return (
+          <div key={c.city} className="wc-row"
+            title={`${c.city} · ${fmtDate(now, c.tz)} · ${fmtTzAbbr(now, c.tz)} (${fmtTzFull(now, c.tz)})`}>
+            <img className="wc-flag" src={flagUrl(c.country)} alt={c.country} />
+            <span className="wc-city">{c.city}</span>
+            {c.tz !== CLOCKS[0].tz && <span className="wc-offset">{fmtOffsetFrom(now, CLOCKS[0].tz, c.tz)}</span>}
+            <span className="wc-time">
+              {dayDiff && <span className="wc-day">{dayDiff}</span>}
               {fmtTime(now, c.tz)}
-            </div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-faint)' }}>{fmtDate(now, c.tz)}</div>
-            <div title={fmtTzFull(now, c.tz)} style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.3px', cursor: 'help' }}>{fmtTzAbbr(now, c.tz)}</div>
+            </span>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
