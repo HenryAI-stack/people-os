@@ -827,3 +827,14 @@ so these pages always load from the network instead of being replaced by the app
   source is `caption-grabber.js`. After editing the source, re-minify it (e.g. terser) and replace
   the `BM` string in the HTML. Teams enforces Trusted Types, so the bookmarklet builds its panel
   with DOM APIs only (no `innerHTML`).
+
+## Desktop tools (`desktop/`)
+
+- `desktop/caption-grabber/` — Windows (.NET 10 WinForms) version of the caption grabber for the Teams
+  desktop app. Reads Teams live captions through UI Automation (WebView2 exposes the page: HTML id →
+  AutomationId, class → ClassName); parsing lives in `Capture/CaptionParser.cs` and is unit-tested on
+  fake trees in `CaptionGrabber.Tests`. Not part of the web build. `.github/workflows/caption-grabber-desktop.yml`
+  tests and publishes one self-contained `CaptionGrabber.exe` on `windows-latest`; on `main` it creates
+  or updates the release `caption-grabber-v<Version>` (bump `<Version>` in the csproj for a new release).
+  The install page links `releases/latest/download/CaptionGrabber.exe`. Its README doubles as the
+  IT-approval sheet (what it reads, no network, no admin rights, local files only).
