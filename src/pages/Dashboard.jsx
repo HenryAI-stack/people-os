@@ -58,8 +58,16 @@ function TagCloud({ interviews, loading, onTagClick }) {
         : (
           <div className="card tag-cloud">
             {cloud.tags.map((t) => (
-              <button key={t.key} type="button" className={`tag-cloud-tag${t.weight > 0.66 ? ' hot' : ''}`}
-                style={{ fontSize: `${(12 + t.weight * 14).toFixed(1)}px`, opacity: 0.6 + t.weight * 0.4, fontWeight: t.weight > 0.33 ? 600 : 500 }}
+              <button key={t.key} type="button" className="tag-cloud-tag"
+                style={{
+                  fontSize: `${(12 + t.weight * 16).toFixed(1)}px`,
+                  fontWeight: 400 + Math.round(t.weight * 3) * 100,
+                  letterSpacing: t.weight > 0.5 ? '-0.015em' : 0,
+                  // Rare → dim text, mid → full text colour, most frequent → accent (no muddy grey-orange mix).
+                  color: t.weight < 0.5
+                    ? `color-mix(in srgb, var(--text) ${Math.round(t.weight * 200)}%, var(--text-dim))`
+                    : `color-mix(in srgb, var(--accent) ${Math.round((t.weight - 0.5) * 200)}%, var(--text))`,
+                }}
                 title={`${t.count} conversation${t.count === 1 ? '' : 's'} — show them`}
                 onClick={() => onTagClick(t.key)}>
                 {t.label}<span className="tag-cloud-count">{t.count}</span>

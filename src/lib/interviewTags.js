@@ -22,10 +22,12 @@ function cutoffDate(days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// → { tags: [{ key, label, count, weight }] (alphabetical), interviewCount, totalTags }
+// → { tags: [{ key, label, count, weight }] (centre-out order), interviewCount, totalTags }
 // `days` = null → all time. Counts conversations per tag (a tag listed twice on one interview
 // counts once). Keeps the `limit` most frequent; `weight` (0–1) is log-scaled between the
 // least and most frequent shown tag, so one dominant tag doesn't flatten the rest.
+// Order is "centre-out": most frequent first in the middle, the rest alternating right/left,
+// so in a centred, wrapping flex row the big tags cluster in the middle of the cloud.
 export function computeTagCloud(interviews, { days = null, limit = 40 } = {}) {
   const from = days ? cutoffDate(days) : null
   const byKey = new Map()
@@ -53,15 +55,17 @@ export function computeTagCloud(interviews, { days = null, limit = 40 } = {}) {
 
   const max = Math.log(top[0].count)
   const min = Math.log(top[top.length - 1].count)
-  const tags = top
-    .map((e) => ({
+  const tags = []
+  top.forEach((e, i) => {
+    const tag = {
       key: e.key,
       // Show the spelling used most often for this tag.
       label: [...e.spellings.entries()].sort((a, b) => b[1] - a[1])[0][0],
       count: e.count,
       weight: max === min ? 0.5 : (Math.log(e.count) - min) / (max - min),
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key))
+    }
+    if (i % 2 === 0) tags.push(tag); else tags.unshift(tag)
+  })
 
   return { tags, interviewCount, totalTags: byKey.size }
 }

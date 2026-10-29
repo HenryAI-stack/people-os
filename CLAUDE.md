@@ -349,8 +349,8 @@ Browser (React SPA)
   is the one place tags are split/normalised (`splitTags`, `tagKey` = lower-case, spaces → hyphens,
   so "Career Growth"/"career-growth" are one tag; `hasTag`) and `computeTagCloud(interviews, { days,
   limit: 40 })` counts conversations per tag (once per interview), keeps the 40 most frequent,
-  log-scales a 0–1 `weight` (font size 12–26px, opacity, accent colour for the top third) and returns
-  them alphabetically, labelled with the most-used spelling. Period toggle 30d/90d/1y/All is a
+  log-scales a 0–1 `weight` (font size 12–28px, weight 400–700, colour `color-mix` dim → `--text` → `--accent`) and returns
+  them in centre-out order (biggest in the middle), labelled with the most-used spelling. Period toggle 30d/90d/1y/All is a
   per-browser pref (`peopleos.tagCloud.period`). Clicking a tag navigates to `/interviews` with
   `state: { tag }`; `Interviews.jsx` keeps a `filterTag` (exact normalised match, combined with the
   type filter and search) shown as a removable chip, and its tag badges are clickable too.
