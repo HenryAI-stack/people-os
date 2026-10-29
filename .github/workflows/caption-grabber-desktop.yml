@@ -1,0 +1,72 @@
+name: Caption Grabber desktop
+
+# Builds desktop/caption-grabber into one self-contained CaptionGrabber.exe on a Windows runner.
+# Every run uploads the exe as a workflow artifact; runs on main also publish it as a GitHub
+# release (caption-grabber-v<Version from the csproj>), so the download link stays stable.
+
+on:
+  push:
+    paths:
+      - 'desktop/caption-grabber/**'
+      - '.github/workflows/caption-grabber-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: caption-grabber-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test desktop/caption-grabber/CaptionGrabber.Tests/CaptionGrabber.Tests.csproj -c Release
+
+      - name: Publish single-file exe
+        run: >
+          dotnet publish desktop/caption-grabber/CaptionGrabber/CaptionGrabber.csproj -c Release
+          -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o out
+
+      - name: Checksum
+        run: |
+          $hash = (Get-FileHash out/CaptionGrabber.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  CaptionGrabber.exe" | Set-Content -NoNewline out/CaptionGrabber.exe.sha256
+          "SHA-256: $hash"
+          "Size: {0:N1} MB" -f ((Get-Item out/CaptionGrabber.exe).Length / 1MB)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CaptionGrabber
+          path: |
+            out/CaptionGrabber.exe
+            out/CaptionGrabber.exe.sha256
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Select-Xml -Path desktop/caption-grabber/CaptionGrabber/CaptionGrabber.csproj -XPath '//Version').Node.InnerText
+          $tag = "caption-grabber-v$version"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag out/CaptionGrabber.exe out/CaptionGrabber.exe.sha256 --clobber
+          } else {
+            gh release create $tag out/CaptionGrabber.exe out/CaptionGrabber.exe.sha256 `
+              --title "Caption Grabber $version" --notes-file desktop/caption-grabber/RELEASE_NOTES.md --target $env:GITHUB_SHA
+          }
