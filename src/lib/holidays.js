@@ -48,8 +48,8 @@ export const HOLIDAYS = {
     // 2025
     '2025-01-26': 'Republic Day', '2025-03-14': 'Holi',
     '2025-04-18': 'Good Friday', '2025-04-14': 'Ambedkar Jayanti',
-    '2025-08-15': 'Independence Day', '2025-10-02': 'Gandhi Jayanti',
-    '2025-10-02': 'Dussehra', '2025-10-20': 'Diwali',
+    '2025-08-15': 'Independence Day', '2025-10-02': 'Gandhi Jayanti / Dussehra',
+    '2025-10-20': 'Diwali',
     '2025-11-05': 'Guru Nanak Jayanti', '2025-12-25': 'Christmas Day',
     // 2026
     '2026-01-26': 'Republic Day', '2026-03-03': 'Holi',
@@ -66,6 +66,9 @@ export const HOLIDAYS = {
   },
 
   // ── MEXICO ────────────────────────────────────────────────────────────────
+  // Federal rest days per LFT Art. 74, plus Día de Muertos (Nov 2) from 2026 on.
+  // Nov 2 is NOT an Art. 74 day — it's a company day off granted to the Mexico
+  // City center, so it's treated like a holiday for staffing/rest rules.
   MX: {
     // 2024
     '2024-01-01': 'New Year', '2024-02-05': 'Constitution Day',
@@ -80,13 +83,13 @@ export const HOLIDAYS = {
     // 2026
     '2026-01-01': 'New Year', '2026-02-02': 'Constitution Day',
     '2026-03-16': 'Benito Juárez Birthday', '2026-05-01': 'Labour Day',
-    '2026-09-16': 'Independence Day', '2026-11-16': 'Revolution Day',
-    '2026-12-25': 'Christmas Day',
+    '2026-09-16': 'Independence Day', '2026-11-02': 'Día de Muertos',
+    '2026-11-16': 'Revolution Day', '2026-12-25': 'Christmas Day',
     // 2027
     '2027-01-01': 'New Year', '2027-02-01': 'Constitution Day',
     '2027-03-15': 'Benito Juárez Birthday', '2027-05-01': 'Labour Day',
-    '2027-09-16': 'Independence Day', '2027-11-15': 'Revolution Day',
-    '2027-12-25': 'Christmas Day',
+    '2027-09-16': 'Independence Day', '2027-11-02': 'Día de Muertos',
+    '2027-11-15': 'Revolution Day', '2027-12-25': 'Christmas Day',
   },
 }
 
