@@ -124,7 +124,8 @@
   };
 
   const panel = el('div', { position: 'fixed', right: '16px', bottom: '88px', zIndex: '2147483647', width: '270px', background: '#1b1d27', color: '#f3f3f6', border: '1px solid #3a3e52', borderRadius: '10px', boxShadow: '0 8px 28px rgba(0,0,0,.45)', font: '13px/1.4 system-ui,sans-serif', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' });
-  const top = el('div', { display: 'flex', justifyContent: 'space-between', alignItems: 'center' });
+  const top = el('div', { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', touchAction: 'none', margin: '-12px -12px 0', padding: '12px 12px 4px' });
+  top.title = 'Drag to move';
   const title = el('div', { fontWeight: '700' }, 'Caption Grabber');
   const close = el('button', { background: 'none', border: 'none', color: '#a8abbb', fontSize: '18px', cursor: 'pointer', lineHeight: '1' }, '×');
   close.title = 'Hide panel (keeps recording – click the bookmark to show again)';
@@ -160,6 +161,37 @@
   const toast = el('div', { fontSize: '12px', color: '#7ee2a8', minHeight: '0' });
   panel.append(top, status, last, row1, row2, toast);
   document.body.appendChild(panel);
+
+  // ---------- drag by the title bar; position remembered per browser ----------
+  const POS_KEY = 'ccg-pos-v1';
+  function place(x, y) {
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    x = Math.min(Math.max(0, x), window.innerWidth - w);
+    y = Math.min(Math.max(0, y), window.innerHeight - h);
+    Object.assign(panel.style, { left: x + 'px', top: y + 'px', right: 'auto', bottom: 'auto' });
+    return { x, y };
+  }
+  try { const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (p) place(p.x, p.y); } catch (e) {}
+  let drag = null;
+  top.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0 || ev.target === close) return;
+    const r = panel.getBoundingClientRect();
+    drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top, id: ev.pointerId };
+    top.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+  });
+  top.addEventListener('pointermove', ev => {
+    if (drag && ev.pointerId === drag.id) drag.pos = place(ev.clientX - drag.dx, ev.clientY - drag.dy);
+  });
+  const endDrag = ev => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    if (drag.pos) { try { localStorage.setItem(POS_KEY, JSON.stringify(drag.pos)); } catch (e) {} }
+    drag = null;
+  };
+  top.addEventListener('pointerup', endDrag);
+  top.addEventListener('pointercancel', endDrag);
+  // keep it on screen when the window shrinks
+  window.addEventListener('resize', () => { if (panel.style.left) place(panel.offsetLeft, panel.offsetTop); });
 
   let toastTimer;
   function flash(msg) { toast.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.textContent = ''; }, 3000); }
