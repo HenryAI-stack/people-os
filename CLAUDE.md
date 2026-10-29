@@ -344,6 +344,16 @@ Browser (React SPA)
   period are included so they surface under "Fewest"; externals count toward totals only.
   Future-dated entries are excluded (scheduled, not conducted). Date math is split-string + local
   `Date`, same as `cadence.js`.
+- **Topic tag cloud (Dashboard)**: "🏷️ Conversation topics", just above "Recent conversations",
+  derived from every interview's comma-separated `tags` — nothing stored. `src/lib/interviewTags.js`
+  is the one place tags are split/normalised (`splitTags`, `tagKey` = lower-case, spaces → hyphens,
+  so "Career Growth"/"career-growth" are one tag; `hasTag`) and `computeTagCloud(interviews, { days,
+  limit: 40 })` counts conversations per tag (once per interview), keeps the 40 most frequent,
+  log-scales a 0–1 `weight` (font size 12–26px, opacity, accent colour for the top third) and returns
+  them alphabetically, labelled with the most-used spelling. Period toggle 30d/90d/1y/All is a
+  per-browser pref (`peopleos.tagCloud.period`). Clicking a tag navigates to `/interviews` with
+  `state: { tag }`; `Interviews.jsx` keeps a `filterTag` (exact normalised match, combined with the
+  type filter and search) shown as a removable chip, and its tag badges are clickable too.
 - **1:1 cadence**: derived entirely from `interviews.json` — no stored field. `src/lib/cadence.js`
   (`lastOneOnOne`/`cadenceBadge`/`isOverdue`, `CADENCE_DAYS = 14`, i.e. a fortnightly rhythm) finds each person's most recent
   interview of type `'1:1'` (matched by `personId` or case-insensitive name, same as
@@ -579,6 +589,8 @@ src/
     onDutyCalendar.js  buildOnDutyEntries()/calendarMarker()/planCalendarDiff() — the SharePoint
                        On-duty calendar entries for a month and the create/update/delete plan
                        against what's there (pure; msGraph.js's syncOnDutyCalendar() writes them)
+    interviewTags.js   splitTags/tagKey/hasTag/computeTagCloud — interview tag parsing shared by
+                       the Dashboard tag cloud and the Interviews page's tag filter
     cadence.js         lastOneOnOne/cadenceBadge/isOverdue — 1:1 cadence derived from
                        interviews, used by Dashboard.jsx and DirectReports.jsx
     birthdays.js       parseBirthday/formatBirthdayValue/nextBirthday/fmtBirthdayLabel —

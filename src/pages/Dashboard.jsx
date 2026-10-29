@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore, notesStore, followUpsStore, schedulesStore } from '../lib/dataStore'
 import { getShiftTimeline, fmtDuration } from '../lib/onDuty.js'
@@ -7,6 +7,69 @@ import { urgencyLabel } from './FollowUps.jsx'
 import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { nextBirthday, lastBirthday } from '../lib/birthdays.js'
 import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
+import { computeTagCloud } from '../lib/interviewTags.js'
+
+// ── Topic tag cloud ─────────────────────────────────────────────────
+// Derived from every interview's `tags` — nothing stored. The period is a per-browser pref.
+const TAG_PERIODS = [
+  { id: '30',  label: '30d', days: 30 },
+  { id: '90',  label: '90d', days: 90 },
+  { id: '365', label: '1y',  days: 365 },
+  { id: 'all', label: 'All', days: null },
+]
+const TAG_PERIOD_KEY = 'peopleos.tagCloud.period'
+
+function readTagPeriod() {
+  try { const v = localStorage.getItem(TAG_PERIOD_KEY); if (TAG_PERIODS.some((p) => p.id === v)) return v } catch {}
+  return 'all'
+}
+
+function TagCloud({ interviews, loading, onTagClick }) {
+  const [period, setPeriod] = useState(readTagPeriod)
+  const days = TAG_PERIODS.find((p) => p.id === period)?.days ?? null
+  const cloud = useMemo(() => computeTagCloud(interviews, { days }), [interviews, days])
+
+  function changePeriod(id) {
+    setPeriod(id)
+    try { localStorage.setItem(TAG_PERIOD_KEY, id) } catch {}
+  }
+
+  return (
+    <>
+      <div className="section-title tag-cloud-head">
+        <span>
+          🏷️ Conversation topics
+          {cloud.tags.length > 0 && (
+            <span className="tag-cloud-meta">
+              {cloud.totalTags > cloud.tags.length ? `top ${cloud.tags.length} of ${cloud.totalTags} tags` : `${cloud.tags.length} tags`} · {cloud.interviewCount} conversation{cloud.interviewCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </span>
+        <span className="tag-cloud-periods" role="group" aria-label="Period">
+          {TAG_PERIODS.map((p) => (
+            <button key={p.id} type="button" className={period === p.id ? 'active' : ''} onClick={() => changePeriod(p.id)}>{p.label}</button>
+          ))}
+        </span>
+      </div>
+      {!loading && cloud.tags.length === 0
+        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
+            {interviews.some((i) => i.tags) ? 'No tagged conversations in this period.' : <>No tags yet — use ✦ Generate tags when you <Link to="/interviews">log a conversation</Link>.</>}
+          </div>
+        : (
+          <div className="card tag-cloud">
+            {cloud.tags.map((t) => (
+              <button key={t.key} type="button" className={`tag-cloud-tag${t.weight > 0.66 ? ' hot' : ''}`}
+                style={{ fontSize: `${(12 + t.weight * 14).toFixed(1)}px`, opacity: 0.6 + t.weight * 0.4, fontWeight: t.weight > 0.33 ? 600 : 500 }}
+                title={`${t.count} conversation${t.count === 1 ? '' : 's'} — show them`}
+                onClick={() => onTagClick(t.key)}>
+                {t.label}<span className="tag-cloud-count">{t.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+    </>
+  )
+}
 
 function nextAnniversary(startDateStr) {
   if (!startDateStr) return null
@@ -324,6 +387,9 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      <TagCloud interviews={interviews} loading={loading}
+        onTagClick={(tag) => navigate('/interviews', { state: { tag } })} />
 
       <div className="section-title">Recent conversations</div>
       {!loading && recentInterviews.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No conversations yet. <Link to="/interviews">Log your first one →</Link></div>}

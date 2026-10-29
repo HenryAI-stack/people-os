@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 import { interviewsStore, directReportsStore } from '../lib/dataStore'
 import { generateTags, generateTakeaways } from '../lib/autoTags.js'
+import { splitTags, tagKey, hasTag } from '../lib/interviewTags.js'
 
 const EMPTY = {
   title: '', type: '1:1', personId: '', person: '', date: '',
@@ -274,6 +275,7 @@ export default function Interviews() {
   const [loading,    setLoading]    = useState(true)
   const [filterType, setFilterType] = useState('all')
   const [query,      setQuery]      = useState('')
+  const [filterTag,  setFilterTag]  = useState(null) // normalised tag key (interviewTags.js), e.g. from the Dashboard tag cloud
   const [editing,    setEditing]    = useState(null)
   const [expanded,   setExpanded]   = useState(null)
   const [page,       setPage]       = useState(1)
@@ -291,6 +293,11 @@ export default function Interviews() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Tag passed via navigation state (Dashboard tag cloud) → filter the list to that tag.
+  useEffect(() => {
+    if (location.state?.tag) { setFilterTag(location.state.tag); window.scrollTo(0, 0) }
+  }, [location.state])
 
   // Auto-expand interview passed via navigation state (e.g. from Dashboard)
   useEffect(() => {
@@ -310,13 +317,14 @@ export default function Interviews() {
     const q = query.toLowerCase()
     return items
       .filter((i) => filterType === 'all' || i.type === filterType)
+      .filter((i) => !filterTag || hasTag(i, filterTag))
       .filter((i) => !q || [i.title, i.person, i.summary, i.takeaways, i.tags]
         .join(' ').toLowerCase().includes(q))
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-  }, [items, filterType, query])
+  }, [items, filterType, query, filterTag])
 
   // Reset to page 1 whenever filter/query changes
-  useEffect(() => { setPage(1) }, [filterType, query])
+  useEffect(() => { setPage(1) }, [filterType, query, filterTag])
 
   async function handleSave(record) {
     await interviewsStore.upsert(record)
@@ -350,6 +358,16 @@ export default function Interviews() {
         <button className="btn primary" onClick={() => setEditing({ ...EMPTY, date: todayDate() })}>+ Log entry</button>
       </div>
 
+      {filterTag && (
+        <div className="tag-filter-bar">
+          Showing conversations tagged
+          <button type="button" className="badge tag-filter-chip" onClick={() => setFilterTag(null)} title="Clear tag filter">
+            🏷️ {filterTag} <span aria-hidden="true">✕</span>
+          </button>
+          <span style={{ color:'var(--text-faint)' }}>{filtered.length} found</span>
+        </div>
+      )}
+
       {!loading && items.length > 0 && (
         <InterviewStats items={items} reports={reports} filterType={filterType} />
       )}
@@ -359,7 +377,9 @@ export default function Interviews() {
       {!loading && filtered.length === 0 && (
         <div className="empty-state">
           <div className="icon">🗣️</div>
-          {query ? `No interviews matching "${query}".` : 'No entries yet. Log your first 1:1 or interview.'}
+          {filterTag || query
+            ? `No interviews matching${filterTag ? ` tag "${filterTag}"` : ''}${filterTag && query ? ' and' : ''}${query ? ` "${query}"` : ''}.`
+            : 'No entries yet. Log your first 1:1 or interview.'}
         </div>
       )}
 
@@ -382,8 +402,10 @@ export default function Interviews() {
                   <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date || 'no date'}</div>
                   {it.tags && (
                     <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>
-                      {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                        <span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>
+                      {splitTags(it.tags).map((t) => (
+                        <button type="button" className="badge tag-btn" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}
+                          title={`Show all conversations tagged "${t}"`}
+                          onClick={(e) => { e.stopPropagation(); setFilterTag(tagKey(t)) }}>{t}</button>
                       ))}
                     </div>
                   )}
@@ -407,8 +429,10 @@ export default function Interviews() {
                 )}
                 {it.tags && (
                   <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                      <span className="badge" key={t}>{t}</span>
+                    {splitTags(it.tags).map((t) => (
+                      <button type="button" className="badge tag-btn" key={t}
+                        title={`Show all conversations tagged "${t}"`}
+                        onClick={(e) => { e.stopPropagation(); setFilterTag(tagKey(t)) }}>{t}</button>
                     ))}
                   </div>
                 )}
