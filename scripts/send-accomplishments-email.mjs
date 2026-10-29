@@ -122,7 +122,7 @@ function buildEmail(monthKey, items) {
   const sections = sortedKeys.map((key) => {
     const rows = groups[key]
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map((a) => `<li style="margin-bottom:6px;"><span style="color:#888;font-size:12.5px;">${escapeHtml(fmtDate(a.date))}</span> — ${escapeHtml(a.text)}</li>`)
+      .map((a) => `<li style="margin-bottom:6px;"><span style="color:#888;font-size:12.5px;">${escapeHtml(fmtDate(a.date))}</span> — ${escapeHtml(a.text).replace(/\n/g, '<br>')}</li>`)
       .join('')
     return `
       <div style="margin-bottom:18px;">

@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { accomplishmentsStore, directReportsStore } from '../lib/dataStore'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 import { sendAccomplishmentsEmailNow, ACTIONS_URL } from '../lib/githubActions.js'
 import { chat } from '../lib/ai.js'
+
+const BULLET = '• '
 
 const EMPTY = {
   month: '', date: '', text: '',
@@ -40,12 +42,14 @@ async function improveAccomplishmentText(text) {
   const prompt =
     `Rewrite the following accomplishment note so it reads as a polished, concise, ` +
     `professional entry suitable for a monthly summary email to leadership. Keep it ` +
-    `factual — don't invent details that aren't in the original. Use active voice, start ` +
-    `with a strong verb, and keep it to one or two sentences.\n` +
+    `factual — don't invent details that aren't in the original. Use active voice and ` +
+    `start with a strong verb. If the original is a list of bullet points (lines starting ` +
+    `with "${BULLET.trim()}"), keep it as a list with the same points, one per line, each line starting ` +
+    `with "${BULLET}" and kept to one sentence. Otherwise keep it to one or two sentences.\n` +
     `Reply with ONLY the improved text — no quotes, no explanation, no intro.\n\n` +
-    `Original: ${text}`
+    `Original:\n${text}`
 
-  const improved = await chat(prompt, { maxTokens: 150 })
+  const improved = await chat(prompt, { maxTokens: 400 })
   return improved.trim().replace(/^["']|["']$/g, '') // strip stray wrapping quotes some models add
 }
 
@@ -168,7 +172,7 @@ export default function Accomplishments() {
             {groupItems.map((a) => (
               <div className="row-card" key={a.id}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row-title">{a.text}</div>
+                  <div className="row-title" style={{ whiteSpace: 'pre-line' }}>{a.text}</div>
                   <div className="row-sub">
                     {a.date && <span style={{ marginRight: 8 }}>📅 {fmtDate(a.date)}</span>}
                     {groupBy === 'date' && (
@@ -213,6 +217,7 @@ function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const [improving, setImproving] = useState(false)
+  const textRef = useRef(null)
   const isNew = !initial.id
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
@@ -223,6 +228,35 @@ function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
     try { set('text', await improveAccomplishmentText(form.text)) }
     catch (err) { setError('AI improve: ' + (err.message || 'Failed — try again.')) }
     finally { setImproving(false) }
+  }
+
+  // Enter starts a new "• " bullet (and turns the current line into one if it isn't yet).
+  // Enter on an empty bullet removes it, like ending a list in Word. Shift+Enter = plain new line.
+  function handleTextKeyDown(e) {
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    const { selectionStart: start, selectionEnd: end, value } = e.target
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1
+    const line = value.slice(lineStart, start)
+    let next, caret
+    if (!value.trim()) {
+      next = BULLET
+      caret = BULLET.length
+    } else if (line === BULLET && start === end && !value.slice(end).split('\n')[0].trim()) {
+      next = value.slice(0, lineStart) + value.slice(start)
+      caret = lineStart
+    } else {
+      const before = line.trim() && !line.startsWith(BULLET)
+        ? value.slice(0, lineStart) + BULLET + line
+        : value.slice(0, start)
+      next = before + '\n' + BULLET + value.slice(end)
+      caret = before.length + 1 + BULLET.length
+    }
+    set('text', next)
+    requestAnimationFrame(() => {
+      const el = textRef.current
+      if (el) { el.selectionStart = el.selectionEnd = caret }
+    })
   }
 
   function handlePersonChange(e) {
@@ -240,7 +274,8 @@ function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
     try {
       if (form.assigneeType === 'person' && !form.personName.trim()) throw new Error('Pick a person, or switch to Team.')
       if (form.assigneeType === 'team' && !form.team.trim()) throw new Error('Enter a team name, or switch to Person.')
-      await onSave(form)
+      // drop a dangling empty bullet / trailing blank lines left by pressing Enter
+      await onSave({ ...form, text: form.text.replace(/(\n\s*•?\s*)+$/, '').trimEnd() })
     } catch (err) { setError(err.message || 'Save failed.'); setSaving(false) }
   }
 
@@ -256,7 +291,8 @@ function AccomplishmentForm({ initial, reports, teamNames, onCancel, onSave }) {
               {improving ? '⏳ Improving…' : '✦ AI improve'}
             </button>
           </label>
-          <textarea required value={form.text} onChange={(e) => set('text', e.target.value)} placeholder="What was achieved?" style={{ minHeight: 80 }} />
+          <textarea ref={textRef} required value={form.text} onChange={(e) => set('text', e.target.value)} onKeyDown={handleTextKeyDown}
+            placeholder="What was achieved? Press Enter for a new bullet point" style={{ minHeight: 80 }} />
         </div>
         <div className="field"><label>Date</label><input type="date" required value={form.date} onChange={handleDateChange} /></div>
 

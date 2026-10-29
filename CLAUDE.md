@@ -139,7 +139,7 @@ Browser (React SPA)
   `Accomplishments.jsx`'s `improveAccomplishmentText` likewise calls `chat` directly (a "✦ AI
   improve" button next to the Accomplishment textarea in `AccomplishmentForm`, enabled once
   there's any text, rewrites it into a polished one-or-two-sentence entry and replaces the
-  textarea content in place) — both one-off, single-page AI calls live in their own page file
+  textarea content in place; a bulleted entry stays a bulleted list) — both one-off, single-page AI calls live in their own page file
   rather than `autoTags.js`, which is reserved for prompts actually shared across pages.
   All best-effort with try/catch and user-facing error strings; the takeaway/topic parsers
   still strip any "thinking" preamble a model may emit. Swapping provider (Azure AI Foundry,
@@ -370,6 +370,10 @@ Browser (React SPA)
   `src/lib/githubActions.js` lets the "Send this month's email" button in `Accomplishments.jsx`
   trigger that same workflow on demand (`workflow_dispatch` with `force: true`), so the
   Resend key never ships in the browser bundle.
+  The Accomplishment textarea auto-bullets: Enter starts a new `• ` line (turning the current
+  line into a bullet too), Enter on an empty bullet removes it, Shift+Enter is a plain newline
+  (`handleTextKeyDown` in `AccomplishmentForm`). The text is stored as-is with `\n`s; the list
+  renders it with `white-space: pre-line` and the email script turns `\n` into `<br>`.
 - **Work-schedule generator**: `src/lib/scheduleGenerator.js` builds a monthly homeoffice/
   office rota for three support centers (`CENTERS`: Bangalore, Warsaw, Mexico City — array order is the
   display order everywhere: tabs, default tab, print view, Excel sheets, PDF pages), matching
