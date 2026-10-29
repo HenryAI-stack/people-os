@@ -130,7 +130,18 @@
   const close = el('button', { background: 'none', border: 'none', color: '#a8abbb', fontSize: '18px', cursor: 'pointer', lineHeight: '1' }, '×');
   close.title = 'Hide panel (keeps recording – click the bookmark to show again)';
   close.addEventListener('click', () => { panel.style.display = 'none'; });
-  top.append(title, close);
+
+  // minimized state: only this title row stays, with a line counter and a Copy button
+  const iconCss = { background: 'none', border: 'none', color: '#a8abbb', fontSize: '16px', cursor: 'pointer', lineHeight: '1', padding: '0 4px' };
+  const miniInfo = el('span', { fontSize: '12px', color: '#c9cbd6', whiteSpace: 'nowrap' });
+  const miniCopy = el('button', Object.assign({}, btnCss, { padding: '4px 8px', background: '#f2c94c', color: '#1b1d27', borderColor: '#f2c94c' }), 'Copy');
+  miniCopy.addEventListener('click', copy);
+  const minB = el('button', iconCss, '–');
+  const titleWrap = el('div', { display: 'flex', alignItems: 'center', gap: '8px', minWidth: '0' });
+  const controls = el('div', { display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '12px' });
+  titleWrap.append(title, miniInfo);
+  controls.append(miniCopy, minB, close);
+  top.append(titleWrap, controls);
 
   const status = el('div', { fontSize: '12px', color: '#c9cbd6' });
   const last = el('div', { fontSize: '12px', color: '#f2c94c', background: '#11131a', borderRadius: '6px', padding: '6px 8px', minHeight: '18px', maxHeight: '54px', overflow: 'hidden' });
@@ -162,6 +173,23 @@
   panel.append(top, status, last, row1, row2, toast);
   document.body.appendChild(panel);
 
+  const MINI_KEY = 'ccg-mini-v1';
+  let mini = false;
+  function setMini(on, persist) {
+    mini = on;
+    for (const n of [status, last, row1, row2, toast]) n.style.display = on ? 'none' : '';
+    miniInfo.style.display = on ? '' : 'none';
+    miniCopy.style.display = on ? '' : 'none';
+    minB.textContent = on ? '▢' : '–';
+    minB.title = on ? 'Expand' : 'Minimize to one line';
+    Object.assign(panel.style, { width: on ? 'auto' : '270px', paddingBottom: on ? '0' : '12px' });
+    top.style.paddingBottom = on ? '12px' : '4px';
+    if (panel.style.left) place(panel.offsetLeft, panel.offsetTop); // stay on screen after resizing
+    if (persist) { try { localStorage.setItem(MINI_KEY, on ? '1' : ''); } catch (e) {} }
+    render();
+  }
+  minB.addEventListener('click', () => setMini(!mini, true));
+
   // ---------- drag by the title bar; position remembered per browser ----------
   const POS_KEY = 'ccg-pos-v1';
   function place(x, y) {
@@ -174,7 +202,7 @@
   try { const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (p) place(p.x, p.y); } catch (e) {}
   let drag = null;
   top.addEventListener('pointerdown', ev => {
-    if (ev.button !== 0 || ev.target === close) return;
+    if (ev.button !== 0 || ev.target.closest('button')) return;
     const r = panel.getBoundingClientRect();
     drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top, id: ev.pointerId };
     top.setPointerCapture(ev.pointerId);
@@ -194,7 +222,12 @@
   window.addEventListener('resize', () => { if (panel.style.left) place(panel.offsetLeft, panel.offsetTop); });
 
   let toastTimer;
-  function flash(msg) { toast.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.textContent = ''; }, 3000); }
+  function flash(msg) {
+    if (mini) {
+      miniCopy.textContent = msg.startsWith('Copied') ? 'Copied ✓' : 'Expand to download';
+      setTimeout(() => { miniCopy.textContent = 'Copy'; }, 2500);
+    }
+    toast.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.textContent = ''; }, 3000); }
 
   function render() {
     const n = entries.length;
@@ -203,6 +236,8 @@
     else status.textContent = '● Capturing · ' + n + ' lines';
     const e = entries[n - 1];
     last.textContent = e ? e.speaker + ': ' + e.text : 'Waiting for the first caption…';
+    miniInfo.textContent = (paused ? '⏸ ' : !captionsVisible ? '⚠ ' : '● ') + n + ' lines';
+    miniInfo.title = status.textContent;
   }
 
   // MutationObserver fires even when the tab is in the background (timers get throttled)
@@ -210,6 +245,10 @@
   mo.observe(document.body, { childList: true, subtree: true, characterData: true });
   const iv = setInterval(scan, 1000);
   window.addEventListener('beforeunload', () => save(true));
+
+  let startMini = false;
+  try { startMini = localStorage.getItem(MINI_KEY) === '1'; } catch (e) {}
+  setMini(startMini, false);
 
   window.__ccg = { show: () => { panel.style.display = 'flex'; }, entries, transcript, stop: () => { mo.disconnect(); clearInterval(iv); } };
   scan(); render();
