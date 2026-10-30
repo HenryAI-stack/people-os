@@ -296,6 +296,41 @@ body.light .login-screen { background: radial-gradient(circle at top, #e8edf4, #
 /* Desktop collapse hides the World Clock; the mobile drawer (below) always shows it. */
 .sidebar.collapsed .world-clock { display: none; }
 
+/* ── Short desktop windows ──
+   The full sidebar needs ~610px. Laptops with 125–150% Windows scaling give Chrome a viewport
+   of only ~580–700px, so the nav had to scroll. Two compact tiers tighten brand, nav rows,
+   World Clock and footer so everything fits without scrolling down to ~430px tall. The
+   .sidebar-scroll fade/scroll stays as the last-resort fallback below that. Desktop only —
+   the ≤760px drawer scrolls as a whole and keeps its own larger touch targets. */
+@media (min-width: 761px) and (max-height: 760px) {
+  .brand { font-size: 17px; padding: 12px 16px 8px; }
+  .sidebar-scroll { padding-bottom: 8px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); }
+  .nav { gap: 1px; }
+  .nav a { padding: 6px 8px; font-size: 13.5px; }
+  .world-clock { margin: 2px 8px 4px; padding: 4px 6px 3px; }
+  .world-clock-title-btn { margin-bottom: 1px; padding: 1px 3px; }
+  .wc-row { padding: 2px 3px; }
+  .sidebar-bottom { padding: 4px 8px 6px; gap: 0; }
+  .theme-row { padding: 5px 8px; }
+  .collapse-btn { padding: 5px 4px; }
+  .sidebar-footer { padding: 5px 6px 2px; }
+  .avatar { width: 26px; height: 26px; }
+}
+@media (min-width: 761px) and (max-height: 540px) {
+  .brand { font-size: 16px; padding: 9px 16px 6px; }
+  .nav a { padding: 4px 8px; font-size: 13px; }
+  .nav-icon { font-size: 15px; }
+  .wc-row { padding: 1px 3px; }
+  .wc-city { font-size: 11px; }
+  .wc-time { font-size: 12px; }
+  .theme-row { padding: 3px 8px; }
+  .collapse-btn { padding: 3px 4px; }
+  /* Name + sign-out on one line saves a text row */
+  .user-mini { display: flex; align-items: baseline; gap: 8px; }
+  .signout-btn { padding: 0; }
+  .avatar { width: 22px; height: 22px; }
+}
+
 /* ── Responsive / installed-PWA phone layout ──
    ≤760px: a sticky top bar with ☰ opens the full sidebar as an off-canvas drawer (same
    component, so nav, World Clock, theme toggle and sign-out all stay reachable). The desktop

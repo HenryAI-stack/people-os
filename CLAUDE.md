@@ -568,9 +568,12 @@ src/
                        (localStorage: peopleos-theme-light, peopleos-sidebar-collapsed),
                        plus an inline World Clock component (one compact line per city;
                        date + time-zone name live in the row tooltip, a "+1d"/"−1d" marker
-                       only when the day differs — keep it that short: the sidebar has to fit a
-                       ~680px-tall window, and the nav scroll area fades/scrolls rather than
-                       running under the clock when it doesn't)
+                       only when the day differs — keep it that short: the full sidebar needs ~610px; two
+                       `max-height` tiers in styles.css (≤760px, ≤540px, desktop only) compact
+                       it so it fits windows down to ~430px — laptops with 125–150% Windows
+                       scaling give Chrome only ~580–700px. Re-check those tiers when adding a
+                       nav item. Below that the nav scroll area fades/scrolls rather than
+                       running under the clock)
   lib/
     auth.js            Firebase Auth wrapper — used by App.jsx (VITE_ALLOWED_EMAIL)
     dataStore.js       GitHub-repo-as-database CRUD layer, one store per collection
