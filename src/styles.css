@@ -44,10 +44,14 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 a { color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
-.app-shell { display: flex; height: 100vh; overflow: hidden; }
+.app-shell { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 
-/* ── Sidebar ── */
-.sidebar { width: var(--sidebar-width); flex-shrink: 0; height: 100vh; position: sticky; top: 0; display: flex; flex-direction: column; background: var(--bg-elevated); border-right: 1px solid var(--border); overflow: hidden; transition: var(--sidebar-t), background 0.2s, border-color 0.2s; }
+/* ── Sidebar ──
+   100dvh, not 100vh: on iPad (Chrome and Safari) 100vh is the height with the browser's tab strip
+   and address bar hidden, so a 100vh sidebar ran ~80px past the visible area and the theme toggle
+   + sign-out sat below the screen edge. dvh is the visible height; 100vh stays as the fallback for
+   browsers without dvh. padding-bottom keeps the footer above the home indicator (0 in tabs). */
+.sidebar { width: var(--sidebar-width); flex-shrink: 0; height: 100vh; height: 100dvh; padding-bottom: env(safe-area-inset-bottom); position: sticky; top: 0; display: flex; flex-direction: column; background: var(--bg-elevated); border-right: 1px solid var(--border); overflow: hidden; transition: var(--sidebar-t), background 0.2s, border-color 0.2s; }
 .sidebar.collapsed { width: var(--sidebar-collapsed-width); }
 
 .brand { flex-shrink: 0; font-family: var(--font-display); font-size: 19px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 20px 16px 16px; white-space: nowrap; }
@@ -104,7 +108,7 @@ button { font-family: inherit; cursor: pointer; }
 .signout-btn:hover { color: var(--bad); }
 
 /* ── Main ── */
-.main { flex: 1; padding: 32px 40px 60px; max-width: 1100px; min-width: 0; overflow-y: auto; height: 100vh; }
+.main { flex: 1; padding: 32px 40px 60px; max-width: 1100px; min-width: 0; overflow-y: auto; height: 100vh; height: 100dvh; }
 .page-header { margin-bottom: 28px; }
 .page-header h1 { font-family: var(--font-display); font-size: 26px; font-weight: 600; margin: 0 0 4px; }
 .page-header p { margin: 0; color: var(--text-dim); font-size: 14px; }
