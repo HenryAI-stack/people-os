@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { onAuth, loginWithGoogle, completeRedirectLogin, logout } from './lib/auth.js'
+import { pullMsGraphToken } from './lib/tokenSync.js'
 import { subscribePwa, applyUpdate } from './lib/pwa.js'
 
 import Dashboard    from './pages/Dashboard.jsx'
@@ -41,6 +42,15 @@ export default function App() {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#ffffff' : '#1b1f26')
   }, [light])
   useEffect(() => { return onAuth(u => { setUser(u); setAuthLoading(false) }) }, [])
+  // Pick up a Graph token saved on another device: after login and whenever the app comes back
+  // to the foreground (the usual moment after pasting one on the laptop).
+  useEffect(() => {
+    if (!user) return
+    pullMsGraphToken()
+    const onVisible = () => { if (document.visibilityState === 'visible') pullMsGraphToken() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [user])
   useEffect(() => {
     completeRedirectLogin().catch((e) => { if (e.message === 'ACCESS_DENIED') setAuthError('access_denied') })
   }, [])

@@ -3,12 +3,28 @@ import { getMsGraphToken, setMsGraphToken, normalizeToken, getMsGraphTokenInfo, 
 import { directReportsStore, interviewsStore, followUpsStore, accomplishmentsStore, notesStore } from '../lib/dataStore.js'
 import { uploadToOneDrive, checkOneDriveSharing } from '../lib/msGraph.js'
 import { buildExportModel, buildExportDocx, exportCounts, DEFAULT_EXPORT_OPTIONS, EXPORT_FOLDER, EXPORT_FILENAME, DOCX_MIME } from '../lib/copilotExport.js'
+import { pullMsGraphToken, pushMsGraphToken, TOKEN_CHANGED_EVENT } from '../lib/tokenSync.js'
 import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
 
 export default function Settings() {
   const [token, setToken] = useState(() => getMsGraphToken())
   const [show,  setShow]  = useState(false)
   const [saved, setSaved] = useState(false)
+  const [sync,  setSync]  = useState('')   // '' | 'saving' | 'synced' | error message
+
+  // A token saved on another device replaces this one when it's newer (tokenSync.js).
+  useEffect(() => {
+    const adopt = (e) => setToken(e.detail)
+    window.addEventListener(TOKEN_CHANGED_EVENT, adopt)
+    pullMsGraphToken()
+    return () => window.removeEventListener(TOKEN_CHANGED_EVENT, adopt)
+  }, [])
+
+  async function share(value) {
+    setSync('saving')
+    try { await pushMsGraphToken(value); setSync('synced') }
+    catch (e) { setSync(`Couldn't sync to your other devices: ${e.message || e}`) }
+  }
 
   function handleSave(e) {
     e.preventDefault()
@@ -16,18 +32,20 @@ export default function Settings() {
     setToken(normalizeToken(token))
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    share(token)
   }
 
   function handleClear() {
     setToken('')
     setMsGraphToken('')
+    share('')
   }
 
   return (
     <>
       <div className="page-header">
         <h1>Settings</h1>
-        <p>Local to this browser — nothing here is written to the data repo.</p>
+        <p>Local to this browser, except the Microsoft Graph token, which is synced (encrypted) to your other devices.</p>
       </div>
 
       <div className="card" style={{ maxWidth: 640 }}>
@@ -55,7 +73,7 @@ export default function Settings() {
             everyone, so there's nothing to do. The token check below confirms it either way.
           </li>
           <li>Click your profile picture in the top right, then <strong>Access token</strong>, and copy the whole thing.</li>
-          <li>Paste it below and click Save. It only lives in this browser's local storage.</li>
+          <li>Paste it below and click Save. It's also stored encrypted in your data repo, so your other devices with the same login pick it up automatically (a newer token always wins).</li>
         </ol>
 
         <form onSubmit={handleSave}>
@@ -81,6 +99,11 @@ export default function Settings() {
           </div>
         </form>
 
+        {sync && (
+          <div style={{ marginTop: 8, fontSize: 12.5, color: sync === 'synced' ? 'var(--good)' : sync === 'saving' ? 'var(--text-faint)' : 'var(--bad)' }}>
+            {sync === 'saving' ? 'Syncing to your other devices…' : sync === 'synced' ? (token ? '✓ Available on your other devices' : '✓ Removed from your other devices') : `⚠ ${sync}`}
+          </div>
+        )}
         <TokenStatus token={normalizeToken(token)} />
       </div>
 
