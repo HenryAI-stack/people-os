@@ -30,6 +30,8 @@ export const TODO_SCOPES = ['Tasks.ReadWrite']
 export const SHAREPOINT_WRITE_SCOPES = ['Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Sites.Manage.All', 'Sites.FullControl.All']
 // Writing to a Microsoft 365 group calendar (the On-duty calendar page's Group calendar web part).
 export const GROUP_CALENDAR_SCOPES = ['Group.ReadWrite.All']
+// Writing the "Export for Copilot" file into the user's own OneDrive (/me/drive).
+export const ONEDRIVE_WRITE_SCOPES = ['Files.ReadWrite', 'Files.ReadWrite.All', 'Sites.ReadWrite.All']
 
 export function getMsGraphTokenInfo(token = getMsGraphToken()) {
   try {
@@ -49,4 +51,21 @@ export function getMsGraphTokenInfo(token = getMsGraphToken()) {
 
 export function tokenHasAnyScope(info, scopes) {
   return !!info && info.scopes.some((s) => scopes.includes(s))
+}
+
+// ── "Export for Copilot" (Settings page) ────────────────────────────────────────────────────
+// Which sections/period to export, and when/where the last export went. Browser-local like the
+// rest of this file; the export itself never touches the data repo.
+const COPILOT_EXPORT_KEY = 'peopleos-copilot-export'
+
+export function getCopilotExportSettings() {
+  try { return JSON.parse(localStorage.getItem(COPILOT_EXPORT_KEY) || '{}') || {} } catch { return {} }
+}
+
+export function setCopilotExportSettings(patch) {
+  try {
+    const next = { ...getCopilotExportSettings(), ...patch }
+    localStorage.setItem(COPILOT_EXPORT_KEY, JSON.stringify(next))
+    return next
+  } catch { return patch }
 }

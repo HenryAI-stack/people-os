@@ -26,6 +26,8 @@ accomplishments summary (server-side, via Resend).
 - `date-fns`
 - `exceljs` — builds the Work Schedule's `.xlsx` export; dynamically imported (own chunk),
   never in the main bundle
+- `docx` — builds the Settings page's "Export for Copilot" Word file; dynamically imported
+  inside `copilotExport.js` (own chunk), never in the main bundle
 - `pdfkit` — builds the Work Schedule email's `.pdf` attachment; only ever imported from
   `scripts/send-schedule-email.mjs` (a CI-only script), so despite being a normal
   `dependencies` entry it never reaches the browser bundle at all
@@ -258,6 +260,28 @@ Browser (React SPA)
     The Teams modal shows `calendarSummary()`: "📅 On-duty calendar updated in "…": 2 changed,
     1 added, 90 unchanged ✓", or "already up to date … nothing changed", or the error. The Teams
     message adds "The On-duty calendar is updated as well." when the sync had no failures.
+- **Export for Copilot (Settings page)**: custom Microsoft 365 Copilot agents can't be installed in
+  UL's tenant (no Entra app registration, no custom app upload for the user), but Copilot can read
+  the user's own OneDrive files. So the Settings card `CopilotExportCard` builds one Word file and
+  PUTs it to `/me/drive/root:/PeopleOS/PeopleOS Copilot export.docx:/content`
+  (`msGraph.js`'s `uploadToOneDrive()`, same Graph Explorer token; needs `Files.ReadWrite`, or
+  `Sites.ReadWrite.All` — `ONEDRIVE_WRITE_SCOPES`, a ✓/✗ row in `TokenStatus`). Each export
+  replaces the file (OneDrive keeps versions). Afterwards `checkOneDriveSharing()` reads the
+  item's permissions and the card shows "🔒 Only you have access" or a warning if anyone else has
+  access; it never throws. "⬇ Download .docx" builds the same file without a token.
+  `src/lib/copilotExport.js`: pure `buildExportModel(data, options, today)` (no `import.meta.env`,
+  testable from Node) groups everything **per person** (profile facts incl. "Last 1:1", open
+  follow-ups, accomplishments, conversations newest first), then "Other conversations" /
+  "Other open follow-ups" / "Team accomplishments" / "Notes"; `buildExportDocx(model)` renders it
+  with `docx` (dynamic import). Records link by `personId` or case-insensitive name, like
+  `cadence.js`. Conversations and accomplishments are limited to the last N months (3/6/12/24,
+  `monthsBefore()` string math), future-dated interviews and done follow-ups are skipped, archived
+  notes are never exported, photos and Microsoft To Do IDs are never written. **Defaults are
+  conservative** (`DEFAULT_EXPORT_OPTIONS`): notes off, inactive people off, and hiring + exit
+  interviews off (candidates / most sensitive notes) — opt-in checkboxes. Options and the last
+  export's time/link/counts/sharing status persist per browser via `settings.js`'s
+  `getCopilotExportSettings()`/`setCopilotExportSettings()` (`peopleos-copilot-export`). The file
+  is stored **unencrypted** in OneDrive by design (Copilot has to read it); the card says so.
 - **Checklists (`Checklists.jsx`)**: reusable checklist templates for recurring processes (e.g. the
   monthly work schedule), nav item "✅ Checklists". The feature was first called "Workflows" and
   renamed in the UI; the storage names were deliberately kept (`workflowsStore`/`workflowRunsStore`,
@@ -635,6 +659,8 @@ src/
                         setMsGraphToken() (read by msGraph.js, written by the Settings page),
                         plus getMsGraphTokenInfo()/tokenHasAnyScope() + TODO_SCOPES/
                         SHAREPOINT_WRITE_SCOPES: decodes the token's scopes/expiry for display
+    copilotExport.js   buildExportModel() (pure) + buildExportDocx() (docx, dynamic import) — the
+                        Settings page's "Export for Copilot" Word file for the user's OneDrive
     pwa.js             Service-worker registration + update banner state, install prompt
                         capture (subscribePwa/applyUpdate/promptInstall/isStandalone/isIOS)
   sw-template.js       Service-worker source; NOT imported — vite.config.js's serviceWorker()
@@ -660,7 +686,8 @@ src/
                         popOutRun)
     Settings.jsx       Browser-local settings — the Microsoft Graph token form
                         (backs msGraph.js via settings.js), with instructions for generating
-                        one from Graph Explorer, plus the "Install on your phone" PWA card and the
+                        one from Graph Explorer, the "Export for Copilot" card (OneDrive export,
+                        see Architecture), plus the "Install on your phone" PWA card and the
                         "Teams caption grabber" card (Open / Copy link for the bookmarklet page, the
                         Windows exe release download and its IT sheet)
   components/

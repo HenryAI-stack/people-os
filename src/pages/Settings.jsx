@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES } from '../lib/settings.js'
+import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES, ONEDRIVE_WRITE_SCOPES, getCopilotExportSettings, setCopilotExportSettings } from '../lib/settings.js'
+import { directReportsStore, interviewsStore, followUpsStore, accomplishmentsStore, notesStore } from '../lib/dataStore.js'
+import { uploadToOneDrive, checkOneDriveSharing } from '../lib/msGraph.js'
+import { buildExportModel, buildExportDocx, exportCounts, DEFAULT_EXPORT_OPTIONS, EXPORT_FOLDER, EXPORT_FILENAME, DOCX_MIME } from '../lib/copilotExport.js'
 import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
 
 export default function Settings() {
@@ -31,7 +34,7 @@ export default function Settings() {
         <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
           Powers the "Sync to Outlook" buttons on the Follow-ups page — they push follow-ups
           into a <strong>PeopleOS Follow-ups</strong> list in Microsoft To Do — and the Work
-          Schedule's <strong>Upload to SharePoint</strong> button. Graph Explorer
+          Schedule's <strong>Upload to SharePoint</strong> button, and <strong>Export for Copilot</strong> below. Graph Explorer
           tokens expire after about an hour, so come back and paste a fresh one here whenever
           sync starts failing with an expired-token error.
         </p>
@@ -80,6 +83,7 @@ export default function Settings() {
         <TokenStatus token={token.trim()} />
       </div>
 
+      <CopilotExportCard token={token.trim()} />
       <InstallCard />
       <CaptionGrabberCard />
     </>
@@ -117,11 +121,186 @@ function TokenStatus({ token }) {
       {ready(tokenHasAnyScope(info, TODO_SCOPES), 'Outlook / To Do sync', 'Tasks.ReadWrite')}
       {ready(tokenHasAnyScope(info, SHAREPOINT_WRITE_SCOPES), 'Upload to SharePoint', 'Sites.ReadWrite.All (or Files.ReadWrite.All)')}
       {ready(tokenHasAnyScope(info, GROUP_CALENDAR_SCOPES), 'On-duty calendar (group calendar)', 'Group.ReadWrite.All')}
+      {ready(tokenHasAnyScope(info, ONEDRIVE_WRITE_SCOPES), 'Export for Copilot (OneDrive)', 'Files.ReadWrite')}
       <details style={{ marginTop: 4 }}>
         <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>Permissions in this token ({info.scopes.length})</summary>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
           {info.scopes.map((s) => <span key={s} className="badge" style={{ fontSize: 10.5 }}>{s}</span>)}
         </div>
+      </details>
+    </div>
+  )
+}
+
+
+// "Export for Copilot" — writes one Word file with the chosen PeopleOS data into the user's own
+// OneDrive, where Microsoft 365 Copilot can read it (custom Copilot agents can't be installed in
+// the tenant). Builder: src/lib/copilotExport.js; upload: msGraph.js's uploadToOneDrive().
+const EXPORT_SECTIONS = [
+  ['people', 'Team profiles', 'Role, team, location, start date, birthday, profile notes'],
+  ['interviews', 'Conversations', '1:1s, skip-levels, performance reviews, team meetings'],
+  ['followUps', 'Open follow-ups', null],
+  ['accomplishments', 'Accomplishments', null],
+  ['notes', 'Notes', 'Your freeform notes (archived ones are never included)'],
+]
+const SENSITIVE_TYPES = ['hiring', 'exit']
+
+function CopilotExportCard({ token }) {
+  const [opts, setOpts] = useState(() => ({ ...DEFAULT_EXPORT_OPTIONS, ...(getCopilotExportSettings().options || {}) }))
+  const [busy, setBusy] = useState('')     // '' | 'upload' | 'download'
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(() => getCopilotExportSettings().last || null)
+
+  const info = getMsGraphTokenInfo(token)
+  const tokenOk = !!token && tokenHasAnyScope(info, ONEDRIVE_WRITE_SCOPES) && !(info?.expiresAt && info.expiresAt.getTime() <= Date.now())
+  const anySection = EXPORT_SECTIONS.some(([k]) => opts[k])
+  const sensitiveOn = SENSITIVE_TYPES.every((t) => opts.interviewTypes.includes(t))
+
+  function update(patch) {
+    const next = { ...opts, ...patch }
+    setOpts(next)
+    setCopilotExportSettings({ options: next })
+  }
+  function toggleSensitive(on) {
+    const base = opts.interviewTypes.filter((t) => !SENSITIVE_TYPES.includes(t))
+    update({ interviewTypes: on ? [...base, ...SENSITIVE_TYPES] : base })
+  }
+
+  async function buildFile() {
+    const [people, interviews, followUps, accomplishments, notes] = await Promise.all([
+      directReportsStore.list({ fresh: true }),
+      interviewsStore.list({ fresh: true }), // also feeds "Last 1:1" when conversations are left out
+      followUpsStore.list({ fresh: true }),
+      accomplishmentsStore.list({ fresh: true }),
+      opts.notes ? notesStore.list({ fresh: true }) : [],
+    ])
+    const model = buildExportModel({ people, interviews, followUps, accomplishments, notes }, opts)
+    return { model, blob: await buildExportDocx(model) }
+  }
+
+  async function handleUpload() {
+    setBusy('upload'); setError('')
+    try {
+      const { model, blob } = await buildFile()
+      const up = await uploadToOneDrive({ folder: EXPORT_FOLDER, filename: EXPORT_FILENAME, data: blob, contentType: DOCX_MIME })
+      const sharing = await checkOneDriveSharing(up.itemId)
+      const last = { at: new Date().toISOString(), webUrl: up.webUrl, replaced: up.replaced, counts: exportCounts(model), sharing: sharing.status }
+      setResult(last)
+      setCopilotExportSettings({ last })
+    } catch (e) {
+      setError(e.message || String(e))
+    } finally { setBusy('') }
+  }
+
+  async function handleDownload() {
+    setBusy('download'); setError('')
+    try {
+      const { blob } = await buildFile()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = EXPORT_FILENAME
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (e) {
+      setError(e.message || String(e))
+    } finally { setBusy('') }
+  }
+
+  const dim = { color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6 }
+  const hint = { fontSize: 12, color: 'var(--text-faint)', marginLeft: 25, marginTop: -2 }
+  const c = result?.counts
+  const plural = (n, w) => `${n} ${n === 1 ? w : w === 'person' ? 'people' : `${w}s`}`
+
+  return (
+    <div className="card" style={{ maxWidth: 640, marginTop: 20 }}>
+      <h3 style={{ marginTop: 0, marginBottom: 6 }}>🤖 Export for Copilot</h3>
+      <p style={{ ...dim, marginTop: 0 }}>
+        Saves a Word file with your PeopleOS data to <strong>your own OneDrive</strong> ({EXPORT_FOLDER} › {EXPORT_FILENAME}),
+        so Microsoft 365 Copilot can answer questions about your team. It's a snapshot: export again
+        whenever you want Copilot to see newer entries. Each export replaces the previous file.
+      </p>
+
+      <div className="field" style={{ marginBottom: 10 }}>
+        <label>Conversations and accomplishments from the last</label>
+        <select value={opts.months} onChange={(e) => update({ months: Number(e.target.value) })} style={{ maxWidth: 200 }}>
+          {[3, 6, 12, 24].map((m) => <option key={m} value={m}>{m} months</option>)}
+        </select>
+      </div>
+
+      <div className="field" style={{ gap: 8 }}>
+        <label>Include</label>
+        {EXPORT_SECTIONS.map(([key, title, sub]) => (
+          <div key={key}>
+            <label className="check-label">
+              <input type="checkbox" checked={!!opts[key]} onChange={(e) => update({ [key]: e.target.checked })} />
+              {title}
+            </label>
+            {sub && <div style={hint}>{sub}</div>}
+            {key === 'interviews' && opts.interviews && (
+              <label className="check-label" style={{ marginLeft: 25, marginTop: 6, fontSize: 13 }}>
+                <input type="checkbox" checked={sensitiveOn} onChange={(e) => toggleSensitive(e.target.checked)} />
+                Also hiring and exit interviews
+              </label>
+            )}
+          </div>
+        ))}
+        <label className="check-label" style={{ marginTop: 4 }}>
+          <input type="checkbox" checked={!!opts.includeInactive} onChange={(e) => update({ includeInactive: e.target.checked })} />
+          Include people who aren't active (on leave, left)
+        </label>
+      </div>
+
+      <p style={{ ...dim, fontSize: 12.5, margin: '0 0 12px' }}>
+        The file is stored unencrypted in your company OneDrive and isn't shared with anyone. Leave
+        out anything you wouldn't keep there.
+      </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <button className="btn primary" onClick={handleUpload} disabled={!!busy || !anySection || !tokenOk}>
+          {busy === 'upload' ? 'Exporting…' : '☁️ Export to OneDrive'}
+        </button>
+        <button className="btn" onClick={handleDownload} disabled={!!busy || !anySection}>
+          {busy === 'download' ? 'Building…' : '⬇ Download .docx'}
+        </button>
+      </div>
+      {!tokenOk && (
+        <div style={{ fontSize: 12.5, color: 'var(--text-faint)', marginTop: 8 }}>
+          Needs a current Microsoft Graph token with OneDrive write permission (Files.ReadWrite) — see the token status above.
+          You can still download the file and upload it to OneDrive yourself.
+        </div>
+      )}
+      {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginTop: 10 }}>⚠ {error}</div>}
+
+      {result && !error && (
+        <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.7 }}>
+          <div>
+            <span style={{ color: 'var(--good)', fontWeight: 600 }}>✓</span>{' '}
+            {result.replaced ? 'Updated' : 'Saved'} on {new Date(result.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+            {result.webUrl && <> · <a href={result.webUrl} target="_blank" rel="noreferrer">Open in OneDrive</a></>}
+          </div>
+          {c && (
+            <div style={{ color: 'var(--text-dim)' }}>
+              {[plural(c.people, 'person'), plural(c.interviews, 'conversation'), plural(c.followUps, 'open follow-up'),
+                plural(c.accomplishments, 'accomplishment'), ...(c.notes ? [plural(c.notes, 'note')] : [])].join(' · ')}
+            </div>
+          )}
+          {result.sharing === 'private' && <div style={{ color: 'var(--good)' }}>🔒 Only you have access to this file</div>}
+          {result.sharing === 'shared' && <div style={{ color: 'var(--warn)', fontWeight: 600 }}>⚠ This file is shared with others — stop sharing it in OneDrive (or its PeopleOS folder).</div>}
+          {result.sharing === 'unknown' && <div style={{ color: 'var(--text-faint)' }}>Couldn't check who has access — make sure the PeopleOS folder isn't shared.</div>}
+        </div>
+      )}
+
+      <details style={{ marginTop: 14 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 13.5, fontWeight: 600 }}>How to use it in Copilot</summary>
+        <ol style={{ ...dim, paddingLeft: 20, margin: '8px 0 0' }}>
+          <li><strong>In any Copilot chat:</strong> type <code>/</code>, choose <strong>{EXPORT_FILENAME}</strong>, then ask, e.g. "Prepare my next 1:1 with Ana".</li>
+          <li>
+            <strong>As your own agent (optional):</strong> in Microsoft 365 Copilot choose <strong>Create agent</strong>,
+            add the file under <strong>Knowledge</strong>, and give it an instruction such as "Answer only from this file; it holds my
+            people-management notes." Keep the agent private — don't share it.
+          </li>
+          <li>Export again after adding new 1:1s or follow-ups; Copilot reads the updated file.</li>
+        </ol>
       </details>
     </div>
   )
