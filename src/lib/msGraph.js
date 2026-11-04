@@ -9,7 +9,7 @@
  * Tokens expire after ~1 hour — refresh from Graph Explorer and update it there when
  * sync stops working.
  */
-import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES } from './settings.js'
+import { getMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES, ONEDRIVE_WRITE_SCOPES } from './settings.js'
 import { planCalendarDiff } from './onDutyCalendar.js'
 
 const BASE    = 'https://graph.microsoft.com/v1.0/me/todo'
@@ -236,6 +236,55 @@ export async function uploadFileToSharePoint({ siteUrl, folder = '', filename, d
   const item = await up.json()
   // 201 = new file, 200 = replaced
   return { name: item.name, webUrl: item.webUrl, replaced: up.status === 200, driveId: item.parentReference?.driveId, itemId: item.id }
+}
+
+// ── OneDrive (Settings → "Export for Copilot") ───────────────────────────────────────────────
+// Writes into the signed-in user's own OneDrive for Business (/me/drive), which Microsoft 365
+// Copilot can read for that same user. Path-based PUT creates the folder if it's missing and
+// replaces the file in place (OneDrive keeps the previous one as a version).
+function oneDriveError(status) {
+  if (status === 401) return new Error('Microsoft token has expired. Get a fresh one from Graph Explorer and update it on the Settings page.')
+  if (status === 403) {
+    const info = getMsGraphTokenInfo()
+    if (info && !tokenHasAnyScope(info, ONEDRIVE_WRITE_SCOPES)) {
+      return new Error('Your Microsoft token has no OneDrive write permission. In Graph Explorer consent to Files.ReadWrite (or check Sites.ReadWrite.All is granted), copy a fresh token and paste it on the Settings page.')
+    }
+    return new Error('Microsoft refused to write to your OneDrive (403). Your account may not have OneDrive enabled.')
+  }
+  if (status === 423) return new Error('The export file is open in Word right now. Close it and try again.')
+  if (status === 507) return new Error('Your OneDrive is full.')
+  return new Error(`Graph API error (${status}) while saving to OneDrive.`)
+}
+
+export async function uploadToOneDrive({ folder = '', filename, data, contentType }) {
+  const auth = graphAuth()
+  const res = await fetch(`${GRAPH}/me/drive/root:/${libraryPath(folder, filename)}:/content`, {
+    method: 'PUT',
+    headers: { ...auth, 'Content-Type': contentType || 'application/octet-stream' },
+    body: data,
+  })
+  if (!res.ok) throw oneDriveError(res.status)
+  const item = await res.json()
+  return { name: item.name, webUrl: item.webUrl, itemId: item.id, replaced: res.status === 200, size: item.size }
+}
+
+/**
+ * Read-only privacy check after an export: does anyone besides the owner have access to the file
+ * (a sharing link or a direct grant, own or inherited from the folder)? Returns
+ * { status: 'private' | 'shared' | 'unknown', count }. Never throws.
+ */
+export async function checkOneDriveSharing(itemId) {
+  try {
+    const token = getMsGraphToken()
+    if (!token || !itemId) return { status: 'unknown' }
+    const res = await fetch(`${GRAPH}/me/drive/items/${itemId}/permissions`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return { status: 'unknown' }
+    const perms = (await res.json()).value || []
+    const others = perms.filter((p) => !(p.roles || []).includes('owner'))
+    return { status: others.length ? 'shared' : 'private', count: others.length }
+  } catch {
+    return { status: 'unknown' }
+  }
 }
 
 /**
