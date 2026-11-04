@@ -1,0 +1,18 @@
+# Cloudflare Worker for the PeopleOS → Microsoft 365 Copilot endpoint.
+# Deployed by .github/workflows/copilot-endpoint.yml — see copilot-endpoint/README.md.
+#
+# There are NO [vars] here on purpose: this repo is public, so the tenant ID,
+# your user object ID and everything else are set as Worker secrets by the
+# workflow (from GitHub Actions secrets), never committed.
+
+name = "peopleos-copilot"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Served on https://peopleos-copilot.<your-subdomain>.workers.dev
+workers_dev = true
+# Preview URLs would expose extra hostnames serving the same data — keep them off.
+preview_urls = false
+
+[observability]
+enabled = true

@@ -1,0 +1,257 @@
+openapi: 3.0.3
+info:
+  title: PeopleOS (read-only)
+  version: 1.0.0
+  description: >-
+    Read-only access to Max's PeopleOS data — direct reports, 1:1 and interview notes,
+    follow-ups, accomplishments and notes. Single-user: only tokens for one Entra ID
+    user are accepted.
+servers:
+  # Replaced at package time by the COPILOT_ENDPOINT_URL repository variable.
+  # Must match the Base URL in the Teams Developer Portal SSO registration.
+  - url: __ENDPOINT_URL__/v1
+security:
+  - entraSso: [PeopleOS.Read]
+paths:
+  /people:
+    get:
+      operationId: listPeople
+      summary: List direct reports
+      description: Lists the user's direct reports, alphabetically. Use to find a person's id before calling getPerson.
+      parameters:
+        - name: status
+          in: query
+          description: active (default), inactive, or all
+          schema: { type: string, enum: [active, inactive, all], default: active }
+        - name: q
+          in: query
+          description: Case-insensitive text match on name, role, team, location or level
+          schema: { type: string }
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200': { description: Matching people, content: { application/json: { schema: { $ref: '#/components/schemas/PeoplePage' } } } }
+  /people/{id}:
+    get:
+      operationId: getPerson
+      summary: Get one person with their recent interviews, open follow-ups and accomplishments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Person id from listPeople
+          schema: { type: string }
+      responses:
+        '200': { description: Person bundle, content: { application/json: { schema: { $ref: '#/components/schemas/PersonBundle' } } } }
+        '404': { description: No person with that id }
+  /interviews:
+    get:
+      operationId: listInterviews
+      summary: Search 1:1s and other interview notes
+      description: Newest first. Combine filters freely.
+      parameters:
+        - $ref: '#/components/parameters/personId'
+        - $ref: '#/components/parameters/person'
+        - name: type
+          in: query
+          schema: { type: string, enum: ['1:1', skip_level, hiring, exit, performance, team_meeting] }
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+        - name: q
+          in: query
+          description: Text match on title, summary, takeaways or tags
+          schema: { type: string }
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200': { description: Matching interviews, content: { application/json: { schema: { $ref: '#/components/schemas/InterviewPage' } } } }
+  /follow-ups:
+    get:
+      operationId: listFollowUps
+      summary: List follow-up action items
+      description: Soonest due first.
+      parameters:
+        - name: status
+          in: query
+          description: open (default), done, or all
+          schema: { type: string, enum: [open, done, all], default: open }
+        - $ref: '#/components/parameters/personId'
+        - $ref: '#/components/parameters/person'
+        - name: dueBefore
+          in: query
+          description: Only items due on or before this date (YYYY-MM-DD)
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200': { description: Matching follow-ups, content: { application/json: { schema: { $ref: '#/components/schemas/FollowUpPage' } } } }
+  /accomplishments:
+    get:
+      operationId: listAccomplishments
+      summary: List recorded wins/accomplishments
+      parameters:
+        - name: month
+          in: query
+          description: YYYY-MM
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+        - $ref: '#/components/parameters/since'
+        - $ref: '#/components/parameters/until'
+        - $ref: '#/components/parameters/personId'
+        - $ref: '#/components/parameters/person'
+        - name: team
+          in: query
+          description: Team name (text match)
+          schema: { type: string }
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200': { description: Matching accomplishments, content: { application/json: { schema: { $ref: '#/components/schemas/AccomplishmentPage' } } } }
+  /notes:
+    get:
+      operationId: listNotes
+      summary: Search the freeform notes
+      description: Pinned notes first, then most recently updated.
+      parameters:
+        - name: q
+          in: query
+          description: Text match on title or body
+          schema: { type: string }
+        - name: includeArchived
+          in: query
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200': { description: Matching notes, content: { application/json: { schema: { $ref: '#/components/schemas/NotePage' } } } }
+components:
+  securitySchemes:
+    entraSso:
+      type: oauth2
+      flows:
+        authorizationCode:
+          # Replaced at package time with your tenant ID (COPILOT_TENANT_ID variable).
+          authorizationUrl: https://login.microsoftonline.com/__TENANT_ID__/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/__TENANT_ID__/oauth2/v2.0/token
+          scopes:
+            PeopleOS.Read: Read PeopleOS data
+  parameters:
+    limit:
+      name: limit
+      in: query
+      description: Max results (default 20, max 50)
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    personId:
+      name: personId
+      in: query
+      description: Exact person id (from listPeople)
+      schema: { type: string }
+    person:
+      name: person
+      in: query
+      description: Person name or part of it, case-insensitive (used when personId is unknown)
+      schema: { type: string }
+    since:
+      name: since
+      in: query
+      description: On or after this date (YYYY-MM-DD)
+      schema: { type: string, format: date }
+    until:
+      name: until
+      in: query
+      description: On or before this date (YYYY-MM-DD)
+      schema: { type: string, format: date }
+  schemas:
+    Person:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string }
+        team: { type: string }
+        level: { type: string }
+        location: { type: string }
+        status: { type: string }
+        startDate: { type: string }
+        birthday: { type: string }
+        email: { type: string }
+        notes: { type: string }
+        updatedAt: { type: string }
+    Interview:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        type: { type: string }
+        personId: { type: string }
+        person: { type: string }
+        date: { type: string }
+        summary: { type: string }
+        takeaways: { type: string }
+        tags: { type: string }
+        faceToFace: { type: boolean }
+        updatedAt: { type: string }
+    FollowUp:
+      type: object
+      properties:
+        id: { type: string }
+        text: { type: string }
+        dueDate: { type: string }
+        done: { type: boolean }
+        personId: { type: string }
+        personName: { type: string }
+        sourceType: { type: string }
+        sourceTitle: { type: string }
+        updatedAt: { type: string }
+    Accomplishment:
+      type: object
+      properties:
+        id: { type: string }
+        month: { type: string }
+        date: { type: string }
+        text: { type: string }
+        assigneeType: { type: string }
+        personId: { type: string }
+        personName: { type: string }
+        team: { type: string }
+        updatedAt: { type: string }
+    Note:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        body: { type: string }
+        pinned: { type: boolean }
+        archived: { type: boolean }
+        updatedAt: { type: string }
+    PeoplePage:
+      type: object
+      properties:
+        total: { type: integer }
+        count: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/Person' } }
+    InterviewPage:
+      type: object
+      properties:
+        total: { type: integer }
+        count: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/Interview' } }
+    FollowUpPage:
+      type: object
+      properties:
+        total: { type: integer }
+        count: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/FollowUp' } }
+    AccomplishmentPage:
+      type: object
+      properties:
+        total: { type: integer }
+        count: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/Accomplishment' } }
+    NotePage:
+      type: object
+      properties:
+        total: { type: integer }
+        count: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/Note' } }
+    PersonBundle:
+      type: object
+      properties:
+        person: { $ref: '#/components/schemas/Person' }
+        recentInterviews: { type: array, items: { $ref: '#/components/schemas/Interview' } }
+        openFollowUps: { type: array, items: { $ref: '#/components/schemas/FollowUp' } }
+        recentAccomplishments: { type: array, items: { $ref: '#/components/schemas/Accomplishment' } }

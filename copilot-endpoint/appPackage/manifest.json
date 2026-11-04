@@ -1,0 +1,24 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.19/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.19",
+  "version": "1.0.0",
+  "id": "9f473cbe-6d6b-4b31-8f64-48e50bade731",
+  "developer": {
+    "name": "Max (HenryAI-stack)",
+    "websiteUrl": "https://cloudplay.at",
+    "privacyUrl": "https://cloudplay.at",
+    "termsOfUseUrl": "https://cloudplay.at"
+  },
+  "name": { "short": "PeopleOS", "full": "PeopleOS (read-only)" },
+  "description": {
+    "short": "Ask Copilot about your PeopleOS team data.",
+    "full": "Private, single-user agent that reads PeopleOS direct reports, 1:1 notes, follow-ups, accomplishments and notes through a read-only endpoint. Only one Entra ID account is accepted by the endpoint."
+  },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "accentColor": "#4F46E5",
+  "copilotAgents": {
+    "declarativeAgents": [ { "id": "peopleosAgent", "file": "declarativeAgent.json" } ]
+  },
+  "permissions": [ "identity" ],
+  "validDomains": []
+}

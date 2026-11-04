@@ -851,3 +851,25 @@ so these pages always load from the network instead of being replaced by the app
   or updates the release `caption-grabber-v<Version>` (bump `<Version>` in the csproj for a new release).
   The install page links `releases/latest/download/CaptionGrabber.exe`. Its README doubles as the
   IT-approval sheet (what it reads, no network, no admin rights, local files only).
+
+## Copilot endpoint (`copilot-endpoint/`)
+
+A separate Cloudflare Worker (own `package.json`, not part of the Vite build) that gives
+Microsoft 365 Copilot **read-only** access to the data repo through a private declarative
+agent. Full setup in `copilot-endpoint/README.md`; deployed by
+`.github/workflows/copilot-endpoint.yml` (off until the `COPILOT_ENDPOINT_ENABLED` repo
+variable is `true`).
+
+- **Single-user by design.** `src/auth.js` accepts only an Entra ID token whose `oid`
+  equals `ALLOWED_USER_OID`, from the configured tenant, for this API's audience, with the
+  `PeopleOS.Read` scope, requested by Microsoft's Enterprise token store
+  (`ab3be6b7-…`). Don't loosen any of these checks (e.g. to a domain or `common` tenant).
+- **Read-only.** No write routes; it uses its own read-only PAT (`COPILOT_GH_READ_TOKEN`),
+  never the app's read/write `VITE_GITHUB_TOKEN`.
+- `src/data.js` is a third re-implementation of `dataStore.js` read + `crypto.js` decrypt
+  (like the two email scripts) — update it when the storage format changes.
+- Output is allow-listed per collection in `shape` (`src/data.js`); new record fields are
+  not exposed until added there and to `appPackage/openapi.yaml`.
+- `cd copilot-endpoint && npm test` runs the auth/route tests (no network needed).
+- No tenant ID, user OID or URLs are committed (this repo is public) — the workflow fills
+  `__PLACEHOLDER__`s in `appPackage/` from Actions secrets/variables when packaging.

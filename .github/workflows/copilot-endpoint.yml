@@ -1,0 +1,104 @@
+name: Copilot endpoint
+
+# Tests, deploys and packages the read-only Microsoft 365 Copilot endpoint in
+# copilot-endpoint/. Independent of deploy.yml (the app itself).
+#
+# Off by default: the deploy job only runs once the repository VARIABLE
+# COPILOT_ENDPOINT_ENABLED is "true", and the package job only once
+# COPILOT_SSO_REGISTRATION_ID is set. See copilot-endpoint/README.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'copilot-endpoint/**'
+      - '.github/workflows/copilot-endpoint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copilot-endpoint
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: copilot-endpoint
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: vars.COPILOT_ENDPOINT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Deploy Worker and set its secrets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: copilot-endpoint
+          command: deploy
+          secrets: |
+            ENTRA_TENANT_ID
+            ENTRA_API_AUDIENCES
+            ALLOWED_USER_OID
+            GH_OWNER
+            GH_DATA_REPO
+            GH_DATA_BRANCH
+            GH_TOKEN
+            ENCRYPTION_SECRET
+        env:
+          ENTRA_TENANT_ID:     ${{ secrets.COPILOT_ENTRA_TENANT_ID }}
+          ENTRA_API_AUDIENCES: ${{ secrets.COPILOT_ENTRA_API_AUDIENCES }}
+          ALLOWED_USER_OID:    ${{ secrets.COPILOT_ALLOWED_USER_OID }}
+          GH_OWNER:            ${{ secrets.VITE_GITHUB_OWNER }}
+          GH_DATA_REPO:        ${{ secrets.VITE_GITHUB_REPO }}
+          GH_DATA_BRANCH:      ${{ secrets.VITE_GITHUB_BRANCH || 'main' }}
+          # A SEPARATE fine-grained PAT: people-os-data only, Contents: Read-only.
+          # Not the app's read/write VITE_GITHUB_TOKEN.
+          GH_TOKEN:            ${{ secrets.COPILOT_GH_READ_TOKEN }}
+          ENCRYPTION_SECRET:   ${{ secrets.VITE_ENCRYPTION_SECRET }}
+
+  package:
+    needs: test
+    if: vars.COPILOT_SSO_REGISTRATION_ID != '' && vars.COPILOT_ENDPOINT_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build Copilot agent package (.zip)
+        env:
+          ENDPOINT_URL: ${{ vars.COPILOT_ENDPOINT_URL }}
+          SSO_ID:       ${{ vars.COPILOT_SSO_REGISTRATION_ID }}
+          TENANT_ID:    ${{ secrets.COPILOT_ENTRA_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          ENDPOINT_URL="${ENDPOINT_URL%/}"
+          mkdir -p ../build/pkg
+          cp appPackage/* ../build/pkg/
+          cd ../build/pkg
+          sed -i "s#__ENDPOINT_URL__#${ENDPOINT_URL}#g; s#__TENANT_ID__#${TENANT_ID}#g" openapi.yaml
+          sed -i "s#__SSO_REGISTRATION_ID__#${SSO_ID}#g" ai-plugin.json
+          if grep -R "__[A-Z_]*__" . ; then echo "Unreplaced placeholder"; exit 1; fi
+          zip -j ../peopleos-copilot-agent.zip ./*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peopleos-copilot-agent
+          path: build/peopleos-copilot-agent.zip
+          # This repo is public — keep the artifact (contains endpoint URL + tenant ID) short-lived.
+          retention-days: 1

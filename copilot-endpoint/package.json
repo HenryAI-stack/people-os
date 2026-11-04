@@ -1,0 +1,18 @@
+{
+  "name": "people-os-copilot-endpoint",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Read-only, single-user Microsoft 365 Copilot endpoint for PeopleOS (Cloudflare Worker)",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "jose": "^6.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.57.0"
+  }
+}
