@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMsGraphToken, setMsGraphToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES, ONEDRIVE_WRITE_SCOPES, getCopilotExportSettings, setCopilotExportSettings } from '../lib/settings.js'
+import { getMsGraphToken, setMsGraphToken, normalizeToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES, ONEDRIVE_WRITE_SCOPES, getCopilotExportSettings, setCopilotExportSettings } from '../lib/settings.js'
 import { directReportsStore, interviewsStore, followUpsStore, accomplishmentsStore, notesStore } from '../lib/dataStore.js'
 import { uploadToOneDrive, checkOneDriveSharing } from '../lib/msGraph.js'
 import { buildExportModel, buildExportDocx, exportCounts, DEFAULT_EXPORT_OPTIONS, EXPORT_FOLDER, EXPORT_FILENAME, DOCX_MIME } from '../lib/copilotExport.js'
@@ -12,7 +12,8 @@ export default function Settings() {
 
   function handleSave(e) {
     e.preventDefault()
-    setMsGraphToken(token.trim())
+    setMsGraphToken(token)
+    setToken(normalizeToken(token))
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -80,10 +81,10 @@ export default function Settings() {
           </div>
         </form>
 
-        <TokenStatus token={token.trim()} />
+        <TokenStatus token={normalizeToken(token)} />
       </div>
 
-      <CopilotExportCard token={token.trim()} />
+      <CopilotExportCard token={normalizeToken(token)} />
       <InstallCard />
       <CaptionGrabberCard />
     </>
@@ -99,6 +100,13 @@ function TokenStatus({ token }) {
 
   const info = getMsGraphTokenInfo(token)
   if (!info) return <div style={box}>Status: token set, ending in <code>{token.slice(-6)}</code> (its details couldn't be read — it will still be tried as-is).</div>
+
+  // Why a token can't do anything — shown in place of a silent row of ✗s.
+  const problem = {
+    id: 'This is an ID token, not an access token, so it carries no permissions. In Graph Explorer, open your profile picture → Access token (or the "Access token" tab next to Request headers) and copy that one.',
+    'other-aud': `This access token is for another API (${info.aud}), not Microsoft Graph. Copy the token from Graph Explorer's "Access token" tab instead.`,
+    none: 'This Graph token carries no permissions. In Graph Explorer, run any query once (e.g. GET /me) so it fetches a token with your consented permissions, then copy the access token again.',
+  }[info.kind]
 
   const mins = info.expiresAt ? Math.round((info.expiresAt.getTime() - now) / 60000) : null
   const expired = mins !== null && mins <= 0
@@ -122,10 +130,20 @@ function TokenStatus({ token }) {
       {ready(tokenHasAnyScope(info, SHAREPOINT_WRITE_SCOPES), 'Upload to SharePoint', 'Sites.ReadWrite.All (or Files.ReadWrite.All)')}
       {ready(tokenHasAnyScope(info, GROUP_CALENDAR_SCOPES), 'On-duty calendar (group calendar)', 'Group.ReadWrite.All')}
       {ready(tokenHasAnyScope(info, ONEDRIVE_WRITE_SCOPES), 'Export for Copilot (OneDrive)', 'Files.ReadWrite')}
-      <details style={{ marginTop: 4 }}>
+      {problem && (
+        <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--bad)', color: 'var(--text)' }}>
+          <span style={{ color: 'var(--bad)', fontWeight: 600 }}>⚠ </span>{problem}
+        </div>
+      )}
+      <details style={{ marginTop: 4 }} open={!info.scopes.length || undefined}>
         <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>Permissions in this token ({info.scopes.length})</summary>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-          {info.scopes.map((s) => <span key={s} className="badge" style={{ fontSize: 10.5 }}>{s}</span>)}
+          {info.scopes.length
+            ? info.scopes.map((s) => <span key={s} className="badge" style={{ fontSize: 10.5 }}>{s}</span>)
+            : <span style={{ color: 'var(--text-faint)' }}>none</span>}
+        </div>
+        <div style={{ marginTop: 6, color: 'var(--text-faint)', wordBreak: 'break-all' }}>
+          Issued for: {info.aud || '—'}{info.appName ? <> · app: {info.appName}</> : null} · ends in <code>{token.slice(-6)}</code>
         </div>
       </details>
     </div>

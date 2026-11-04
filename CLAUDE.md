@@ -189,8 +189,11 @@ Browser (React SPA)
     **Sites.ReadWrite.All** (or Files.ReadWrite.All) consented. In UL's tenant that permission is
     already admin-granted for Graph Explorer: it shows greyed out with consent type
     **"AllPrincipals"** (tenant-wide admin consent), so there's no Consent button and nothing to do.
-    `settings.js`'s `getMsGraphTokenInfo()` decodes the pasted token's JWT payload (`scp`, `exp`,
-    `upn`; display-only, no signature check) so the Settings page's `TokenStatus` shows expiry and
+    `settings.js`'s `getMsGraphTokenInfo()` decodes the pasted token's JWT payload (`scp`/`roles`, `aud`, `exp`,
+    `upn`; display-only, no signature check; tokens are cleaned by `normalizeToken()` — whitespace,
+    `Bearer ` prefix, quotes — on read, save and decode). When the permission list would be empty it
+    names the cause (`kind`: ID token, token for another API, Graph token without permissions)
+    instead of a silent row of ✗s so the Settings page's `TokenStatus` shows expiry and
     ✓/✗ for "Outlook / To Do sync" (`TODO_SCOPES`) and "Upload to SharePoint"
     (`SHAREPOINT_WRITE_SCOPES`). The 403 handler uses the same info to tell "token lacks the
     permission" apart from "account lacks edit rights on the site/folder".
