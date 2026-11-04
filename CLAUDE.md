@@ -152,7 +152,16 @@ Browser (React SPA)
   `src/lib/settings.js`'s `getMsGraphToken()` reads it from `localStorage` (set via the
   Settings page's paste-a-token form — the normal way to refresh it, since it doesn't
   require a rebuild) and falls back to the build-time `VITE_MS_GRAPH_TOKEN` env var if
-  nothing is stored locally. msGraph.js itself is just Graph API calls
+  nothing is stored locally. **The token is synced between devices** (`src/lib/tokenSync.js`):
+  Save also upserts it as record `ms-graph-token` in `app-settings.json` in the data repo
+  (encrypted like everything else; Clear removes it), and `pullMsGraphToken()` adopts the synced
+  token when it's newer than the local one by its `exp` claim — called from `App.jsx` after login
+  and on every return to the foreground, and from the Settings page on mount (it fires
+  `TOKEN_CHANGED_EVENT` so the form updates). localStorage stays the working copy because
+  `msGraph.js` reads the token synchronously. Reason: on the iPhone, the company's Intune policy
+  blocks pasting the token from the work browser into the installed app, and Graph Explorer opened
+  from the app issues a token with fewer permissions (it only requests what was consented in that
+  browser). msGraph.js itself is just Graph API calls
   (`syncFollowUpToOutlook` create/update, `listOutlookTasks`, `deleteOutlookTask`) — the
   reconciliation logic lives in `FollowUps.jsx`, per the "page components own their data"
   convention:
@@ -658,6 +667,8 @@ src/
                         (zonedToUtc/localDateStr/localTimeStr/isWinterTime) that onDuty.js and
                         scheduleGenerator.js import too
     imageUtils.js      Client-side avatar photo resizing before storing as base64
+    tokenSync.js       pullMsGraphToken()/pushMsGraphToken() — shares the Graph token across
+                        devices via app-settings.json (newer `exp` wins)
     settings.js        Browser-local (localStorage) user settings — getMsGraphToken()/
                         setMsGraphToken() (read by msGraph.js, written by the Settings page),
                         plus getMsGraphTokenInfo()/tokenHasAnyScope() + TODO_SCOPES/
@@ -743,7 +754,7 @@ scripts/
 Data collections (each a JSON file in the **separate, private** data repo — default name
 `people-os-data` — encrypted at rest): `direct-reports.json`, `interviews.json`, `notes.json`,
 `follow-ups.json`, `schedules.json`, `accomplishments.json`, `workflows.json`,
-`workflow-runs.json`.
+`workflow-runs.json`, `app-settings.json` (synced app settings; currently only the Graph token).
 
 ## Conventions to follow when editing
 
