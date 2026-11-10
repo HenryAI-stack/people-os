@@ -1,0 +1,16 @@
+{
+  "name": "people-os-ai-proxy",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Vercel function that forwards PeopleOS AI calls to OpenRouter",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "jose": "^6.2.0"
+  }
+}
