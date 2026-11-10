@@ -8,6 +8,7 @@ import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { nextBirthday, lastBirthday } from '../lib/birthdays.js'
 import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
 import { computeTagCloud } from '../lib/interviewTags.js'
+import { upcomingHolidays, COUNTRY_NAMES } from '../lib/holidays.js'
 
 // ── Topic tag cloud ─────────────────────────────────────────────────
 // Derived from every interview's `tags` — nothing stored. The period is a per-browser pref.
@@ -161,6 +162,38 @@ function EventRow({ person, sub, badge, badgeCls = '', past = false, onClick }) 
   )
 }
 
+// Local "today" as 'YYYY-MM-DD' (local getters — toISOString() would be UTC and roll back a day).
+function todayStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// One row of the "Upcoming holidays" list: the country flag(s) in place of an avatar.
+// A holiday shared by several countries (e.g. Christmas) is one row with all its flags.
+function HolidayRow({ holiday, today }) {
+  const [y, m, d] = holiday.date.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const [ty, tm, td] = today.split('-').map(Number)
+  const daysUntil = Math.round((date - new Date(ty, tm - 1, td)) / 86400000)
+  const names = holiday.countries.map((c) => COUNTRY_NAMES[c] || c)
+  return (
+    <div className="row-card" onClick={holiday.onClick} style={{ cursor:'pointer' }}>
+      <div className="row-main" style={{ minWidth:0 }}>
+        <div style={{ display:'flex', gap:4, flexShrink:0, minWidth:34 }}>
+          {holiday.countries.map((c) => (
+            <img key={c} src={flagUrl(c)} alt={COUNTRY_NAMES[c] || c} title={COUNTRY_NAMES[c] || c}
+              style={{ width:24, height:18, objectFit:'cover', borderRadius:2, boxShadow:'0 0 0 1px var(--border)' }} />
+          ))}
+        </div>
+        <div style={{ minWidth:0 }}>
+          <div className="row-title">{holiday.name}</div>
+          <div className="row-sub">{date.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })} · {names.join(', ')}</div>
+        </div>
+      </div>
+      <span className={`badge ${urgencyClass(daysUntil)}`} style={{ flexShrink:0, whiteSpace:'nowrap' }}>{daysLabel(daysUntil)}</span>
+    </div>
+  )
+}
+
 function fmtShiftDay(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' })
@@ -286,6 +319,9 @@ export default function Dashboard() {
   const lastAnn  = mostRecent(reports.filter((r) => r.startDate), (r) => prevAnniversary(r.startDate))
   const lastBday = mostRecent(reports.filter((r) => r.birthday),  (r) => lastBirthday(r.birthday))
 
+  const today = todayStr(now)
+  const nextHolidays = upcomingHolidays(today, 5)
+
   return (
     <>
       <div className="page-header"><h1>Dashboard</h1><p>Your team, at a glance.</p></div>
@@ -375,6 +411,21 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
+        🏖️ Upcoming national holidays
+        <Link to="/work-schedule" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>Work schedule →</Link>
+      </div>
+      {nextHolidays.length === 0
+        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No upcoming holidays in the holiday tables.</div>
+        : (
+          <div className="list">
+            {nextHolidays.map((h) => (
+              <HolidayRow key={`${h.date}|${h.name}`} today={today}
+                holiday={{ ...h, onClick: () => navigate('/work-schedule') }} />
+            ))}
+          </div>
+        )}
 
       <div className="section-title">🗣️ 1:1s overdue <span style={{ marginLeft:6, fontWeight:400, color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontSize:12 }}>no 1:1 in the last {CADENCE_DAYS} days</span></div>
       {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}

@@ -361,6 +361,11 @@ Browser (React SPA)
   `lastBirthday()` in `birthdays.js` and a Dashboard-local `prevAnniversary()` (which skips
   anyone with no full year of tenure yet). "Today" counts as upcoming, not past. In the half-width
   columns, location shows as just the flag next to the name, not the full location text.
+  Directly below sits "🏖️ Upcoming national holidays": the next 5 entries across all `HOLIDAYS`
+  tables (PL/IN/MX), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
+  today inclusive; the same name on the same date in several countries is merged into one row
+  with all flags, e.g. Christmas). Flags via `flagUrl(code)`; rows link to the Work Schedule.
+  Since it reads the same tables, it is only as complete as they are (2027 `IN` is provisional).
 - **New-interview defaults**: there are two separate "log a new interview" entry points — the
   standalone `InterviewForm` in `Interviews.jsx` ("+ Log entry") and the one inside
   `PersonDetail.jsx` ("+ Add interview", used from a person's profile) — genuinely two different

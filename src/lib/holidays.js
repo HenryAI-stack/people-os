@@ -137,3 +137,29 @@ export function getDaysInMonth(yearMonth) {
   }
   return days
 }
+
+/** Display names for the HOLIDAYS country codes. */
+export const COUNTRY_NAMES = { PL: 'Poland', IN: 'India', MX: 'Mexico' }
+
+/**
+ * The next `count` holidays across all HOLIDAYS countries, starting at `fromDateStr`
+ * ('YYYY-MM-DD', inclusive, so a holiday today counts as upcoming). The same holiday on
+ * the same date in several countries (e.g. Christmas Day) is merged into one entry, so it
+ * takes one of the `count` slots. Pure string comparison — 'YYYY-MM-DD' sorts correctly
+ * and never goes through a Date, so no timezone shift.
+ * Returns [{ date, name, countries: ['PL', …] }] in date order (countries in table order).
+ */
+export function upcomingHolidays(fromDateStr, count = 5) {
+  const byKey = new Map()
+  for (const [country, table] of Object.entries(HOLIDAYS)) {
+    for (const [date, name] of Object.entries(table)) {
+      if (date < fromDateStr) continue
+      const key = `${date}|${name.toLowerCase()}`
+      if (byKey.has(key)) byKey.get(key).countries.push(country)
+      else byKey.set(key, { date, name, countries: [country] })
+    }
+  }
+  return [...byKey.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
+    .slice(0, count)
+}
