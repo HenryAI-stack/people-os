@@ -655,6 +655,12 @@ Browser (React SPA)
   `pdfkit` is a normal `dependencies` entry (like `crypto-js`) even though only this CI-only
   script imports it — since nothing under `src/` ever imports it, Vite never bundles it into
   the browser build.
+  **Fonts:** the PDF uses Liberation Sans (Regular/Bold/Italic TTFs in `scripts/fonts/`, SIL OFL 1.1,
+  license file alongside), registered per document as `Sans`/`Sans-Bold`/`Sans-Italic`
+  (`registerFonts()`, `FONT*` constants). Don't go back to pdfkit's built-in Helvetica: it only
+  covers Latin-1 (WinAnsi), so Polish names (ś, ł, ż, ą…) came out garbled. Liberation Sans has the
+  same letter widths as Helvetica/Arial, so the layout didn't change; pdfkit embeds only used
+  glyphs. `scripts/fonts/` is CI-only (checked out by the workflow), never part of the web build.
   One pdfkit gotcha hit while building this: placing text at exactly
   `pageHeight - marginBottom` (the writable area's precise bottom edge) makes pdfkit think the
   text doesn't fit and silently insert a blank extra page, even though the coordinates were
@@ -822,6 +828,7 @@ public/
   404.html             GitHub Pages deep-link redirect
 scripts/
   send-accomplishments-email.mjs   CI-only Node script; re-implements dataStore's read+decrypt
+  fonts/               Liberation Sans TTFs + OFL license for the schedule email's PDF
   send-schedule-email.mjs   CI-only Node script; imports scheduleGenerator.js/holidays.js/
                        scheduleExcel.js directly (they're import.meta.env-free) but still
                        re-implements dataStore's read+decrypt like the script above; builds
