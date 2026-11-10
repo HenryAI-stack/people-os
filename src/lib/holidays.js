@@ -1,5 +1,7 @@
 /**
- * National public holidays for Poland (PL), India (IN), Mexico (MX).
+ * National public holidays for Poland (PL), India (IN), Mexico (MX), United States (US).
+ * US is shown on the Dashboard only — there's no US support center, so the schedule
+ * generator never looks it up.
  * Format: 'YYYY-MM-DD': 'Holiday Name'
  */
 
@@ -100,6 +102,42 @@ export const HOLIDAYS = {
     '2027-09-16': 'Independence Day', '2027-11-02': 'Día de Muertos',
     '2027-11-15': 'Revolution Day', '2027-12-25': 'Christmas Day',
   },
+
+  // ── UNITED STATES ─────────────────────────────────────────────────────────
+  // The 11 federal holidays (5 U.S.C. 6103) on their OBSERVED dates: a Saturday holiday is
+  // observed the Friday before, a Sunday one the Monday after (so New Year 2028 → Fri
+  // 2027-12-31). Names match the other tables where it's the same holiday, so e.g. Christmas
+  // merges into one Dashboard row.
+  US: {
+    // 2024
+    '2024-01-01': 'New Year', '2024-01-15': 'Martin Luther King Jr. Day',
+    '2024-02-19': "Washington's Birthday", '2024-05-27': 'Memorial Day',
+    '2024-06-19': 'Juneteenth', '2024-07-04': 'Independence Day',
+    '2024-09-02': 'Labor Day', '2024-10-14': 'Columbus Day',
+    '2024-11-11': 'Veterans Day', '2024-11-28': 'Thanksgiving Day',
+    '2024-12-25': 'Christmas Day',
+    // 2025
+    '2025-01-01': 'New Year', '2025-01-20': 'Martin Luther King Jr. Day',
+    '2025-02-17': "Washington's Birthday", '2025-05-26': 'Memorial Day',
+    '2025-06-19': 'Juneteenth', '2025-07-04': 'Independence Day',
+    '2025-09-01': 'Labor Day', '2025-10-13': 'Columbus Day',
+    '2025-11-11': 'Veterans Day', '2025-11-27': 'Thanksgiving Day',
+    '2025-12-25': 'Christmas Day',
+    // 2026
+    '2026-01-01': 'New Year', '2026-01-19': 'Martin Luther King Jr. Day',
+    '2026-02-16': "Washington's Birthday", '2026-05-25': 'Memorial Day',
+    '2026-06-19': 'Juneteenth', '2026-07-03': 'Independence Day (observed)',
+    '2026-09-07': 'Labor Day', '2026-10-12': 'Columbus Day',
+    '2026-11-11': 'Veterans Day', '2026-11-26': 'Thanksgiving Day',
+    '2026-12-25': 'Christmas Day',
+    // 2027
+    '2027-01-01': 'New Year', '2027-01-18': 'Martin Luther King Jr. Day',
+    '2027-02-15': "Washington's Birthday", '2027-05-31': 'Memorial Day',
+    '2027-06-18': 'Juneteenth (observed)', '2027-07-05': 'Independence Day (observed)',
+    '2027-09-06': 'Labor Day', '2027-10-11': 'Columbus Day',
+    '2027-11-11': 'Veterans Day', '2027-11-25': 'Thanksgiving Day',
+    '2027-12-24': 'Christmas Day (observed)', '2027-12-31': 'New Year (observed)',
+  },
 }
 
 /** Returns holiday name for a given YYYY-MM-DD and country code, or null. */
@@ -139,7 +177,7 @@ export function getDaysInMonth(yearMonth) {
 }
 
 /** Display names for the HOLIDAYS country codes. */
-export const COUNTRY_NAMES = { PL: 'Poland', IN: 'India', MX: 'Mexico' }
+export const COUNTRY_NAMES = { PL: 'Poland', IN: 'India', MX: 'Mexico', US: 'USA' }
 
 // All holidays across every HOLIDAYS table, the same holiday on the same date in several
 // countries (e.g. Christmas Day) merged into one entry. Sorted by date, then name.

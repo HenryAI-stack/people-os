@@ -362,7 +362,8 @@ Browser (React SPA)
   anyone with no full year of tenure yet). "Today" counts as upcoming, not past. In the half-width
   columns, location shows as just the flag next to the name, not the full location text.
   Directly below sits "🏖️ Upcoming national holidays": the next 5 entries across all `HOLIDAYS`
-  tables (PL/IN/MX), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
+  tables (PL/IN/MX/US — `US` = the 11 federal holidays on their observed dates, Dashboard-only since
+  there's no US center), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
   today inclusive; the same name on the same date in several countries is merged into one row
   with all flags, e.g. Christmas), preceded by one greyed-out row for the most recent past holiday
   (`lastHolidays(todayStr)`; several rows only if different holidays share that date). Each row shows
@@ -436,7 +437,7 @@ Browser (React SPA)
   display order everywhere: tabs, default tab, print view, Excel sheets, PDF pages), matching
   people to a center by free-text `location`. Holiday awareness and month/weekend helpers
   come from `src/lib/holidays.js` (`getHoliday`, `isWeekend`, `getDaysInMonth`; hardcoded
-  PL/IN/MX holiday tables for 2024–2027). **The `IN` table is the Bangalore center's official
+  PL/IN/MX holiday tables for 2024–2027, plus a `US` table the generator never uses). **The `IN` table is the Bangalore center's official
   company holiday calendar** (from 2026): the intranet "Holiday Calendar" lists for "India" plus
   "India - Bangalore", combined — so it includes Karnataka/Bangalore location holidays (Sankranthi,
   Ugadi, Rajyotsava, Deepavali…), not just national days. Always add a new year from that company
