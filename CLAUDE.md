@@ -369,6 +369,9 @@ Browser (React SPA)
   the full date (weekday in the subtitle) and an exact day count in the badge (`holidayCountdown`, not
   the rounding `daysLabel`). Flags via `flagUrl(code)`; rows link to the Work Schedule.
   Since it reads the same tables, it is only as complete as they are (2027 `IN` is provisional).
+  An anniversary, birthday or holiday falling **today** gets `.row-card.is-today` (accent-tinted
+  background via `color-mix`, accent border, solid accent badge) — `isToday` prop on `EventRow`,
+  computed inside `HolidayRow`; never on the greyed-out past rows.
 - **New-interview defaults**: there are two separate "log a new interview" entry points — the
   standalone `InterviewForm` in `Interviews.jsx` ("+ Log entry") and the one inside
   `PersonDetail.jsx` ("+ Add interview", used from a person's profile) — genuinely two different

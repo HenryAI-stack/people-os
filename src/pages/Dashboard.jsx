@@ -146,10 +146,10 @@ const COLUMN_HEADING = { fontSize:12.5, fontWeight:600, color:'var(--text-dim)',
 
 // Shared row for the anniversaries/birthdays columns. `past` = the greyed-out "most recent" row.
 // Half-width columns are tight, so location shows as just the flag next to the name.
-function EventRow({ person, sub, badge, badgeCls = '', past = false, onClick }) {
+function EventRow({ person, sub, badge, badgeCls = '', past = false, isToday = false, onClick }) {
   return (
-    <div className="row-card" onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
-      title={past ? 'Most recent — already passed' : undefined}>
+    <div className={`row-card${isToday ? ' is-today' : ''}`} onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
+      title={past ? 'Most recent — already passed' : isToday ? 'Today!' : undefined}>
       <div className="row-main" style={{ minWidth:0 }}>
         <Avatar photo={person.photo} name={person.name} size={34} />
         <div style={{ minWidth:0 }}>
@@ -184,12 +184,13 @@ function HolidayRow({ holiday, today, past = false, onClick }) {
   const [ty, tm, td] = today.split('-').map(Number)
   const daysUntil = Math.round((date - new Date(ty, tm - 1, td)) / 86400000)
   const names = holiday.countries.map((c) => COUNTRY_NAMES[c] || c)
+  const isToday = !past && daysUntil === 0
   const weekday = date.toLocaleDateString('en-GB', { weekday:'long' })
   const fullDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
   const shortDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short' })
   return (
-    <div className="row-card" onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
-      title={past ? 'Most recent — already passed' : undefined}>
+    <div className={`row-card${isToday ? ' is-today' : ''}`} onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
+      title={past ? 'Most recent — already passed' : isToday ? 'Today!' : undefined}>
       <div className="row-main" style={{ minWidth:0 }}>
         <div style={{ display:'flex', gap:4, flexShrink:0, minWidth:34 }}>
           {holiday.countries.map((c) => (
@@ -406,7 +407,7 @@ export default function Dashboard() {
             {upcomingAnniversaries.map((r) => (
               <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
                 sub={`${ordinal(r.ann.years)} anniversary · ${formatDate(r.ann.date)}`}
-                badge={daysLabel(r.ann.daysUntil)} badgeCls={urgencyClass(r.ann.daysUntil)} />
+                badge={daysLabel(r.ann.daysUntil)} badgeCls={urgencyClass(r.ann.daysUntil)} isToday={r.ann.daysUntil === 0} />
             ))}
           </div>
         </div>
@@ -422,7 +423,7 @@ export default function Dashboard() {
             {upcomingBirthdays.map((r) => (
               <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
                 sub={`${formatDate(r.bday.date)}${r.bday.turningAge != null ? ` · turning ${r.bday.turningAge}` : ''}`}
-                badge={daysLabel(r.bday.daysUntil)} badgeCls={urgencyClass(r.bday.daysUntil)} />
+                badge={daysLabel(r.bday.daysUntil)} badgeCls={urgencyClass(r.bday.daysUntil)} isToday={r.bday.daysUntil === 0} />
             ))}
           </div>
         </div>
