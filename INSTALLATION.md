@@ -136,7 +136,8 @@ These get injected as environment variables on every build (see
 
 | Secret name                 | Example value                      | Powers                |
 | ---------------------------- | ----------------------------------- | --------------------- |
-| `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | AI interview tags, takeaways, follow-up topics, and executive summaries, via [OpenRouter](https://openrouter.ai/keys). Put ≥ $10 of credit on the account — the free tier is capped at ~50 requests/day |
+| `VITE_AI_PROXY_URL`         | `https://ai.cloudplay.at/api/chat` | **Preferred way to enable AI features.** URL of the Vercel AI proxy (`ai-proxy/`), which keeps the OpenRouter key server-side and works on networks that block openrouter.ai — see **Optional — AI proxy (Vercel)** below. When set, `VITE_OPENROUTER_API_KEY` isn't used and should be removed |
+| `VITE_OPENROUTER_API_KEY`   | `sk-or-v1-...`                      | Only without the proxy: AI interview tags, takeaways, follow-up topics, and executive summaries, called straight from the browser via [OpenRouter](https://openrouter.ai/keys) (the key then ships in the bundle). Put ≥ $10 of credit on the account — the free tier is capped at ~50 requests/day |
 | `VITE_OPENROUTER_MODEL`     | `google/gemini-2.5-flash`          | Optional. Overrides the default model in `src/lib/ai.js` — set it if that slug gets retired (error: "No endpoints found"). Current [model list](https://openrouter.ai/models) |
 | `VITE_MS_GRAPH_TOKEN`       | `eyJ0eXAi...`                      | Build-time fallback for Outlook / Microsoft To Do sync. Easier in practice: paste the token straight into the app's **Settings** page instead (saved to `localStorage`, no rebuild needed) — same short-lived (~1h) token from [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) → sign in → avatar → **Access token** |
 | `VITE_GH_ACTIONS_TOKEN`     | `github_pat_...`                   | The "Send this month's email" and "Send via Email" (work schedule) buttons — see the two email sections below |
@@ -421,6 +422,21 @@ It defaults to the current month (Europe/Vienna); pass a specific `month`
 (e.g. `2026-08`) to send a different one. There must already be a **saved**
 schedule for that month (Work Schedule page → Generate → Save) — the
 workflow fails with a clear message otherwise.
+
+---
+
+## Optional — AI proxy (Vercel)
+
+The AI features call OpenRouter. Straight from the browser that fails on
+networks that block `openrouter.ai` (it shows "Can't reach the AI service…"),
+and the OpenRouter key has to ship in the bundle. The `ai-proxy/` folder is a
+small Vercel function (free Hobby plan) that holds the key and forwards the
+calls; only your signed-in account can use it. Set it up once, then set
+`VITE_AI_PROXY_URL` and remove `VITE_OPENROUTER_API_KEY`.
+
+Full steps — Vercel project with Root Directory `ai-proxy`, its environment
+variables, an optional `ai.cloudplay.at` CNAME, and rotating the old key — are
+in [`ai-proxy/README.md`](ai-proxy/README.md).
 
 ---
 

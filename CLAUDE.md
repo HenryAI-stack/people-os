@@ -45,7 +45,8 @@ accomplishments summary (server-side, via Resend).
 Browser (React SPA)
    ├── Google Login  → Firebase Authentication (identity check only)
    ├── Read/write    → GitHub Contents API → private data repo (AES-256-encrypted JSON)
-   ├── AI features   → OpenRouter (OpenAI-compatible), called directly from the browser
+   ├── AI features   → Vercel AI proxy (ai-proxy/) → OpenRouter (OpenAI-compatible);
+   │                    straight from the browser only when VITE_AI_PROXY_URL is unset
    ├── Outlook sync  → Microsoft Graph API, called directly from the browser
    ├── "Send email now" → dispatches a GitHub Actions workflow (no mail key in the bundle)
    └── Deploy        → GitHub Actions → GitHub Pages
@@ -127,9 +128,18 @@ Browser (React SPA)
   exists** — there's no migration path, old data just becomes unreadable. `decrypt` swallows
   failures and returns `null`.
 - **AI features**: `src/lib/ai.js` is the one place the app talks to an LLM — a `chat(prompt,
-  {maxTokens})` helper that POSTs to OpenRouter (`https://openrouter.ai/api/v1/chat/completions`,
-  OpenAI-compatible) with `VITE_OPENROUTER_API_KEY`. Model = `VITE_OPENROUTER_MODEL` or the
-  `MODEL` default in `ai.js` (`google/gemini-2.5-flash`). Avoid Azure-served OpenAI slugs like
+  {maxTokens})` helper that POSTs an OpenAI-compatible chat completion. **With
+  `VITE_AI_PROXY_URL` set (the intended setup)** it goes to the Vercel AI proxy (`ai-proxy/`, see
+  below) with `Authorization: Bearer <Firebase ID token>` (`auth.currentUser.getIdToken()`, which
+  refreshes itself); the OpenRouter key lives only in Vercel. Reason: the company network blocks
+  `openrouter.ai` (the old generic "Network error" was that block), and it takes the key out of
+  the bundle. Without a proxy URL it falls back to calling OpenRouter
+  (`https://openrouter.ai/api/v1/chat/completions`) directly with `VITE_OPENROUTER_API_KEY`.
+  A `fetch()` that throws (no response) now reports "Can't reach the AI service (<host>) — may be
+  blocked on this network" (or "offline"). With the proxy, 401/403 messages come from the proxy's
+  body (sign-in token / account); only direct mode maps 401 to "OpenRouter API key…".
+  Model = `VITE_OPENROUTER_MODEL` or the `MODEL` default in `ai.js` (`google/gemini-2.5-flash`);
+  the proxy's own `OPENROUTER_MODEL` env var overrides it server-side (no rebuild). Avoid Azure-served OpenAI slugs like
   `gpt-4o-mini` — their content filter blocks HR/review text and returns an empty 200.
   OpenRouter also retires slugs often ("No endpoints found") and the account needs credit; the
   old `openrouter/free` slug + free-tier caps were why AI calls used to fail constantly.
@@ -614,7 +624,8 @@ src/
     auth.js            Firebase Auth wrapper — used by App.jsx (VITE_ALLOWED_EMAIL)
     dataStore.js       GitHub-repo-as-database CRUD layer, one store per collection
     crypto.js          AES encrypt/decrypt helpers
-    ai.js              chat() helper — the only LLM call site (OpenRouter)
+    ai.js              chat() helper — the only LLM call site (AI proxy → OpenRouter, or
+                        OpenRouter directly when VITE_AI_PROXY_URL is unset)
     autoTags.js        Prompts on top of ai.js: tags / takeaways / follow-up topics
     msGraph.js         Microsoft Graph: follow-ups ↔ Microsoft To Do sync, plus
                        uploadFileToSharePoint() for the Work Schedule's SharePoint upload
@@ -811,7 +822,7 @@ Data collections (each a JSON file in the **separate, private** data repo — de
 
 ## Environment variables
 
-Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 13 build vars and is
+Local dev: `cp .env.example .env` and fill in. `.env.example` lists all 14 build vars and is
 kept in sync with `import.meta.env.*` usage in `src/` and with `deploy.yml` (verified — no
 gaps in any direction). Production: the same names are stored as GitHub Actions repository
 secrets and injected at build time. `deploy.yml` is the definitive list of what the app build
@@ -825,20 +836,23 @@ only and not in `.env.example`).
 | `VITE_ALLOWED_EMAIL` | app build (`auth.js`) | The single Google account allowed to log in |
 | `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`, `VITE_GITHUB_TOKEN`, `VITE_GITHUB_BRANCH` | app build + both email jobs | Data-repo access — the PAT is bundled client-side, scope it narrowly |
 | `VITE_ENCRYPTION_SECRET` | app build + both email jobs | AES passphrase for all records — never rotate once real data exists |
-| `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | OpenRouter key — powers all AI features (tags, takeaways, follow-up topics, exec summary); account needs credit |
-| `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug |
+| `VITE_AI_PROXY_URL` | app build (`ai.js`) | URL of the Vercel AI proxy (`…/api/chat`) — the intended way to enable AI features (tags, takeaways, follow-up topics, exec summary, AI improve). When set, `VITE_OPENROUTER_API_KEY` is unused and should be removed |
+| `VITE_OPENROUTER_API_KEY` | app build (`ai.js`) | Fallback only (no proxy URL): OpenRouter key used straight from the browser; account needs credit |
+| `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug (with the proxy, its `OPENROUTER_MODEL` wins) |
+| `OPENROUTER_API_KEY`, `FIREBASE_PROJECT_ID`, `ALLOWED_EMAIL` (+ optional `OPENROUTER_MODEL`, `ALLOWED_ORIGINS`) | Vercel env of `ai-proxy/` | Server-side only, set in the Vercel project, never in GitHub secrets — see `ai-proxy/README.md` |
 | `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Build-time fallback Graph token for Outlook / Microsoft To Do sync; expires ~1h. Normally set instead from the Settings page at runtime (`localStorage`, no rebuild needed) — see `src/lib/settings.js` |
 | `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" and "Send via Email" buttons |
 | `RESEND_API_KEY` | both email jobs | Server-side Resend API key, shared by both the accomplishments and work-schedule emails |
 | `ACCOMPLISHMENTS_EMAIL_TO` | accomplishments email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
 | `SCHEDULE_EMAIL_TO` | schedule email job (workflow env) | Recipient of the work-schedule PDF+Excel email (hardcoded to `henry.ai.server@gmail.com` in `schedule-email.yml` — the Resend account's own verified address; see the note under Work-schedule email above before changing it) |
 
-**Security note**: the data-repo PAT, encryption secret, OpenRouter key, Graph token, and
-Actions token all ship inside the client-side JS bundle. That's an accepted, documented
-tradeoff for this single-user tool (see `INSTALLATION.md`) — don't "fix" it by moving secrets
-around without understanding the intended threat model first. The one key kept server-side is
-`RESEND_API_KEY`, which is why the email send goes through a GitHub Actions workflow rather
-than the browser.
+**Security note**: the data-repo PAT, encryption secret, Graph token, and Actions token all
+ship inside the client-side JS bundle (and the OpenRouter key too, but only in the no-proxy
+fallback). That's an accepted, documented tradeoff for this single-user tool (see
+`INSTALLATION.md`) — don't "fix" it by moving secrets around without understanding the intended
+threat model first. Keys kept server-side: `RESEND_API_KEY` (which is why the email send goes
+through a GitHub Actions workflow rather than the browser) and, with the AI proxy, the
+OpenRouter key (in Vercel).
 
 ## Commands
 
@@ -881,6 +895,25 @@ so these pages always load from the network instead of being replaced by the app
   source is `caption-grabber.js`. After editing the source, re-minify it (e.g. terser) and replace
   the `BM` string in the HTML. Teams enforces Trusted Types, so the bookmarklet builds its panel
   with DOM APIs only (no `innerHTML`).
+
+## AI proxy (`ai-proxy/`)
+
+A separate **Vercel** project (Root Directory `ai-proxy`, free Hobby plan), not part of the
+Vite build or GitHub Pages. One function, `POST /api/chat` (`api/chat.js` →
+`lib/handler.js`'s `createHandler()`), forwards PeopleOS's chat completions to OpenRouter with
+the server-side `OPENROUTER_API_KEY`. Added because the company laptop's network filter blocks
+`openrouter.ai`; the proxy is meant to sit on `ai.cloudplay.at` (CNAME at the existing DNS
+provider — `cloudplay.at` is **not** on Cloudflare, hence Vercel rather than a Cloudflare Worker).
+Checks, in order: CORS origin (`ALLOWED_ORIGINS`, default github.io + cloudplay.at + localhost),
+config present, Firebase ID token verified with `jose` against Google's securetoken JWKS
+(issuer/audience = `FIREBASE_PROJECT_ID`), `email_verified` and email == `ALLOWED_EMAIL`
+(case-insensitive) — the same single-account rule as `auth.js`. It forwards only
+`model`/`max_tokens` (capped at 4000)/`messages`, rewrites an upstream 401 to 502 (proxy key
+problem, not the user's sign-in) and passes other statuses through. `createHandler({ env, jwks,
+fetchImpl })` takes its dependencies so `test/handler.test.js` runs offline (`cd ai-proxy && npm
+test`, Node's built-in runner). Its own `package.json`/lockfile (`jose` only); the app's
+`package.json` is untouched. `vercel.json` sets `maxDuration: 60` and an `ignoreCommand` so
+Vercel only redeploys when `ai-proxy/` changed. Setup steps: `ai-proxy/README.md`.
 
 ## Desktop tools (`desktop/`)
 
