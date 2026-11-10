@@ -536,7 +536,8 @@ Browser (React SPA)
   so overlaps and gaps still show honestly if the hours ever change again: with no shift running,
   the "On duty now" card says "gap in coverage" (and when the next shift starts) rather than hiding it. `Dashboard.jsx` shows Before (greyed) / On duty
   now (accent border) / Up next cards, each with the center's local hours plus the same window in
-  the viewer's own browser time, and re-evaluates every 60s. Empty shifts show "No one scheduled".
+  the viewer's own browser time, and re-evaluates every 60s. While a shift is running, the On duty
+  now card also gets `.card.is-now` (the same accent-tinted background as `.row-card.is-today`). Empty shifts show "No one scheduled".
 - **Excel export**: `src/lib/scheduleExcel.js`'s `downloadScheduleExcel(month, people,
   schedule)` builds a multi-sheet `.xlsx` (one sheet per center, named e.g. `Warsaw` —
   matches `CENTERS[].id`) via `exceljs`, styled to mirror the app's own on-screen colors

@@ -250,7 +250,7 @@ const DUTY_LABEL = { previous:'Before', now:'On duty now', next:'Up next' }
 function ShiftCard({ kind, shifts, now, photoById, nextShift, onClick }) {
   const isNow = kind === 'now'
   return (
-    <div className="card" onClick={onClick}
+    <div className={`card${isNow && shifts.length > 0 ? ' is-now' : ''}`} onClick={onClick}
       style={{ cursor:'pointer', opacity: kind === 'previous' ? 0.55 : 1, borderColor: isNow ? 'var(--accent)' : undefined }}>
       <div style={{ fontSize:11.5, fontWeight:700, letterSpacing:'0.5px', textTransform:'uppercase', color: isNow ? 'var(--accent)' : 'var(--text-faint)' }}>
         {isNow && shifts.length > 0 && '● '}{DUTY_LABEL[kind]}
