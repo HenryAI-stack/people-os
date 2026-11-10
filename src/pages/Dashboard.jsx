@@ -195,7 +195,7 @@ function HolidayRow({ holiday, today, past = false, onClick }) {
         <div style={{ display:'flex', gap:4, flexShrink:0, minWidth:34 }}>
           {holiday.countries.map((c) => (
             <img key={c} src={flagUrl(c)} alt={COUNTRY_NAMES[c] || c} title={COUNTRY_NAMES[c] || c}
-              style={{ width:24, height:18, objectFit:'cover', borderRadius:2, boxShadow:'0 0 0 1px var(--border)' }} />
+              style={{ width:24, height:18, objectFit:'cover', borderRadius:2 }} />
           ))}
         </div>
         <div style={{ minWidth:0 }}>
