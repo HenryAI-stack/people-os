@@ -364,7 +364,10 @@ Browser (React SPA)
   Directly below sits "🏖️ Upcoming national holidays": the next 5 entries across all `HOLIDAYS`
   tables (PL/IN/MX), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
   today inclusive; the same name on the same date in several countries is merged into one row
-  with all flags, e.g. Christmas). Flags via `flagUrl(code)`; rows link to the Work Schedule.
+  with all flags, e.g. Christmas), preceded by one greyed-out row for the most recent past holiday
+  (`lastHolidays(todayStr)`; several rows only if different holidays share that date). Each row shows
+  the full date (weekday in the subtitle) and an exact day count in the badge (`holidayCountdown`, not
+  the rounding `daysLabel`). Flags via `flagUrl(code)`; rows link to the Work Schedule.
   Since it reads the same tables, it is only as complete as they are (2027 `IN` is provisional).
 - **New-interview defaults**: there are two separate "log a new interview" entry points — the
   standalone `InterviewForm` in `Interviews.jsx` ("+ Log entry") and the one inside

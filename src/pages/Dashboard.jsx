@@ -8,7 +8,7 @@ import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { nextBirthday, lastBirthday } from '../lib/birthdays.js'
 import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
 import { computeTagCloud } from '../lib/interviewTags.js'
-import { upcomingHolidays, COUNTRY_NAMES } from '../lib/holidays.js'
+import { upcomingHolidays, lastHolidays, COUNTRY_NAMES } from '../lib/holidays.js'
 
 // ── Topic tag cloud ─────────────────────────────────────────────────
 // Derived from every interview's `tags` — nothing stored. The period is a per-browser pref.
@@ -167,16 +167,29 @@ function todayStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Precise countdown for holidays (the shared daysLabel rounds to weeks/months).
+function holidayCountdown(d) {
+  if (d === 0) return 'Today'
+  if (d === 1) return 'Tomorrow'
+  if (d === -1) return 'Yesterday'
+  return d > 0 ? `In ${d} days` : `${-d} days ago`
+}
+
 // One row of the "Upcoming holidays" list: the country flag(s) in place of an avatar.
 // A holiday shared by several countries (e.g. Christmas) is one row with all its flags.
-function HolidayRow({ holiday, today }) {
+// `past` = the greyed-out "most recent" row, like the anniversaries/birthdays columns.
+function HolidayRow({ holiday, today, past = false, onClick }) {
   const [y, m, d] = holiday.date.split('-').map(Number)
   const date = new Date(y, m - 1, d)
   const [ty, tm, td] = today.split('-').map(Number)
   const daysUntil = Math.round((date - new Date(ty, tm - 1, td)) / 86400000)
   const names = holiday.countries.map((c) => COUNTRY_NAMES[c] || c)
+  const weekday = date.toLocaleDateString('en-GB', { weekday:'long' })
+  const fullDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+  const shortDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short' })
   return (
-    <div className="row-card" onClick={holiday.onClick} style={{ cursor:'pointer' }}>
+    <div className="row-card" onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
+      title={past ? 'Most recent — already passed' : undefined}>
       <div className="row-main" style={{ minWidth:0 }}>
         <div style={{ display:'flex', gap:4, flexShrink:0, minWidth:34 }}>
           {holiday.countries.map((c) => (
@@ -186,10 +199,12 @@ function HolidayRow({ holiday, today }) {
         </div>
         <div style={{ minWidth:0 }}>
           <div className="row-title">{holiday.name}</div>
-          <div className="row-sub">{date.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })} · {names.join(', ')}</div>
+          <div className="row-sub">{weekday}, {fullDate} · {names.join(', ')}</div>
         </div>
       </div>
-      <span className={`badge ${urgencyClass(daysUntil)}`} style={{ flexShrink:0, whiteSpace:'nowrap' }}>{daysLabel(daysUntil)}</span>
+      <span className={`badge ${past ? '' : urgencyClass(daysUntil)}`} style={{ flexShrink:0, whiteSpace:'nowrap' }}>
+        {shortDate} · {holidayCountdown(daysUntil)}
+      </span>
     </div>
   )
 }
@@ -321,6 +336,7 @@ export default function Dashboard() {
 
   const today = todayStr(now)
   const nextHolidays = upcomingHolidays(today, 5)
+  const prevHolidays = lastHolidays(today)
 
   return (
     <>
@@ -416,13 +432,15 @@ export default function Dashboard() {
         🏖️ Upcoming national holidays
         <Link to="/work-schedule" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>Work schedule →</Link>
       </div>
-      {nextHolidays.length === 0
-        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No upcoming holidays in the holiday tables.</div>
+      {nextHolidays.length === 0 && prevHolidays.length === 0
+        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No holidays in the holiday tables.</div>
         : (
           <div className="list">
+            {prevHolidays.map((h) => (
+              <HolidayRow key={`${h.date}|${h.name}`} holiday={h} today={today} past onClick={() => navigate('/work-schedule')} />
+            ))}
             {nextHolidays.map((h) => (
-              <HolidayRow key={`${h.date}|${h.name}`} today={today}
-                holiday={{ ...h, onClick: () => navigate('/work-schedule') }} />
+              <HolidayRow key={`${h.date}|${h.name}`} holiday={h} today={today} onClick={() => navigate('/work-schedule')} />
             ))}
           </div>
         )}
