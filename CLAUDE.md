@@ -545,7 +545,11 @@ Browser (React SPA)
 - **Employee stats (`WorkSchedule.jsx`)**: clicking a person's stat chip (under the center tabs;
   `.ws-stat-chip.is-clickable`, also Enter/Space) opens `EmployeeStatsModal` after loading every saved
   schedule (`openPersonStats`, same loading pattern as the Overview). A table with three columns —
-  this month, this year (Jan → this month) and All (first saved month they worked → this month) —
+  this month, this year (Jan → this month) and All (no start date: everything on record up to this
+  month, so it's always ≥ the year column; the header tooltip/footnote say since when, from the earliest
+  shift or leave day). An earlier version started All at the first saved schedule month while the year
+  column counted leave from 1 Jan, so leave entered before the first schedule made 2026 > All —
+  don't give All a start date again —
   from the page-local pure `personPeriodStats(person, assignments, from, to)`: shifts (+ hours),
   weekend shifts, national-holiday shifts (from the date + center country, like `countShifts`),
   vacation / sick / other leave **weekdays** (Mon–Fri non-holidays at their center, from
