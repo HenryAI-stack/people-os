@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { LeaveEditor } from '../components/LeaveEditor.jsx'
+import { LeaveModal } from '../components/LeaveEditor.jsx'
 import { useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore } from '../lib/dataStore'
 import { lastOneOnOne, cadenceBadge } from '../lib/cadence.js'
@@ -18,6 +18,7 @@ export default function DirectReports() {
   const [error,   setError]   = useState('')
   const [query,   setQuery]   = useState('')
   const [editing, setEditing] = useState(null)
+  const [leaveFor, setLeaveFor] = useState(null)  // person whose 🌴 Vacation modal is open
   const navigate = useNavigate()
 
   async function load() {
@@ -98,6 +99,7 @@ export default function DirectReports() {
                     })()}
                     <span className={`badge ${p.status==='active'?'good':'warn'}`}>{p.status}</span>
                     <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setEditing({ ...p }) }}>Edit</button>
+                    <button className="btn ghost" title="Vacation & sick days" onClick={(e) => { e.stopPropagation(); setLeaveFor(p) }}>🌴 Vacation</button>
                     <button className="btn ghost danger" onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}>Remove</button>
                   </div>
                 </div>
@@ -109,6 +111,9 @@ export default function DirectReports() {
 
       {editing !== null && (
         <ReportForm key={editing.id||'new'} initial={editing} onCancel={() => setEditing(null)} onSave={handleSave} />
+      )}
+      {leaveFor && (
+        <LeaveModal key={leaveFor.id} person={leaveFor} onClose={() => setLeaveFor(null)} onSaved={() => load()} />
       )}
     </>
   )
@@ -206,7 +211,6 @@ export function ReportForm({ initial, onCancel, onSave }) {
             <option value="offboarding">Offboarding</option>
           </select>
         </div>
-        <LeaveEditor person={form} value={form.leave} onChange={(v) => set('leave', v)} />
         <div className="field"><label>Notes</label><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Strengths, growth areas, context…" /></div>
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>

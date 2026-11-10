@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { directReportsStore } from '../lib/dataStore'
 import { CENTERS, getCenter, SCHEDULE_TEAM } from '../lib/scheduleGenerator.js'
 import { getHoliday, isWeekend } from '../lib/holidays.js'
+import { DraggableModal } from './DraggableModal.jsx'
 import { LEAVE_TYPES, leaveType, leaveList, leaveOn, addLeave, removeLeave, datesBetween, nextDate } from '../lib/leave.js'
 
 // Dates are plain 'YYYY-MM-DD' strings; formatting reads them as UTC so the day never shifts.
@@ -35,8 +36,8 @@ function compactDates(dates) {
 }
 
 /**
- * "Vacation & sick days" section of the direct-report form. Edits `value` (the person's `leave`
- * array) through onChange; nothing is saved until the form is. While picking dates it warns when
+ * Vacation & sick days editor (inside LeaveModal). Edits `value` (the person's `leave` array)
+ * through onChange; nothing is saved until the modal's Save. While picking dates it warns when
  * the person's support center would drop below the work schedule's minimum staffing (2 on
  * weekdays, 1 on weekends/holidays), counting active 24/7 colleagues not already on leave.
  */
@@ -85,7 +86,6 @@ export function LeaveEditor({ person, value, onChange }) {
 
   return (
     <div className="field leave-editor">
-      <label>Vacation &amp; sick days</label>
       {shown.length === 0 && !old.length && (
         <div style={{ fontSize: 12.5, color: 'var(--text-faint)', marginBottom: 8 }}>None recorded.</div>
       )}
@@ -130,8 +130,46 @@ export function LeaveEditor({ person, value, onChange }) {
         {center
           ? 'The work schedule keeps these days free; weekdays count as worked days.'
           : 'Set a Bangalore, Warsaw or Mexico City location for these to affect the work schedule.'}
-        {' '}Saved with the form.
+        {' '}Saved when you click Save.
       </span>
     </div>
+  )
+}
+
+/**
+ * "🌴 Vacation" button's modal (person page under "Edit profile", Direct Reports row): the person's
+ * vacation / sick / other leave, saved straight to their direct-report record on Save.
+ * onSaved(savedPerson) lets the page refresh.
+ */
+export function LeaveModal({ person, onClose, onSaved }) {
+  const [leave,  setLeave]  = useState(() => leaveList(person))
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
+  const dirty = JSON.stringify(leave) !== JSON.stringify(leaveList(person))
+
+  async function save() {
+    setSaving(true); setError('')
+    try {
+      // Re-read the person so a profile edit made elsewhere since this page loaded isn't lost.
+      const fresh = (await directReportsStore.list({ fresh: true })).find((p) => p.id === person.id) || person
+      const saved = await directReportsStore.upsert({ ...fresh, leave })
+      onSaved?.(saved)
+      onClose()
+    } catch (e) { setError(e.message || 'Save failed.'); setSaving(false) }
+  }
+  function close() {
+    if (dirty && !confirm('Discard the changes to vacation & sick days?')) return
+    onClose()
+  }
+
+  return (
+    <DraggableModal title={`🌴 Vacation & sick days · ${person.name}`} onClose={close} maxWidth={560}>
+      {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 12 }}>⚠️ {error}</div>}
+      <LeaveEditor person={person} value={leave} onChange={setLeave} />
+      <div className="modal-actions">
+        <button type="button" className="btn ghost" onClick={close} disabled={saving}>Cancel</button>
+        <button type="button" className="btn primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </DraggableModal>
   )
 }

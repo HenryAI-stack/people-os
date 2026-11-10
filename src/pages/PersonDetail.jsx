@@ -8,6 +8,7 @@ import { nextBirthday, fmtBirthdayLabel } from '../lib/birthdays.js'
 import { generateTags, generateTakeaways, generateFollowUpTopics } from '../lib/autoTags.js'
 import { chat } from '../lib/ai.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
+import { LeaveModal } from '../components/LeaveEditor.jsx'
 
 const INTERVIEW_TYPES = {
   '1:1': '1:1', skip_level: 'Skip-level', hiring: 'Hiring interview',
@@ -101,6 +102,7 @@ export default function PersonDetail() {
   const [editingIv,      setEditingIv]      = useState(null)
   const [confirmDel,     setConfirmDel]     = useState(null)
   const [editingProfile, setEditingProfile] = useState(false)
+  const [editingLeave,   setEditingLeave]   = useState(false)
   const [addingFU,       setAddingFU]       = useState(null)
   const [genSummary,     setGenSummary]     = useState(false)
   const [summaryErr,     setSummaryErr]     = useState('')
@@ -208,7 +210,10 @@ export default function PersonDetail() {
             <span className={`badge ${person.status==='active'?'good':'warn'}`} style={{ alignSelf:'center' }}>{person.status}</span>
           </div>
         </div>
-        <button className="btn ghost" onClick={() => setEditingProfile(true)} style={{ alignSelf:'flex-start' }}>Edit profile</button>
+        <div className="profile-actions">
+          <button className="btn ghost" onClick={() => setEditingProfile(true)}>Edit profile</button>
+          <button className="btn ghost" onClick={() => setEditingLeave(true)} title="Vacation & sick days">🌴 Vacation</button>
+        </div>
       </div>
 
       {/* AI Summary */}
@@ -290,6 +295,11 @@ export default function PersonDetail() {
       {editingProfile && (
         <ReportForm key={person.id} initial={person} onCancel={() => setEditingProfile(false)}
           onSave={async (record) => { await directReportsStore.upsert(record); setEditingProfile(false); load() }} />
+      )}
+
+      {/* Vacation & sick days modal */}
+      {editingLeave && (
+        <LeaveModal key={person.id} person={person} onClose={() => setEditingLeave(false)} onSaved={() => load()} />
       )}
 
       {/* Add interview modal */}

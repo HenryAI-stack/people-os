@@ -932,3 +932,11 @@ body.light .ws-chip { color: var(--accent); }
   .ws-ps-line { flex-direction: column; align-items: flex-start; gap: 4px; }
   .ws-ps-tags { justify-content: flex-start; }
 }
+
+/* Person page: "Edit profile" with "🌴 Vacation" underneath */
+.profile-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; align-self: flex-start; }
+@media (max-width: 760px) { .profile-actions { flex-direction: row; } }
+@media (max-width: 760px) {
+  .leave-add select, .leave-add input:not([type]), .leave-add .btn { flex: 1 1 100%; }
+  .leave-add input[type="date"] { flex: 1 1 0; }
+}

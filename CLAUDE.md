@@ -499,8 +499,13 @@ Browser (React SPA)
   (`LEAVE_TYPES` with icon/label/export code V/SL/L, `leaveList`, `leaveOn`, `leaveMap`,
   `addLeave` — merges touching same-type ranges, `removeLeave`, `removeLeaveDay` — splits a range;
   pure string math, no `import.meta.env`, imported by the generator, `scheduleExcel.js` and so the
-  CI email script). Entered two ways: `components/LeaveEditor.jsx` in `ReportForm` (Direct Reports
-  and the person page; part of the form, saved with it; entries older than a year collapse; while
+  CI email script). Entered two ways: the **"🌴 Vacation" button** — under "Edit profile" on the
+  person page (`.profile-actions`, a column; a row on phones) and next to "Edit" on each Direct
+  Reports row — opens `LeaveModal` (`components/LeaveEditor.jsx`, a `DraggableModal`), which edits a
+  local copy and on Save re-reads the person (`list({ fresh: true })`, so a profile edit made
+  elsewhere isn't overwritten) and upserts them with the new `leave`; Cancel with changes asks to
+  discard. It is deliberately **not** part of `ReportForm` any more (moved out on request). Inside it,
+  `LeaveEditor` lists entries (older than a year collapse) and, while
   picking dates it warns if the person's center would drop below 2 people on a weekday / 1 on a
   weekend or holiday, counting active `SCHEDULE_TEAM` colleagues at that center not on leave), and
   `ShiftModal`'s "🌴 Vacation" / "🤒 Sick leave" buttons ("Not working that day?"), which clear the
@@ -808,7 +813,8 @@ src/
                         Windows exe release download and its IT sheet)
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
-    LeaveEditor.jsx    "Vacation & sick days" section of ReportForm, with the staffing warning
+    LeaveEditor.jsx    LeaveModal ("🌴 Vacation" button) + LeaveEditor (entries, add form, staffing
+                       warning); fmtLeaveRange is shared with the Work Schedule stats modal
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
                         day/night terminator + a dashed solar-noon meridian line through the
                         sun position, a pin per active direct report's resolved location
