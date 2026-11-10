@@ -686,6 +686,10 @@ src/
                         SHAREPOINT_WRITE_SCOPES: decodes the token's scopes/expiry for display
     copilotExport.js   buildExportModel() (pure) + buildExportDocx() (docx, dynamic import) — the
                         Settings page's "Export for Copilot" Word file for the user's OneDrive
+    healthChecks.js    CONNECTIONS + runConnectionCheck() — the Settings page's "🔌 Connections"
+                        card: one cheap read-only live check per external service (AI proxy GET
+                        health, Firebase getIdToken(true), data repo GET /repos, Graph GET /me,
+                        Actions token GET workflows) → { status: ok|warn|error|off, detail, ms }
     pwa.js             Service-worker registration + update banner state, install prompt
                         capture (subscribePwa/applyUpdate/promptInstall/isStandalone/isIOS)
   sw-template.js       Service-worker source; NOT imported — vite.config.js's serviceWorker()
@@ -709,7 +713,10 @@ src/
     Checklists.jsx     Checklist templates + runs (list page, TemplateForm editor, ChecklistRun
                         checklist used in-app and as the /checklist/:id pop-out window; exports
                         popOutRun)
-    Settings.jsx       Browser-local settings — the Microsoft Graph token form
+    Settings.jsx       "🔌 Connections" card first (ConnectionsCard: a green/amber/red/grey
+                        light per external service via healthChecks.js, all run on open and
+                        via "↻ Check again", the Graph row re-runs when the token changes;
+                        `.conn-*` styles), then browser-local settings — the Microsoft Graph token form
                         (backs msGraph.js via settings.js), with instructions for generating
                         one from Graph Explorer, the "Export for Copilot" card (OneDrive export,
                         see Architecture), plus the "Install on your phone" PWA card and the
@@ -909,7 +916,12 @@ config present, Firebase ID token verified with `jose` against Google's secureto
 (issuer/audience = `FIREBASE_PROJECT_ID`), `email_verified` and email == `ALLOWED_EMAIL`
 (case-insensitive) — the same single-account rule as `auth.js`. It forwards only
 `model`/`max_tokens` (capped at 4000)/`messages`, rewrites an upstream 401 to 502 (proxy key
-problem, not the user's sign-in) and passes other statuses through. `createHandler({ env, jwks,
+problem, not the user's sign-in) and passes other statuses through. `GET` (after the same auth) is a free
+health ping for Settings → Connections: it calls OpenRouter's `GET /api/v1/key` (key info, no
+model call) and returns `{ ok, model, openrouter: { ok, status, label, usageMonthly,
+limitRemaining, isFreeTier, message } }` with 200 whenever the proxy itself works. (OpenRouter's
+`/api/v1/credits` account balance needs a *management* key, so it isn't shown.) A proxy deployed
+before this answered GET with 405 "Use POST."; the client treats that as "reachable, redeploy". `createHandler({ env, jwks,
 fetchImpl })` takes its dependencies so `test/handler.test.js` runs offline (`cd ai-proxy && npm
 test`, Node's built-in runner). Its own `package.json`/lockfile (`jose` only); the app's
 `package.json` is untouched. `vercel.json` sets `maxDuration: 60` and an `ignoreCommand` so

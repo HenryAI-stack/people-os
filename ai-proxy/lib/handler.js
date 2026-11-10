@@ -19,6 +19,9 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 const GOOGLE_JWKS_URL =
   'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+// Info about the key itself (valid? spend so far?) — free, no model call.
+const OPENROUTER_KEY_URL = 'https://openrouter.ai/api/v1/key'
+const HEALTH_TIMEOUT_MS = 10_000
 
 const DEFAULT_ORIGINS = [
   'https://henryai-stack.github.io',
@@ -51,7 +54,7 @@ export function createHandler({
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
       res.setHeader('Access-Control-Max-Age', '86400')
     }
@@ -63,7 +66,8 @@ export function createHandler({
       return fail(403, `Origin ${origin} is not allowed (ALLOWED_ORIGINS on the proxy).`, 'origin')
     }
     if (req.method === 'OPTIONS') return res.status(204).end()
-    if (req.method !== 'POST') return fail(405, 'Use POST.', 'method')
+    // POST = chat completion; GET = health check (Settings → Connections), same auth.
+    if (req.method !== 'POST' && req.method !== 'GET') return fail(405, 'Use POST.', 'method')
 
     const projectId = env.FIREBASE_PROJECT_ID
     const allowedEmail = (env.ALLOWED_EMAIL || '').trim().toLowerCase()
@@ -92,6 +96,8 @@ export function createHandler({
     if (!claims.email_verified || String(claims.email || '').toLowerCase() !== allowedEmail) {
       return fail(403, 'This account may not use the AI proxy.', 'auth')
     }
+
+    if (req.method === 'GET') return health(res, { env, apiKey, fetchImpl })
 
     // ---- What are they asking? ---------------------------------------------
     let body = req.body
@@ -148,4 +154,44 @@ export function createHandler({
     res.setHeader('Cache-Control', 'no-store')
     return res.send(text)
   }
+}
+
+/**
+ * GET /api/chat (signed in): is the proxy configured, and does OpenRouter accept its key?
+ * Uses OpenRouter's key-info endpoint, so it costs nothing. Always 200 when the proxy
+ * itself is fine; `ok` / `openrouter.ok` say whether AI calls will work.
+ */
+async function health(res, { env, apiKey, fetchImpl }) {
+  res.setHeader('Cache-Control', 'no-store')
+  const out = { ok: false, model: env.OPENROUTER_MODEL || null, openrouter: { ok: false } }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS)
+  try {
+    const r = await fetchImpl(OPENROUTER_KEY_URL, {
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}` },
+    })
+    out.openrouter.status = r.status
+    if (r.ok) {
+      const d = (await r.json().catch(() => ({})))?.data || {}
+      out.openrouter.ok = true
+      out.openrouter.label = d.label ?? null
+      out.openrouter.usageMonthly = typeof d.usage_monthly === 'number' ? d.usage_monthly : null
+      out.openrouter.limitRemaining = typeof d.limit_remaining === 'number' ? d.limit_remaining : null
+      out.openrouter.isFreeTier = !!d.is_free_tier
+    } else if (r.status === 401) {
+      out.openrouter.message = 'OpenRouter rejected the proxy’s key — check OPENROUTER_API_KEY in Vercel.'
+    } else {
+      out.openrouter.message = `OpenRouter answered ${r.status}.`
+    }
+  } catch (err) {
+    out.openrouter.message = err?.name === 'AbortError'
+      ? 'OpenRouter took too long to answer.'
+      : 'The proxy could not reach OpenRouter.'
+  } finally {
+    clearTimeout(timer)
+  }
+  out.ok = out.openrouter.ok
+  return res.status(200).json(out)
 }

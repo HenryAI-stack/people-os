@@ -13,8 +13,8 @@
 // This app's own code repo (not the private data repo) — where the
 // accomplishments-email.yml workflow lives. Change these if you've forked
 // PeopleOS under a different owner/repo name.
-const APP_OWNER = 'HenryAI-stack'
-const APP_REPO  = 'people-os'
+export const APP_OWNER = 'HenryAI-stack'
+export const APP_REPO  = 'people-os'
 const WORKFLOW_FILE = 'accomplishments-email.yml'
 const SCHEDULE_WORKFLOW_FILE = 'schedule-email.yml'
 const REF = 'main'
