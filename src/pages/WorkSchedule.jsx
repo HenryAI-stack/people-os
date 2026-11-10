@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
-import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
+import { CENTERS, getCenter, generateSchedule, computeWorkHistory, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
   SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection, STANDARD_DAYS } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
@@ -11,7 +11,8 @@ import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
 import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
-import { leaveOn, leaveMap, leaveType, addLeave, removeLeaveDay, LEAVE_TYPES } from '../lib/leave.js'
+import { leaveOn, leaveMap, leaveType, leaveList, addLeave, removeLeaveDay, nextDate, LEAVE_TYPES } from '../lib/leave.js'
+import { fmtLeaveRange } from '../components/LeaveEditor.jsx'
 
 // "Upload to SharePoint" target: this site's default document library (Shared Documents) → "Work schedule" folder.
 const SHAREPOINT_SITE   = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
@@ -67,6 +68,7 @@ export default function WorkSchedule() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
   const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
+  const [personStats, setPersonStats] = useState(null)  // employee stats modal: { person, schedules } (schedules null = loading)
   const [overview,    setOverview]    = useState(null)  // "Overview" modal: { schedules } (null = closed, schedules null = loading)
   const [picker,      setPicker]      = useState(null)  // "Select employees" step before generating: { initial: [ids] }
   const [teamsPost,   setTeamsPost]   = useState(null)  // after an upload: { text, html, webUrl, name, replaced, access, copied }
@@ -300,6 +302,13 @@ export default function WorkSchedule() {
     catch (e) { setOverview(null); setError(e.message) }
   }
 
+  // Employee stats (click a stat chip): needs every saved schedule for the year/all-time columns.
+  async function openPersonStats(person) {
+    setPersonStats({ person, schedules: null })
+    try { const schedules = await schedulesStore.list(); setPersonStats((cur) => cur?.person.id === person.id ? { person, schedules } : cur) }
+    catch (e) { setPersonStats(null); setError(e.message) }
+  }
+
   async function handleExportExcel() {
     setExportingExcel(true); setError('')
     try { await downloadScheduleExcel(month, people, schedule) }
@@ -522,7 +531,10 @@ export default function WorkSchedule() {
               const over = maxWeek > MAX_WEEKLY_HOURS
               const weekTitle = Object.entries(s.weeks).sort().map(([w, n]) => `Week of ${w}: ${n * SHIFT_HOURS}h`).join('\n')
               return (
-                <div key={p.id} className="ws-stat-chip" style={{ borderColor: over ? 'var(--bad)' : undefined }}>
+                <div key={p.id} className="ws-stat-chip is-clickable" style={{ borderColor: over ? 'var(--bad)' : undefined }}
+                  role="button" tabIndex={0} title={`${p.name}: click for stats`}
+                  onClick={() => openPersonStats(p)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPersonStats(p) } }}>
                   <Avatar photo={p.photo} name={p.name} size={22} />
                   <strong>{p.name}</strong>
                   <span title={`${s.total} days × ${SHIFT_HOURS}h`}>{hrs}h</span>
@@ -682,6 +694,11 @@ export default function WorkSchedule() {
       {/* ── Comment modal ── */}
       {replaceAsk && (
         <ReplaceScheduleModal existing={replaceAsk} month={month} onReplace={confirmReplace} onCancel={() => setReplaceAsk(null)} />
+      )}
+
+      {personStats && (
+        <EmployeeStatsModal person={personStats.person} month={month} schedule={schedule}
+          schedules={personStats.schedules} allPeople={allPeople} onClose={() => setPersonStats(null)} />
       )}
 
       {overview && (
@@ -1089,6 +1106,187 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
           Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
           weekend counts in both). Total covers {months.length === 1 ? 'this month only, the first saved schedule'
             : `${monthLabel(months[0])} – ${monthLabel(month)} (${months.length} months)`}.
+        </p>
+      </>)}
+      <div className="modal-actions">
+        <button className="btn primary" onClick={onClose}>Close</button>
+      </div>
+    </DraggableModal>
+  )
+}
+
+/**
+ * Stats for one person over a set of assignments and a date range → shifts, weekend/holiday shifts
+ * (from the date + center country, like countShifts) and leave weekdays per type (Mon–Fri
+ * non-holidays at their center, the days that count as worked). Pure, page-local.
+ */
+function personPeriodStats(person, assignments, from, to) {
+  const c = { shifts: 0, weekends: 0, holidays: 0, vacation: 0, sick: 0, other: 0 }
+  for (const a of assignments) {
+    if (a.cleared || a.personId !== person.id || a.date < from || a.date > to) continue
+    c.shifts++
+    if (isWeekend(a.date)) c.weekends++
+    if (getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')) c.holidays++
+  }
+  const center = CENTERS.find((x) => x.id === getCenter(person))
+  for (const l of leaveList(person)) {
+    const start = l.from > from ? l.from : from, end = l.to < to ? l.to : to
+    for (let d = start; d <= end; d = nextDate(d)) {
+      if (isWeekend(d) || (center && getHoliday(d, center.country))) continue
+      c[l.type in c ? l.type : 'other']++
+    }
+  }
+  c.credited = c.shifts + c.vacation + c.sick + c.other
+  return c
+}
+
+function lastDayOf(month) {
+  const [y, m] = month.split('-').map(Number)
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+}
+
+/**
+ * Employee stats (click a stat chip under the center tabs): worked shifts, weekend and holiday
+ * shifts, vacation/sick/other leave days and credited days for this month, this year (Jan → this
+ * month) and all time (first saved month they worked → this month). This month uses the on-screen
+ * schedule (unsaved edits included); earlier months use saved schedules — same as the Overview.
+ * Below: this month's weekend/holiday shift dates, leave, weekly hours, and the balance against
+ * colleagues at the same center (computeWorkHistory, same numbers the generator plans with).
+ */
+function EmployeeStatsModal({ person, month, schedule, schedules, allPeople, onClose }) {
+  const loading = !schedules
+  const center = CENTERS.find((x) => x.id === getCenter(person))
+  const year = month.slice(0, 4)
+  const monthEnd = lastDayOf(month)
+
+  const data = useMemo(() => {
+    if (!schedules) return null
+    const past = schedules.filter((s) => s.month < month)
+    const all = [...past.flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])]
+    const worked = past.filter((s) => (s.assignments || []).some((a) => a.personId === person.id && !a.cleared)).map((s) => s.month).sort()
+    const firstMonth = worked[0] || month
+    const mine = (schedule?.assignments || []).filter((a) => a.personId === person.id && !a.cleared).sort((a, b) => a.date.localeCompare(b.date))
+    const weeks = {}
+    for (const a of mine) weeks[weekStart(a.date)] = (weeks[weekStart(a.date)] || 0) + 1
+    const history = center ? computeWorkHistory(schedules, month, allPeople)[center.id]?.[person.id] : null
+    return {
+      firstMonth,
+      cols: [
+        personPeriodStats(person, all, `${month}-01`, monthEnd),
+        personPeriodStats(person, all, `${year}-01-01`, monthEnd),
+        personPeriodStats(person, all, `${firstMonth}-01`, monthEnd),
+      ],
+      special: mine.filter((a) => isWeekend(a.date) || getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')),
+      leave: leaveList(person).filter((l) => l.from <= monthEnd && l.to >= `${month}-01`),
+      weeks,
+      history,
+    }
+  }, [schedules, schedule, person, month, allPeople])
+
+  const bal = schedule?.balances?.[person.id]
+  const rows = [
+    ['Shifts worked', 'shifts', (n) => `${n * SHIFT_HOURS}h`],
+    ['Weekend shifts', 'weekends'],
+    ['National holiday shifts', 'holidays'],
+    [`${LEAVE_TYPES.vacation.icon} Vacation days`, 'vacation'],
+    [`${LEAVE_TYPES.sick.icon} Sick days`, 'sick'],
+    [`${LEAVE_TYPES.other.icon} Other leave`, 'other'],
+    ['Credited days', 'credited', null, true],
+  ]
+  const fmtBal = (n, unit) => {
+    const v = Math.round(n * 10) / 10
+    if (Math.abs(v) < 0.5) return <span style={{ color: 'var(--good)' }}>level with colleagues</span>
+    return <span style={{ color: 'var(--warn)' }}>{Math.abs(v)} {unit} {v < 0 ? 'fewer' : 'more'} than colleagues</span>
+  }
+  const maxWeek = data ? Math.max(0, ...Object.values(data.weeks)) * SHIFT_HOURS : 0
+
+  return (
+    <DraggableModal title={`${person.name} · ${monthLabel(month)}`} onClose={onClose} maxWidth={560}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <Avatar photo={person.photo} name={person.name} size={36} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{person.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+            {center && <><img className="ws-tab-flag" src={flagUrl(center.country)} alt={center.country} /> {center.label}</>}
+            {person.role ? ` · ${person.role}` : ''}
+          </div>
+        </div>
+        {bal && <span className="badge" title="Planned when this month was generated: shifts + leave weekdays">🎯 {bal.targetDays} days planned</span>}
+      </div>
+
+      {loading ? <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>⏳ Loading all schedules…</div> : (<>
+        <div className="ws-ov-wrap">
+          <table className="ws-ov ws-ps">
+            <thead>
+              <tr>
+                <th className="ws-ov-name" />
+                <th className="ws-ov-num ws-ov-first">{monthLabel(month).split(' ')[0].slice(0, 3)}</th>
+                <th className="ws-ov-num">{year}</th>
+                <th className="ws-ov-num" title={`Since ${monthLabel(data.firstMonth)}`}>All</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([label, key, sub, strong]) => (
+                <tr key={key} className={strong ? 'ws-ps-total' : ''}>
+                  <td className="ws-ov-name">{label}</td>
+                  {data.cols.map((c, i) => (
+                    <td key={i} className={`ws-ov-num ${i === 0 ? 'ws-ov-first' : ''}`}>
+                      {c[key] || <span style={{ color: 'var(--text-faint)' }}>0</span>}
+                      {sub && c[key] > 0 && <div className="ws-ps-sub">{sub(c[key])}</div>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="ws-ps-section">
+          <h4>This month</h4>
+          <div className="ws-ps-line">
+            <span>Busiest week</span>
+            <span style={{ color: maxWeek > MAX_WEEKLY_HOURS ? 'var(--bad)' : undefined }}>
+              {maxWeek > MAX_WEEKLY_HOURS ? '⚠ ' : ''}{maxWeek}h (cap {MAX_WEEKLY_HOURS}h)
+            </span>
+          </div>
+          <div className="ws-ps-line" style={{ alignItems: 'flex-start' }}>
+            <span>Weekend &amp; holiday shifts</span>
+            <span className="ws-ps-tags">
+              {data.special.length === 0 ? <span style={{ color: 'var(--text-faint)' }}>none</span>
+                : data.special.map((a) => {
+                  const hol = getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')
+                  return <span key={a.date} className={`badge ${hol ? 'bad' : 'warn'}`} title={hol || 'Weekend'}>{fmtDate(a.date)}{hol ? ` · ${hol}` : ''}</span>
+                })}
+            </span>
+          </div>
+          <div className="ws-ps-line" style={{ alignItems: 'flex-start' }}>
+            <span>Leave</span>
+            <span className="ws-ps-tags">
+              {data.leave.length === 0 ? <span style={{ color: 'var(--text-faint)' }}>none</span>
+                : data.leave.map((l) => (
+                  <span key={l.id} className="badge" title={l.note || leaveType(l.type).label}>{leaveType(l.type).icon} {fmtLeaveRange(l)}</span>
+                ))}
+            </span>
+          </div>
+        </div>
+
+        <div className="ws-ps-section">
+          <h4>Compared with {center ? `${center.id} colleagues` : 'colleagues'} (before {monthLabel(month)})</h4>
+          {data.history?.months ? (<>
+            <div className="ws-ps-line"><span>Days (incl. leave)</span>{fmtBal(data.history.dayBalance, 'days')}</div>
+            <div className="ws-ps-line"><span>Weekends &amp; holidays</span>{fmtBal(data.history.specialBalance, 'days')}</div>
+            <div className="ws-ps-note">
+              Over {data.history.months} full month{data.history.months === 1 ? '' : 's'}
+              {data.history.partialMonths ? ` (+${data.history.partialMonths} partial, not counted)` : ''}.
+              The schedule evens these out over the next months.
+            </div>
+          </>) : <div className="ws-ps-note">No earlier full month at this center yet.</div>}
+        </div>
+
+        <p className="ws-ps-note" style={{ marginTop: 12 }}>
+          Leave counts weekdays only (not weekends or holidays); credited days = shifts + leave days.
+          A holiday on a weekend counts as both. {year} = Jan – {monthLabel(month).split(' ')[0]};
+          All = since {monthLabel(data.firstMonth)}.
         </p>
       </>)}
       <div className="modal-actions">

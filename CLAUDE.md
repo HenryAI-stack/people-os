@@ -542,6 +542,18 @@ Browser (React SPA)
   already-generated November. The footnote names the month range. On phones the table scrolls
   sideways inside `.ws-ov-wrap`, with the name column and center headings `position: sticky`.
   This is display-only, but it counts the same way as the generator's `computeWorkHistory`.
+- **Employee stats (`WorkSchedule.jsx`)**: clicking a person's stat chip (under the center tabs;
+  `.ws-stat-chip.is-clickable`, also Enter/Space) opens `EmployeeStatsModal` after loading every saved
+  schedule (`openPersonStats`, same loading pattern as the Overview). A table with three columns —
+  this month, this year (Jan → this month) and All (first saved month they worked → this month) —
+  from the page-local pure `personPeriodStats(person, assignments, from, to)`: shifts (+ hours),
+  weekend shifts, national-holiday shifts (from the date + center country, like `countShifts`),
+  vacation / sick / other leave **weekdays** (Mon–Fri non-holidays at their center, from
+  `person.leave`) and credited days (shifts + leave). This month uses the on-screen schedule (unsaved
+  edits included), earlier months the saved ones. Below: busiest week vs the 40h cap, this month's
+  weekend/holiday shift dates and leave ranges, and the balance vs colleagues at the same center
+  before this month (`computeWorkHistory`, the numbers the generator plans with; |x| < 0.5 shows as
+  "level"). Layout reuses the Overview's `.ws-ov*` table classes plus `.ws-ps-*`; rows stack on phones.
 - **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
   plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who
