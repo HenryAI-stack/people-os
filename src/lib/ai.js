@@ -22,7 +22,8 @@
 import { auth } from './auth.js'
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-const PROXY_URL = (import.meta.env.VITE_AI_PROXY_URL || '').trim()
+export const AI_PROXY_URL = (import.meta.env.VITE_AI_PROXY_URL || '').trim()
+const PROXY_URL = AI_PROXY_URL
 const API_KEY   = import.meta.env.VITE_OPENROUTER_API_KEY
 const ENDPOINT  = PROXY_URL || OPENROUTER_ENDPOINT
 

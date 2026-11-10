@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getMsGraphToken, setMsGraphToken, normalizeToken, getMsGraphTokenInfo, tokenHasAnyScope, TODO_SCOPES, SHAREPOINT_WRITE_SCOPES, GROUP_CALENDAR_SCOPES, ONEDRIVE_WRITE_SCOPES, getCopilotExportSettings, setCopilotExportSettings } from '../lib/settings.js'
 import { directReportsStore, interviewsStore, followUpsStore, accomplishmentsStore, notesStore } from '../lib/dataStore.js'
 import { uploadToOneDrive, checkOneDriveSharing } from '../lib/msGraph.js'
 import { buildExportModel, buildExportDocx, exportCounts, DEFAULT_EXPORT_OPTIONS, EXPORT_FOLDER, EXPORT_FILENAME, DOCX_MIME } from '../lib/copilotExport.js'
 import { pullMsGraphToken, pushMsGraphToken, TOKEN_CHANGED_EVENT } from '../lib/tokenSync.js'
 import { subscribePwa, promptInstall, isStandalone, isIOS } from '../lib/pwa.js'
+import { CONNECTIONS, runConnectionCheck } from '../lib/healthChecks.js'
 
 export default function Settings() {
   const [token, setToken] = useState(() => getMsGraphToken())
@@ -48,7 +49,9 @@ export default function Settings() {
         <p>Local to this browser, except the Microsoft Graph token, which is synced (encrypted) to your other devices.</p>
       </div>
 
-      <div className="card" style={{ maxWidth: 640 }}>
+      <ConnectionsCard graphToken={normalizeToken(token)} />
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 20 }}>
         <h3 style={{ marginTop: 0, marginBottom: 6 }}>Microsoft Graph token</h3>
         <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.6, marginTop: 0 }}>
           Powers the "Sync to Outlook" buttons on the Follow-ups page — they push follow-ups
@@ -111,6 +114,75 @@ export default function Settings() {
       <InstallCard />
       <CaptionGrabberCard />
     </>
+  )
+}
+
+// "🔌 Connections" — a live green/amber/red light per external service (src/lib/healthChecks.js).
+// Runs every check when the page opens; the Graph row re-runs when the token changes.
+const STATUS_LABEL = { ok: 'Working', warn: 'Needs attention', error: 'Not working', off: 'Not set up', checking: 'Checking…' }
+
+function ConnectionsCard({ graphToken }) {
+  const [results, setResults] = useState({})   // id → { status, detail, ms, checkedAt }
+  const [running, setRunning] = useState(0)    // checks in flight
+
+  const runOne = useCallback(async (conn) => {
+    setResults((r) => ({ ...r, [conn.id]: { ...r[conn.id], status: 'checking' } }))
+    setRunning((n) => n + 1)
+    const res = await runConnectionCheck(conn)
+    setResults((r) => ({ ...r, [conn.id]: res }))
+    setRunning((n) => n - 1)
+  }, [])
+
+  const runAll = useCallback(() => { CONNECTIONS.forEach(runOne) }, [runOne])
+  useEffect(() => { runAll() }, [runAll])
+
+  // A new/cleared Graph token (pasted here or synced from another device) → re-check just that row.
+  const firstToken = useRef(true)
+  useEffect(() => {
+    if (firstToken.current) { firstToken.current = false; return }
+    const graph = CONNECTIONS.find((c) => c.id === 'graph')
+    if (graph) runOne(graph)
+  }, [graphToken, runOne])
+
+  const done = CONNECTIONS.map((c) => results[c.id]).filter((r) => r && r.status !== 'checking')
+  const errors = done.filter((r) => r.status === 'error').length
+  const warns = done.filter((r) => r.status === 'warn').length
+  const summary = running > 0 ? 'Checking…'
+    : errors ? `${errors} not working` + (warns ? `, ${warns} need${warns === 1 ? 's' : ''} attention` : '')
+    : warns ? `${warns} need${warns === 1 ? 's' : ''} attention`
+    : 'All working'
+  const summaryStatus = running > 0 ? 'checking' : errors ? 'error' : warns ? 'warn' : 'ok'
+  const lastChecked = Math.max(0, ...done.map((r) => r.checkedAt || 0))
+
+  return (
+    <div className="card" style={{ maxWidth: 640 }}>
+      <div className="row-head" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <h3 style={{ margin: 0, flex: 1 }}>🔌 Connections</h3>
+        <span className={`conn-summary ${summaryStatus}`}>{summary}</span>
+        <button type="button" className="btn ghost" onClick={runAll} disabled={running > 0} title="Run all checks again">
+          ↻ Check again
+        </button>
+      </div>
+      <p style={{ color: 'var(--text-dim)', fontSize: 13, margin: '0 0 10px' }}>
+        Live check of each external service, from this browser and network.
+        {lastChecked ? <> Last checked {new Date(lastChecked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.</> : null}
+      </p>
+      <div className="conn-list">
+        {CONNECTIONS.map((c) => {
+          const r = results[c.id] || { status: 'checking' }
+          return (
+            <div key={c.id} className="conn-row">
+              <span className={`conn-dot ${r.status}`} role="img" aria-label={STATUS_LABEL[r.status]} title={STATUS_LABEL[r.status]} />
+              <div className="conn-main">
+                <div className="conn-name">{c.label}</div>
+                <div className="conn-detail">{r.status === 'checking' && !r.detail ? 'Checking…' : r.detail}</div>
+              </div>
+              {r.status !== 'checking' && typeof r.ms === 'number' && <span className="conn-ms">{r.ms} ms</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

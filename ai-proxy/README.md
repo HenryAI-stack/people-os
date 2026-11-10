@@ -15,6 +15,10 @@ equal `ALLOWED_EMAIL` (the same single-account rule the app uses). Browser
 calls are limited to the app's origins (CORS). It also only forwards the fields
 PeopleOS uses (`model`, `max_tokens`, `messages`), so it's not a general relay.
 
+`GET /api/chat` (same sign-in check) is a free health ping used by the app's
+Settings → 🔌 Connections card: it checks OpenRouter accepts the key (via
+OpenRouter's key-info endpoint — no model call) and reports this month's spend.
+
 Code: `lib/handler.js` (all logic), `api/chat.js` (Vercel entry point),
 `test/handler.test.js` (`npm test`, no network needed).
 
@@ -41,7 +45,8 @@ Code: `lib/handler.js` (all logic), `api/chat.js` (Vercel entry point),
    | `ALLOWED_ORIGINS` | *Optional.* Comma-separated origins allowed to call it. Default: `https://henryai-stack.github.io, https://cloudplay.at, https://www.cloudplay.at`, plus `localhost:5173/4173` for dev |
 
 6. **Deploy.** Then open `https://<project>.vercel.app/api/chat` in a browser:
-   `{"error":{"message":"Use POST.", …}}` means it's live. Try the same URL on
+   `{"error":{"message":"Missing sign-in token.", …}}` means it's live (it only
+   answers signed-in PeopleOS). Try the same URL on
    the company laptop — if it loads there, you can skip the custom domain.
 
 ### 2. Give it your own address (recommended)
@@ -55,7 +60,7 @@ your own domain usually isn't. Your DNS stays where it is.
    provider for `cloudplay.at`.
 3. Wait until Vercel shows the domain as *Valid* (minutes, sometimes up to an
    hour). HTTPS is issued automatically.
-4. Check `https://ai.cloudplay.at/api/chat` → "Use POST." — on the company
+4. Check `https://ai.cloudplay.at/api/chat` → "Missing sign-in token." — on the company
    laptop too.
 
 ### 3. Point the app at it

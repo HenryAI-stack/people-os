@@ -145,3 +145,38 @@ test('upstream unreachable → 502', async () => {
   const { res } = await call({ auth: `Bearer ${await token()}`, body: msg, fetchImpl })
   assert.equal(res.statusCode, 502)
 })
+
+// ---- GET = health check (Settings → Connections) ----------------------------
+
+test('GET with a valid token reports OpenRouter key status, without a chat call', async () => {
+  const seen = []
+  const fetchImpl = async (url, init) => {
+    seen.push(url)
+    return new Response(JSON.stringify({ data: { label: 'people-os', usage_monthly: 1.25, limit_remaining: null, is_free_tier: false } }), { status: 200 })
+  }
+  const { res } = await call({ method: 'GET', auth: `Bearer ${await token()}`, fetchImpl })
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(seen, ['https://openrouter.ai/api/v1/key'])
+  assert.equal(res.body.ok, true)
+  assert.equal(res.body.openrouter.usageMonthly, 1.25)
+  assert.equal(res.headers['access-control-allow-methods'], 'GET, POST, OPTIONS')
+})
+
+test('GET reports a rejected OpenRouter key as ok:false (proxy itself fine)', async () => {
+  const fetchImpl = async () => new Response('{}', { status: 401 })
+  const { res } = await call({ method: 'GET', auth: `Bearer ${await token()}`, fetchImpl })
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.ok, false)
+  assert.match(res.body.openrouter.message, /OPENROUTER_API_KEY/)
+})
+
+test('GET without a token is refused like POST', async () => {
+  const { res, seen } = await call({ method: 'GET' })
+  assert.equal(res.statusCode, 401)
+  assert.equal(seen.length, 0)
+})
+
+test('other methods → 405', async () => {
+  const { res } = await call({ method: 'DELETE', auth: `Bearer ${await token()}` })
+  assert.equal(res.statusCode, 405)
+})
