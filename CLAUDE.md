@@ -362,8 +362,8 @@ Browser (React SPA)
   anyone with no full year of tenure yet). "Today" counts as upcoming, not past. In the half-width
   columns, location shows as just the flag next to the name, not the full location text.
   Directly below sits "🏖️ Upcoming national holidays": the next 5 entries across all `HOLIDAYS`
-  tables (PL/IN/MX/US — `US` = the 11 federal holidays on their observed dates, Dashboard-only since
-  there's no US center), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
+  tables (PL/IN/MX/US — `US` = the company's US holiday calendar, not the federal list: 2026 from the
+  intranet, 2027 provisional; Dashboard-only since there's no US center), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
   today inclusive; the same name on the same date in several countries is merged into one row
   with all flags, e.g. Christmas), preceded by one greyed-out row for the most recent past holiday
   (`lastHolidays(todayStr)`; several rows only if different holidays share that date). Each row shows

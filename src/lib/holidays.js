@@ -104,39 +104,25 @@ export const HOLIDAYS = {
   },
 
   // ── UNITED STATES ─────────────────────────────────────────────────────────
-  // The 11 federal holidays (5 U.S.C. 6103) on their OBSERVED dates: a Saturday holiday is
-  // observed the Friday before, a Sunday one the Monday after (so New Year 2028 → Fri
-  // 2027-12-31). Names match the other tables where it's the same holiday, so e.g. Christmas
-  // merges into one Dashboard row.
+  // The company's US holiday calendar (intranet "Holiday Calendar" → USA), NOT the federal
+  // list: no Juneteenth / Washington's Birthday / Columbus Day / Veterans Day, but the Day
+  // after Thanksgiving and Christmas Eve. Like IN, always add a new year from that company
+  // calendar (ask the user for it). "New Year" / "Christmas Day" are named like the other
+  // tables so they merge into one Dashboard row.
   US: {
-    // 2024
-    '2024-01-01': 'New Year', '2024-01-15': 'Martin Luther King Jr. Day',
-    '2024-02-19': "Washington's Birthday", '2024-05-27': 'Memorial Day',
-    '2024-06-19': 'Juneteenth', '2024-07-04': 'Independence Day',
-    '2024-09-02': 'Labor Day', '2024-10-14': 'Columbus Day',
-    '2024-11-11': 'Veterans Day', '2024-11-28': 'Thanksgiving Day',
-    '2024-12-25': 'Christmas Day',
-    // 2025
-    '2025-01-01': 'New Year', '2025-01-20': 'Martin Luther King Jr. Day',
-    '2025-02-17': "Washington's Birthday", '2025-05-26': 'Memorial Day',
-    '2025-06-19': 'Juneteenth', '2025-07-04': 'Independence Day',
-    '2025-09-01': 'Labor Day', '2025-10-13': 'Columbus Day',
-    '2025-11-11': 'Veterans Day', '2025-11-27': 'Thanksgiving Day',
-    '2025-12-25': 'Christmas Day',
-    // 2026
-    '2026-01-01': 'New Year', '2026-01-19': 'Martin Luther King Jr. Day',
-    '2026-02-16': "Washington's Birthday", '2026-05-25': 'Memorial Day',
-    '2026-06-19': 'Juneteenth', '2026-07-03': 'Independence Day (observed)',
-    '2026-09-07': 'Labor Day', '2026-10-12': 'Columbus Day',
-    '2026-11-11': 'Veterans Day', '2026-11-26': 'Thanksgiving Day',
+    // 2026 — company calendar
+    '2026-01-01': 'New Year', '2026-01-19': 'Martin Luther King Jr. Birthday',
+    '2026-05-25': 'Memorial Day', '2026-07-03': 'Independence Day',
+    '2026-09-07': 'Labor Day', '2026-11-26': 'Thanksgiving Day',
+    '2026-11-27': 'Day after Thanksgiving', '2026-12-24': 'Christmas Eve',
     '2026-12-25': 'Christmas Day',
-    // 2027
-    '2027-01-01': 'New Year', '2027-01-18': 'Martin Luther King Jr. Day',
-    '2027-02-15': "Washington's Birthday", '2027-05-31': 'Memorial Day',
-    '2027-06-18': 'Juneteenth (observed)', '2027-07-05': 'Independence Day (observed)',
-    '2027-09-06': 'Labor Day', '2027-10-11': 'Columbus Day',
-    '2027-11-11': 'Veterans Day', '2027-11-25': 'Thanksgiving Day',
-    '2027-12-24': 'Christmas Day (observed)', '2027-12-31': 'New Year (observed)',
+    // 2027 — PROVISIONAL (same holidays as 2026, dates by rule; Jul 4 is a Sunday →
+    // Mon Jul 5): replace with the company calendar once 2027 is published.
+    '2027-01-01': 'New Year', '2027-01-18': 'Martin Luther King Jr. Birthday',
+    '2027-05-31': 'Memorial Day', '2027-07-05': 'Independence Day',
+    '2027-09-06': 'Labor Day', '2027-11-25': 'Thanksgiving Day',
+    '2027-11-26': 'Day after Thanksgiving', '2027-12-24': 'Christmas Eve',
+    '2027-12-25': 'Christmas Day',
   },
 }
 
