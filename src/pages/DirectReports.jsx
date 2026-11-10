@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { LeaveEditor } from '../components/LeaveEditor.jsx'
 import { useNavigate } from 'react-router-dom'
 import { directReportsStore, interviewsStore } from '../lib/dataStore'
 import { lastOneOnOne, cadenceBadge } from '../lib/cadence.js'
@@ -205,6 +206,7 @@ export function ReportForm({ initial, onCancel, onSave }) {
             <option value="offboarding">Offboarding</option>
           </select>
         </div>
+        <LeaveEditor person={form} value={form.leave} onChange={(v) => set('leave', v)} />
         <div className="field"><label>Notes</label><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Strengths, growth areas, context…" /></div>
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>

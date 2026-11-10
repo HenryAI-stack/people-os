@@ -1,4 +1,5 @@
 import { CENTERS, getCenter, centerHoursForMonth } from './scheduleGenerator.js'
+import { leaveOn, leaveType } from './leave.js'
 import { getDaysInMonth, getHoliday } from './holidays.js'
 
 // Fills mirror the app's own on-screen colors (--accent for an on-shift chip,
@@ -10,6 +11,8 @@ import { getDaysInMonth, getHoliday } from './holidays.js'
 export const FILL_SHIFT   = 'FFF3D9BE' // light --accent tint — on shift this day
 export const FILL_HOLIDAY = 'FFF3C7C2' // light --bad tint — public holiday, not on shift
 export const FILL_DAYOFF  = 'FFEDEFF2' // neutral — day off, not on shift
+export const FILL_LEAVE   = 'FFD5EDDA' // light green — vacation / sick / other leave (leave.js)
+export const LEAVE_LEGEND = ['V', FILL_LEAVE, 'Vacation · SL Sick · L Other leave']
 const HEADER_FILL  = 'FF497A7C'
 const TITLE_COLOR  = 'FF1F2937'
 
@@ -35,12 +38,16 @@ function thinBorder(color = 'FFFFFFFF') {
  * - 'S' (on shift) when they have a non-cleared assignment that date/center
  * - 'H' (holiday) when it's a public holiday for that center's country and
  *   they aren't on shift
+ * - 'V' / 'SL' / 'L' (vacation / sick / other leave, from `person.leave`) when not on shift
  * - 'D' (day off) otherwise — including weekends and cleared assignments
+ * `person` is optional; without it leave isn't shown.
  */
-export function dayCode(dateStr, center, personId, assignmentMap) {
+export function dayCode(dateStr, center, personId, assignmentMap, person = null) {
   const onShift = (assignmentMap[`${dateStr}|${center.id}`] || [])
     .some((a) => a.personId === personId && !a.cleared)
   if (onShift) return ['S', FILL_SHIFT]
+  const leave = person && leaveOn(person, dateStr)
+  if (leave) return [leaveType(leave.type).code, FILL_LEAVE]
   if (getHoliday(dateStr, center.country)) return ['H', FILL_HOLIDAY]
   return ['D', FILL_DAYOFF]
 }
@@ -50,6 +57,7 @@ function addLegend(sheet, row, hours) {
     ['S', FILL_SHIFT,   `Shift ${hours}`],
     ['D', FILL_DAYOFF,  'Day Off'],
     ['H', FILL_HOLIDAY, 'Holiday'],
+    LEAVE_LEGEND,
   ]
   let col = 2 // B
   for (const [code, argb, label] of items) {
@@ -59,7 +67,7 @@ function addLegend(sheet, row, hours) {
     codeCell.fill = fill(argb)
     codeCell.alignment = { horizontal: 'center', vertical: 'center' }
     const labelStart = col + 1
-    const labelEnd = col + 3
+    const labelEnd = col + (label.length > 20 ? 5 : 3)
     sheet.mergeCells(row, labelStart, row, labelEnd)
     const labelCell = sheet.getCell(row, labelStart)
     labelCell.value = label
@@ -134,7 +142,7 @@ function buildCenterSheet(workbook, center, people, month, schedule) {
     nameCell.fill = fill(EMPLOYEE_COLORS[i % EMPLOYEE_COLORS.length])
 
     days.forEach((dateStr, di) => {
-      const [code, argb] = dayCode(dateStr, center, person.id, assignmentMap)
+      const [code, argb] = dayCode(dateStr, center, person.id, assignmentMap, person)
       const cell = row.getCell(di + 2)
       cell.value = code
       cell.fill = fill(argb)

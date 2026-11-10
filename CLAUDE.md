@@ -476,7 +476,15 @@ Browser (React SPA)
   chips as `🎯21d` (accent + `(+1)` when carry-over moved the target; tooltip = `balanceTitle()`).
   `fairnessSnapshot` is still written (totals now rebuilt from the saved schedules) for older
   readers and the `∑Nwe` chip on schedules generated before `balances`; the generator only falls
-  back to it (weekend balance only) when `pastSchedules` isn't passed. **Nobody is scheduled on their own birthday** (Rule 6, via `isBirthdayOn()` from
+  back to it (weekend balance only) when `pastSchedules` isn't passed. **Leave (Rule 8)** — see
+  "Vacation & sick days" below — is a hard block; leave weekdays (Mon–Fri non-holidays at the
+  center) count as worked: `balances.targetDays` is the *credited* target, `shiftTarget` =
+  `targetDays − leaveDays`. The weekend/holiday share scales with the share of the month someone is
+  present (`avail`; a weekend shift weighs `1 / avail` in the ranking), and `computeWorkHistory`'s
+  3rd param `people` credits past leave the same way (credited days = shifts + leave weekdays;
+  expected weekends = center rate per available day × `avail`), so leave never becomes owed days or
+  owed weekends. `generateSchedule`'s 6th param `allPeople` (everyone, not just members) feeds that,
+  so a colleague's past leave counts even after they leave the team. **Nobody is scheduled on their own birthday** (Rule 6, via `isBirthdayOn()` from
   `birthdays.js`, pure string math, 29 Feb → 28 Feb in non-leap years). Unlike the rest rule
   and the 40h cap, this is a strong *preference*, not a hard block: every pick tries non-birthday
   candidates first and only falls back to the birthday person when nobody else can cover the day,
@@ -486,6 +494,26 @@ Browser (React SPA)
   Schedules saved *before* the 2026-09-15 `getDaysInMonth` fix (see Excel export below) are
   shifted by a day in CET — e.g. October stored as Sep 30–Oct 30, so Oct 31 shows empty. Fix by
   assigning the empty day (click "—" / "+") or regenerating the month.
+- **Vacation & sick days**: stored on the direct report as `leave: [{ id, from, to, type, note }]`
+  (`to` inclusive; type `vacation` | `sick` | `other`). `src/lib/leave.js` is the one implementation
+  (`LEAVE_TYPES` with icon/label/export code V/SL/L, `leaveList`, `leaveOn`, `leaveMap`,
+  `addLeave` — merges touching same-type ranges, `removeLeave`, `removeLeaveDay` — splits a range;
+  pure string math, no `import.meta.env`, imported by the generator, `scheduleExcel.js` and so the
+  CI email script). Entered two ways: `components/LeaveEditor.jsx` in `ReportForm` (Direct Reports
+  and the person page; part of the form, saved with it; entries older than a year collapse; while
+  picking dates it warns if the person's center would drop below 2 people on a weekday / 1 on a
+  weekend or holiday, counting active `SCHEDULE_TEAM` colleagues at that center not on leave), and
+  `ShiftModal`'s "🌴 Vacation" / "🤒 Sick leave" buttons ("Not working that day?"), which clear the
+  shift and save a one-day leave to the person **immediately** (`markLeave`/`savePersonLeave` in
+  `WorkSchedule.jsx`, `directReportsStore.upsert`, then `allPeople` is updated in place). The
+  calendar shows dashed `.ws-chip-leave` chips (✕ = `removeLeaveDay`, after a confirm), hides the
+  cleared chip of someone on leave that day, and flags a shift that clashes with leave with ⚠️ on
+  the chip; swap/assign options say "🌴 on leave" (still allowed). Stat chips add `+N🌴` (leave
+  weekdays this month), the "Select employees" rows a `🌴 Nd` badge. Excel and the emailed PDF show
+  V / SL / L (`FILL_LEAVE`, `LEAVE_LEGEND`) via `dayCode()`'s optional 5th param `person`; a shift
+  wins over leave there. Leave is read live from the person, not snapshotted on the schedule, so
+  editing old leave changes past history too (intended: it should reflect the truth). The person's
+  `status: 'leave'` is unrelated and still just means "on long leave" (unticked by default).
 - **Who's on the schedule ("Select employees")**: "✦ Generate schedule"/"↻ Regenerate" no longer
   just confirms; it opens `SchedulePeopleModal` (`WorkSchedule.jsx`, a `DraggableModal`) listing every
   direct report at a support center (`getCenter(p)` non-null), grouped by center with a checkbox each,
@@ -568,8 +596,8 @@ Browser (React SPA)
   downloads when someone actually clicks "Export Excel" on `WorkSchedule.jsx`, rather than
   bloating every page's bundle. Per person per day: `'S'` (on shift — a non-cleared
   assignment exists for that date/center/person), else `'H'` (public holiday for that
-  center's country), else `'D'` (day off, including weekends and cleared assignments) — no
-  `'V'`/vacation code, since this app has no leave-tracking data to draw one from. The date
+  center's country), else `'V'`/`'SL'`/`'L'` for leave (see "Vacation & sick days"), else `'D'` (day
+  off, including weekends and cleared assignments). The date
   header row (day 1, day 2, …) uses real `Date` objects with `numFmt: 'd-mmm'`, not text, so
   they render as "1-Nov" while staying genuine dates. Day columns are 7 chars wide, not the
   ~5.5 that fits just the S/D/H letter — narrower than that and Excel renders the `d-mmm`
@@ -673,6 +701,8 @@ src/
                        multi-sheet .xlsx of the work schedule via exceljs (dynamically imported,
                        its own chunk)
     holidays.js        Hardcoded PL/IN/MX holiday tables + date helpers used by the generator
+    leave.js           Vacation / sick / other leave on direct reports (`leave` ranges): lookups,
+                       add/merge, remove, remove-one-day — used by the generator, exports and UI
     onDuty.js          getShiftTimeline — who's on 24/7 duty now / before / next, from saved
                        schedules + each center's local shift hours (Dashboard); shiftWindow()
                        (one center-day's shift as UTC instants) is shared with onDutyCalendar.js
@@ -756,6 +786,7 @@ src/
                         Windows exe release download and its IT sheet)
   components/
     DraggableModal.jsx  Shared draggable modal shell used by every "add/edit" form
+    LeaveEditor.jsx    "Vacation & sick days" section of ReportForm, with the staffing warning
     WorldMapModal.jsx  Full-screen world map (opened from the sidebar's World Clock):
                         day/night terminator + a dashed solar-noon meridian line through the
                         sun position, a pin per active direct report's resolved location

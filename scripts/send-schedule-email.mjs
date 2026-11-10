@@ -25,7 +25,7 @@ import { CENTERS, getCenter, centerHoursForMonth, SCHEDULE_TEAM, scheduleMembers
 import { getDaysInMonth } from '../src/lib/holidays.js'
 import {
   buildScheduleWorkbook, dayCode,
-  FILL_SHIFT, FILL_HOLIDAY, FILL_DAYOFF, EMPLOYEE_COLORS,
+  FILL_SHIFT, FILL_HOLIDAY, FILL_DAYOFF, EMPLOYEE_COLORS, LEAVE_LEGEND,
 } from '../src/lib/scheduleExcel.js'
 
 const {
@@ -109,7 +109,7 @@ function drawCenterPage(doc, center, people, days, monthLabel, assignmentMap) {
   y += 22
 
   // Legend
-  const legend = [['S', FILL_SHIFT, `Shift ${hours.mixed ? '(hours above)' : hours.label}`], ['D', FILL_DAYOFF, 'Day Off'], ['H', FILL_HOLIDAY, 'Holiday']]
+  const legend = [['S', FILL_SHIFT, `Shift ${hours.mixed ? '(hours above)' : hours.label}`], ['D', FILL_DAYOFF, 'Day Off'], ['H', FILL_HOLIDAY, 'Holiday'], LEAVE_LEGEND]
   let lx = marginX
   doc.fontSize(8)
   for (const [code, argb, label] of legend) {
@@ -150,9 +150,9 @@ function drawCenterPage(doc, center, people, days, monthLabel, assignmentMap) {
       .text(person.name, marginX + 4, y + 3, { width: nameColW - 8, ellipsis: true, height: rowH })
     days.forEach((dateStr, i) => {
       const x = marginX + nameColW + i * dayColW
-      const [code, argb] = dayCode(dateStr, center, person.id, assignmentMap)
+      const [code, argb] = dayCode(dateStr, center, person.id, assignmentMap, person)
       doc.rect(x, y, dayColW, rowH).fillAndStroke(hex(argb), '#ffffff')
-      doc.fillColor('#1a1a1a').font('Helvetica').fontSize(7).text(code, x, y + 2, { width: dayColW, align: 'center' })
+      doc.fillColor('#1a1a1a').font('Helvetica').fontSize(code.length > 1 ? 5.5 : 7).text(code, x, y + 2, { width: dayColW, align: 'center', lineBreak: false })
     })
     y += rowH
   })

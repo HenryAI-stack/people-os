@@ -1,6 +1,7 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 import { isBirthdayOn } from './birthdays.js'
 import { isWinterTime } from './worldClock.js'
+import { leaveMap } from './leave.js'
 
 // `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
 // `winterHours` (Warsaw only) apply while that zone is on winter time: Poland is the only one of
@@ -112,21 +113,32 @@ export const PARTIAL_MONTH_SHARE = 0.5
 const centerById = (id) => CENTERS.find((c) => c.id === id)
 const isSpecialDay = (dateStr, center) => isWeekend(dateStr) || !!getHoliday(dateStr, center.country)
 
+/** Leave of one person over `dates` at `center`: { map, workdays, days }. Workdays = Mon–Fri
+ *  non-holidays at that center — those count as worked (a vacation weekday replaces a shift). */
+function leaveAt(person, dates, center) {
+  const map = person ? leaveMap(person, dates) : {}
+  const leaveDates = Object.keys(map)
+  return { map, days: leaveDates.length, workdays: leaveDates.filter((d) => !isSpecialDay(d, center)).length }
+}
+
 /**
  * Everyone's work history per center from every saved schedule *before* `beforeMonth` ('YYYY-MM').
  * Counts what's actually in the saved schedules (manual swaps/moves/removals included, cleared
  * shifts excluded); weekend/holiday come from the date and the center's country, not stored flags.
- * Each center is compared only with itself: per month, a person's days and weekend/holiday days are
- * set against the average of that center's full-month colleagues, and the differences add up.
- * → { [centerId]: { [personId]: { months, partialMonths, days, special, holidays,
+ * Leave (`people[].leave`, see leave.js) counts as worked: credited days = shifts + leave weekdays,
+ * and the weekend/holiday share expected of someone shrinks with the days they were away.
+ * Each center is compared only with itself: per month, a person's credited days and weekend/holiday
+ * days are set against that center's full-month colleagues, and the differences add up.
+ * → { [centerId]: { [personId]: { months, partialMonths, days, special, holidays, leaveDays,
  *      dayBalance, specialBalance, lastSpecial } } }
  *   dayBalance < 0 = worked fewer days than colleagues so far (owed days); > 0 = worked more.
  *   specialBalance likewise for weekend + holiday days. lastSpecial = last weekend/holiday date worked.
  */
-export function computeWorkHistory(schedules, beforeMonth) {
+export function computeWorkHistory(schedules, beforeMonth, people = []) {
   const out = {}
+  const personById = new Map((people || []).map((p) => [p.id, p]))
   const row = (cid, pid) => ((out[cid] ||= {})[pid] ||= {
-    months: 0, partialMonths: 0, days: 0, special: 0, holidays: 0,
+    months: 0, partialMonths: 0, days: 0, special: 0, holidays: 0, leaveDays: 0,
     dayBalance: 0, specialBalance: 0, lastSpecial: '',
   })
   const seen = new Set()
@@ -134,6 +146,7 @@ export function computeWorkHistory(schedules, beforeMonth) {
     .filter((s) => s?.month && s.month < beforeMonth && !seen.has(s.month) && seen.add(s.month))
     .sort((a, b) => a.month.localeCompare(b.month))
   for (const s of past) {
+    const monthDays = getDaysInMonth(s.month)
     const month = {} // centerId → personId → { days, special, holidays, lastSpecial }
     for (const a of s.assignments || []) {
       const center = centerById(a.center)
@@ -146,21 +159,30 @@ export function computeWorkHistory(schedules, beforeMonth) {
       }
       if (getHoliday(a.date, center.country)) r.holidays++
     }
-    for (const [cid, people] of Object.entries(month)) {
-      const ids = Object.keys(people)
-      const mean = (list, key) => list.reduce((n, id) => n + people[id][key], 0) / list.length
-      const avgAll = mean(ids, 'days')
-      const full = ids.filter((id) => people[id].days >= avgAll * PARTIAL_MONTH_SHARE)
-      const avgDays = mean(full, 'days')
-      const avgSpecial = mean(full, 'special')
+    for (const [cid, rows] of Object.entries(month)) {
+      const center = centerById(cid)
+      const ids = Object.keys(rows)
       for (const id of ids) {
-        const m = people[id], h = row(cid, id)
-        h.days += m.days; h.special += m.special; h.holidays += m.holidays
+        const lv = leaveAt(personById.get(id), monthDays, center)
+        rows[id].leaveDays = lv.workdays
+        rows[id].credited = rows[id].days + lv.workdays
+        rows[id].avail = (monthDays.length - lv.days) / monthDays.length
+      }
+      const mean = (list, key) => list.reduce((n, id) => n + rows[id][key], 0) / list.length
+      const avgAll = mean(ids, 'credited')
+      const full = ids.filter((id) => rows[id].credited >= avgAll * PARTIAL_MONTH_SHARE)
+      const avgCredited = mean(full, 'credited')
+      // Weekend/holiday days per available day, so someone away half the month owes half a share.
+      const availSum = full.reduce((n, id) => n + rows[id].avail, 0)
+      const specialRate = availSum > 0 ? full.reduce((n, id) => n + rows[id].special, 0) / availSum : 0
+      for (const id of ids) {
+        const m = rows[id], h = row(cid, id)
+        h.days += m.days; h.special += m.special; h.holidays += m.holidays; h.leaveDays += m.leaveDays
         if (m.lastSpecial > h.lastSpecial) h.lastSpecial = m.lastSpecial
         if (!full.includes(id)) { h.partialMonths++; continue }
         h.months++
-        h.dayBalance += m.days - avgDays
-        h.specialBalance += m.special - avgSpecial
+        h.dayBalance += m.credited - avgCredited
+        h.specialBalance += m.special - specialRate * m.avail
       }
     }
   }
@@ -217,14 +239,21 @@ function makeAssignment(dateStr, center, person, we, hol) {
  *    weekend/holiday days are compared with colleagues at the same center, month by month,
  *    and the differences carry over until they're evened out. Without `pastSchedules` the
  *    old chained `fairness` snapshot is used for weekend balance only.
+ * 8. Leave (`leave` on the direct report: vacation / sick / other, see leave.js) is a hard block.
+ *    Leave weekdays count as worked: someone with 5 vacation weekdays and a 21-day target gets
+ *    16 shifts. Their weekend/holiday share shrinks with the days they're away (a weekend shift
+ *    weighs 1 ÷ share-of-month-present when ranking). Past months credit leave the same way, so
+ *    leave never turns into owed days.
  *
  * → { assignments, fairnessSnapshot, balances }
- *   balances[personId] = { center, targetDays, dayBalance, specialBalance, months } — the
+ *   balances[personId] = { center, targetDays (credited: shifts + leave weekdays), shiftTarget,
+ *   leaveDays, dayBalance, specialBalance, months } — the
  *   history this schedule was planned with (shown on the Work Schedule stat chips).
  */
-export function generateSchedule(yearMonth, people, fairness = {}, prevAssignments = [], pastSchedules = null) {
+export function generateSchedule(yearMonth, people, fairness = {}, prevAssignments = [], pastSchedules = null, allPeople = people) {
   const days    = getDaysInMonth(yearMonth)
-  const history = pastSchedules ? computeWorkHistory(pastSchedules, yearMonth) : null
+  // allPeople (everyone, not just this month's members) only matters for colleagues' past leave.
+  const history = pastSchedules ? computeWorkHistory(pastSchedules, yearMonth, allPeople) : null
   const byCenter = {}
   for (const c of CENTERS) byCenter[c.id] = []
   for (const p of people) {
@@ -248,12 +277,19 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       const avgWe = pool.reduce((n, p) => n + (fairness[p.id]?.weekendTotal || 0), 0) / pool.length
       hist = (id) => ({ specialBalance: (fairness[id]?.weekendTotal || 0) - avgWe })
     }
-    const target = Object.fromEntries(pool.map((p) => [p.id, targetDaysFor(hist(p.id).dayBalance)]))
+    // Rule 8: leave. creditTarget = days to be credited (shifts + leave weekdays); target = shifts.
+    const leave = Object.fromEntries(pool.map((p) => [p.id, leaveAt(p, days, center)]))
+    const creditTarget = Object.fromEntries(pool.map((p) => [p.id, targetDaysFor(hist(p.id).dayBalance)]))
+    const target = Object.fromEntries(pool.map((p) => [p.id, Math.max(0, creditTarget[p.id] - leave[p.id].workdays)]))
+    // Share of the month someone is around (for their fair share of weekends/holidays)
+    const avail = Object.fromEntries(pool.map((p) => [p.id, (days.length - leave[p.id].days) / days.length]))
     for (const p of pool) {
       const h = hist(p.id)
       balances[p.id] = {
         center: center.id,
-        targetDays: target[p.id],
+        targetDays: creditTarget[p.id],
+        shiftTarget: target[p.id],
+        leaveDays: leave[p.id].workdays,
         dayBalance: Math.round((h.dayBalance || 0) * 10) / 10,
         specialBalance: Math.round((h.specialBalance || 0) * 10) / 10,
         months: h.months || 0,
@@ -294,7 +330,7 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     // Rule 6: birthday = avoid (last resort only)
     const onBirthday = (person, dateStr) => isBirthdayOn(person.birthday, dateStr)
     function canWork(personId, dateStr) {
-      return !isBlocked(personId, dateStr) && (weekCount[wk(personId, dateStr)] || 0) < MAX_SHIFTS_PER_WEEK
+      return !isBlocked(personId, dateStr) && !leave[personId].map[dateStr] && (weekCount[wk(personId, dateStr)] || 0) < MAX_SHIFTS_PER_WEEK
     }
 
     function assign(dateStr, person) {
@@ -319,21 +355,22 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     // on one person; Rule 2b skips whoever worked the day before. Rule 3
     // still takes priority: if everyone is hard-blocked, the day is left
     // unassigned rather than broken.
+    const progress = (p) => target[p.id] > 0 ? used[p.id] / target[p.id] : Infinity
     const specialUsed = Object.fromEntries(pool.map((p) => [p.id, 0]))
-    const specialLoad = (p) => (hist(p.id).specialBalance || 0) + specialUsed[p.id]
+    const specialLoad = (p) => (hist(p.id).specialBalance || 0) + specialUsed[p.id] / Math.max(avail[p.id], 0.1)
     const specialDays = days.filter((d) => isSpecialDay(d, center))
 
     // A Sunday/holiday costs the next day off (Rule 3), which can stop someone reaching a raised
     // target. So among equally loaded people, Sundays/holidays go to whoever is owed the fewest
     // days and Saturdays to whoever is owed the most.
-    const owed = (p) => target[p.id] - STANDARD_DAYS
+    const owed = (p) => creditTarget[p.id] - STANDARD_DAYS
     for (const dateStr of specialDays) {
       const costsRestDay = isSunday(dateStr) || !!getHoliday(dateStr, center.country)
       const ranked = [...pool].sort((a, b) =>
         (specialLoad(a) - specialLoad(b))
         || (costsRestDay ? owed(a) - owed(b) : owed(b) - owed(a))
         || lastSpecial[a.id].localeCompare(lastSpecial[b.id]) // longest since last weekend/holiday first
-        || (used[a.id] / target[a.id] - used[b.id] / target[b.id])
+        || (progress(a) - progress(b))
         || byName(a, b))
       const free = ranked.filter((p) => canWork(p.id, dateStr))
       const workedDayBefore = (p) => onDay(p.id, prevDay(dateStr))
@@ -355,7 +392,7 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     // rather than assigning someone who just earned a day off.)
     const trueWeekdays = days.filter((d) => !isSpecialDay(d, center))
     const weekdayRank = (a, b) =>
-      (used[a.id] / target[a.id] - used[b.id] / target[b.id])
+      (progress(a) - progress(b))
       || lastWorked[a.id].localeCompare(lastWorked[b.id])
       || ((hist(a.id).dayBalance || 0) - (hist(b.id).dayBalance || 0)) // owed days first
       || byName(a, b)

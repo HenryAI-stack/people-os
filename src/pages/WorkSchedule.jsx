@@ -11,6 +11,7 @@ import { flagUrl } from '../lib/locationFlag.js'
 import { isBirthdayOn } from '../lib/birthdays.js'
 import { sendScheduleEmailNow, SCHEDULE_ACTIONS_URL } from '../lib/githubActions.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
+import { leaveOn, leaveMap, leaveType, addLeave, removeLeaveDay, LEAVE_TYPES } from '../lib/leave.js'
 
 // "Upload to SharePoint" target: this site's default document library (Shared Documents) → "Work schedule" folder.
 const SHAREPOINT_SITE   = 'https://ul.sharepoint.com/sites/GRPGlobal247CoreOperations'
@@ -133,7 +134,7 @@ export default function WorkSchedule() {
       const members = allPeople.filter((p) => chosen.has(p.id))
       // Last month's shifts let the 40h/week cap see weeks that straddle the month boundary.
       const { assignments, fairnessSnapshot, balances } =
-        generateSchedule(month, members, fairness, prev?.assignments || [], schedules)
+        generateSchedule(month, members, fairness, prev?.assignments || [], schedules, allPeople)
       const record = {
         id:                `schedule-${month}`,
         month,
@@ -231,6 +232,31 @@ export default function WorkSchedule() {
           holidayName: hol || '', dayOffGranted: we || !!hol, cleared: false, comment: '' },
       ],
     }))
+  }
+
+  // ── Leave (vacation / sick) ──────────────────────────────────────────────
+  // Leave lives on the direct report (`leave`, see leave.js), so it's saved straight away and also
+  // shows in their profile. Marking a shift as leave removes the shift (restorable with ↩).
+  const [leaveSaving, setLeaveSaving] = useState(false)
+  async function savePersonLeave(personId, nextLeave) {
+    const person = allPeople.find((p) => p.id === personId)
+    if (!person) return
+    setLeaveSaving(true); setError('')
+    try {
+      const saved = await directReportsStore.upsert({ ...person, leave: nextLeave })
+      setAllPeople((list) => list.map((p) => p.id === personId ? saved : p))
+    } catch (e) { setError(e.message) }
+    finally { setLeaveSaving(false) }
+  }
+  async function markLeave(date, center, personId, type) {
+    const person = allPeople.find((p) => p.id === personId)
+    if (!person) return
+    clearAssignment(date, center, personId)
+    await savePersonLeave(personId, addLeave(person, { from: date, to: date, type }))
+  }
+  async function unmarkLeaveDay(date, personId) {
+    const person = allPeople.find((p) => p.id === personId)
+    if (person) await savePersonLeave(personId, removeLeaveDay(person, date))
   }
 
   function openComment(date, center, personId) {
@@ -361,6 +387,21 @@ export default function WorkSchedule() {
     return m
   }, [schedule])
 
+  // Leave this month: `${date}|${center}` → [{ person, entry }], and leave weekdays per person
+  // (those count as worked, like in the generator).
+  const leaveInfo = useMemo(() => {
+    const byDay = {}, workdays = {}
+    for (const p of people) {
+      const c = CENTERS.find((x) => x.id === getCenter(p))
+      if (!c) continue
+      for (const [d, entry] of Object.entries(leaveMap(p, days))) {
+        (byDay[`${d}|${c.id}`] ||= []).push({ person: p, entry })
+        if (!isWeekend(d) && !getHoliday(d, c.country)) workdays[p.id] = (workdays[p.id] || 0) + 1
+      }
+    }
+    return { byDay, workdays }
+  }, [people, days])
+
   // Summary stats per person for this month
   const stats = useMemo(() => {
     const s = {}
@@ -489,6 +530,11 @@ export default function WorkSchedule() {
                     {over ? '⚠ ' : ''}max {maxWeek}h/wk
                   </span>
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
+                  {leaveInfo.workdays[p.id] > 0 && (
+                    <span style={{ color:'var(--text-faint)', fontSize:11 }} title={`${leaveInfo.workdays[p.id]} leave weekdays this month (count as worked)`}>
+                      +{leaveInfo.workdays[p.id]}🌴
+                    </span>
+                  )}
                   {s.weekend > 0 && <span style={{ color:'var(--warn)' }} title="Weekend days">🏖️{s.weekend}</span>}
                   {s.holiday > 0 && <span style={{ color:'var(--bad)' }} title="Holiday days">📅{s.holiday}</span>}
                   {bal ? (
@@ -543,12 +589,28 @@ export default function WorkSchedule() {
                           onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: null })}>+</button>
                       </div>
                       {(() => {
-                        const dayAssignments = assignmentMap[`${dateStr}|${c.id}`] || []
-                        if (dayAssignments.length === 0) return (
+                        const onLeave = leaveInfo.byDay[`${dateStr}|${c.id}`] || []
+                        const leaveIds = new Set(onLeave.map((x) => x.person.id))
+                        const dayAssignments = (assignmentMap[`${dateStr}|${c.id}`] || [])
+                          .filter((a) => !(a.cleared && leaveIds.has(a.personId)))
+                        const leaveChips = onLeave.map(({ person, entry }) => {
+                          const t = leaveType(entry.type)
+                          return (
+                            <div key={`leave-${person.id}`} className="ws-chip ws-chip-leave"
+                              title={`${person.name}: ${t.label}${entry.note ? ` (${entry.note})` : ''}`}>
+                              <span>{t.icon} {person.name.split(' ')[0]}</span>
+                              <button className="ws-clear-btn no-print" disabled={leaveSaving}
+                                onClick={() => { if (confirm(`Remove ${t.label.toLowerCase()} on ${fmtDate(dateStr)} for ${person.name}?`)) unmarkLeaveDay(dateStr, person.id) }}
+                                title="Remove this leave day">✕</button>
+                            </div>
+                          )
+                        })
+                        if (dayAssignments.length === 0) return (<>
                           <div className="ws-chip ws-chip-empty" style={{ cursor:'pointer' }} title="Click to assign someone"
                             onClick={() => setShiftModal({ date: dateStr, center: c.id, personId: null })}>—</div>
-                        )
-                        return dayAssignments.map((a) => a.cleared ? (
+                          {leaveChips}
+                        </>)
+                        return [...dayAssignments.map((a) => a.cleared ? (
                           <div key={a.personId} className="ws-chip ws-chip-cleared"
                             onClick={() => restoreAssignment(dateStr, c.id, a.personId)}>
                             <span style={{ fontSize:10 }}>🚫 {a.personName.split(' ')[0]}</span>
@@ -563,6 +625,7 @@ export default function WorkSchedule() {
                             <Avatar photo={peopleById[a.personId]?.photo} name={a.personName} size={18} />
                             <span className="ws-chip-name" title={a.personName}>{a.personName}</span>
                             <div className="ws-chip-actions">
+                              {leaveIds.has(a.personId) && <span title={`${a.personName} is on leave this day — swap or remove`}>⚠️</span>}
                               {isBirthdayOn(peopleById[a.personId]?.birthday, dateStr) && <span title={`${a.personName}'s birthday — consider swapping`}>🎂</span>}
                               {a.dayOffGranted && <span title="Day-off credit">💤</span>}
                               <button className="ws-comment-btn"
@@ -575,7 +638,7 @@ export default function WorkSchedule() {
                                 title="Remove from this day">✕</button>
                             </div>
                           </div>
-                        ))
+                        )), ...leaveChips]
                       })()}
                     </div>
                   )
@@ -589,6 +652,7 @@ export default function WorkSchedule() {
                 <span className="ws-legend-item">💤 Day-off credit</span>
                 <span className="ws-legend-item">💬 Has comment</span>
                 <span className="ws-legend-item">🎂 Birthday shift (avoided — consider swapping)</span>
+                <span className="ws-legend-item">🌴 Vacation · 🤒 Sick · 📌 Other leave (⚠️ = shift during leave)</span>
                 <span className="ws-legend-item" style={{ color:'var(--text-faint)' }}>Click a name to swap or remove · click an empty day or + to assign · drag to move</span>
               </div>
             </div>
@@ -611,6 +675,7 @@ export default function WorkSchedule() {
             setShiftModal(null)
           }}
           onRemove={() => { clearAssignment(shiftModal.date, shiftModal.center, shiftModal.personId); setShiftModal(null) }}
+          onLeave={async (type) => { const m = shiftModal; setShiftModal(null); await markLeave(m.date, m.center, m.personId, type) }}
         />
       )}
 
@@ -673,7 +738,7 @@ function prevDateStr(dateStr) {
 
 const daysLabel = (n) => `${n} ${n === 1 ? 'day' : 'days'} this month`
 
-function ShiftModal({ shift, center, candidates, assignments, stats, onClose, onSwap, onRemove }) {
+function ShiftModal({ shift, center, candidates, assignments, stats, onClose, onSwap, onRemove, onLeave }) {
   const [toId, setToId] = useState('')
   // personId null = assign mode (empty day or "+"): no current person, no remove button.
   const current = shift.personId
@@ -728,7 +793,7 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
                 const busy = onThisDay.has(p.id)
                 return (
                   <option key={p.id} value={p.id} disabled={busy}>
-                    {p.name}{busy ? ' (already on this day)' : restDay.has(p.id) ? ' ⚠ rest day' : ''}{!busy && isBirthdayOn(p.birthday, shift.date) ? ' 🎂 birthday' : ''}
+                    {p.name}{busy ? ' (already on this day)' : leaveOn(p, shift.date) ? ` ${leaveType(leaveOn(p, shift.date).type).icon} on leave` : restDay.has(p.id) ? ' ⚠ rest day' : ''}{!busy && isBirthdayOn(p.birthday, shift.date) ? ' 🎂 birthday' : ''}
                   </option>
                 )
               })}
@@ -739,12 +804,29 @@ function ShiftModal({ shift, center, candidates, assignments, stats, onClose, on
             ⚠ {toPerson.name} worked the {prevHoliday ? `holiday (${prevHoliday})` : 'Sunday'} before — the schedule rules give them this day off. You can still swap.
           </div>
         )}
+        {toPerson && leaveOn(toPerson, shift.date) && (
+          <div style={{ fontSize:12, color:'var(--warn)', marginTop:6 }}>
+            {leaveType(leaveOn(toPerson, shift.date).type).icon} {toPerson.name} is on {leaveType(leaveOn(toPerson, shift.date).type).label.toLowerCase()} that day. You can still {current ? 'swap' : 'assign'}.
+          </div>
+        )}
         {toPerson && isBirthdayOn(toPerson.birthday, shift.date) && (
           <div style={{ fontSize:12, color:'var(--warn)', marginTop:6 }}>
             🎂 It's {toPerson.name}'s birthday — the schedule avoids giving people a shift that day. You can still {current ? 'swap' : 'assign'}.
           </div>
         )}
       </div>
+
+      {current && (
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+          <span style={{ fontSize:12.5, color:'var(--text-dim)' }}>Not working that day?</span>
+          {['vacation', 'sick'].map((k) => (
+            <button key={k} type="button" className="btn ghost" style={{ fontSize:12.5 }} onClick={() => onLeave(k)}
+              title={`Removes the shift and records ${LEAVE_TYPES[k].label.toLowerCase()} in ${current.personName}'s profile (counts as a worked day)`}>
+              {LEAVE_TYPES[k].icon} {LEAVE_TYPES[k].label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="modal-actions" style={{ justifyContent: current ? 'space-between' : 'flex-end' }}>
         {current && <button className="btn ghost danger" onClick={onRemove} title="Mark as removed — can be restored with ↩">🚫 Remove from this day</button>}
@@ -841,6 +923,11 @@ function TeamsPostModal({ post, folder, onCopy, onClose }) {
  * teams or not active show that next to their name.
  */
 function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, onGenerate, onCancel }) {
+  const monthDays = getDaysInMonth(month)
+  const leaveDaysOf = (p) => {
+    const c = CENTERS.find((x) => x.id === getCenter(p))
+    return Object.keys(leaveMap(p, monthDays)).filter((d) => !isWeekend(d) && !(c && getHoliday(d, c.country))).length
+  }
   const [selected, setSelected] = useState(() => new Set(initial))
   const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const setMany = (ids, on) => setSelected((s) => { const n = new Set(s); ids.forEach((id) => on ? n.add(id) : n.delete(id)); return n })
@@ -849,7 +936,7 @@ function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, 
     <DraggableModal title={`Select employees · ${monthLabel(month)}`} onClose={onCancel} maxWidth={520}>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: '0 0 12px' }}>
         Tick who should be on the work schedule. Members of {SCHEDULE_TEAM} are preselected; anyone you
-        untick stays unticked next month too.
+        untick stays unticked next month too. Vacation and sick days from their profiles are kept free.
       </p>
       <div className="ws-pick-list">
         {CENTERS.map((c) => {
@@ -874,6 +961,7 @@ function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, 
                   <span className="ws-pick-name">{p.name}</span>
                   {p.team !== SCHEDULE_TEAM && <span className="badge" style={{ fontSize: 11 }}>{p.team || 'no team'}</span>}
                   {(p.status || 'active') !== 'active' && <span className="badge warn" style={{ fontSize: 11 }}>{p.status}</span>}
+                  {leaveDaysOf(p) > 0 && <span className="badge" style={{ fontSize: 11 }} title="Leave weekdays this month — kept free and counted as worked">🌴 {leaveDaysOf(p)}d</span>}
                 </label>
               ))}
               {count > 0 && count < 2 && (
@@ -905,12 +993,6 @@ function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, 
   )
 }
 
-/**
- * Shift counts per person from a list of assignments → { [personId]: { days, weekends, holidays } }.
- * Cleared assignments don't count. Weekend/holiday come from the date and the center's country
- * (not the stored flags, which a drag to another day doesn't update). A shift on a holiday that
- * falls on a weekend counts as both.
- */
 /** Stat-chip tooltip for the history a schedule was generated with (schedule.balances[personId]). */
 function balanceTitle(b) {
   const fmt = (n, unit) => n === 0 ? 'level with colleagues'
@@ -924,6 +1006,12 @@ function balanceTitle(b) {
   ].join('\n')
 }
 
+/**
+ * Shift counts per person from a list of assignments → { [personId]: { days, weekends, holidays } }.
+ * Cleared assignments don't count. Weekend/holiday come from the date and the center's country
+ * (not the stored flags, which a drag to another day doesn't update). A shift on a holiday that
+ * falls on a weekend counts as both.
+ */
 function countShifts(assignments) {
   const out = {}
   for (const a of assignments || []) {

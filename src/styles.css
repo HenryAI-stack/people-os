@@ -901,3 +901,16 @@ body.light .ws-chip { color: var(--accent); }
 @media (max-width: 760px) {
   .conn-row { padding: 10px 12px; gap: 10px; }
 }
+
+/* ── Vacation & sick days (LeaveEditor in the direct-report form) ── */
+.leave-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+.leave-row.is-past { opacity: 0.55; }
+.leave-range { font-weight: 600; white-space: nowrap; }
+.leave-meta { color: var(--text-faint); font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leave-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.leave-add select { flex: 0 0 auto; width: auto; }
+.leave-add input[type="date"] { flex: 1 1 130px; width: auto; min-width: 0; }
+.leave-add input:not([type]) { flex: 2 1 140px; width: auto; min-width: 0; }
+.leave-add .btn { flex: 0 0 auto; }
+/* Leave chips in the work-schedule calendar */
+.ws-chip.ws-chip-leave { background: transparent; border: 1px dashed var(--border); color: var(--text-faint); font-size: 10.5px; cursor: default; }
