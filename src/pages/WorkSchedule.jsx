@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
-  SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection } from '../lib/scheduleGenerator.js'
+  SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection, STANDARD_DAYS } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
 import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
@@ -124,7 +124,7 @@ export default function WorkSchedule() {
     setPicker(null)
     setGenerating(true); setError('')
     try {
-      // Load previous month's fairness snapshot
+      // Every saved schedule = everyone's work history (the generator only uses months before this one)
       const schedules = await schedulesStore.list()
       const prev = schedules.find((s) => s.month === prevMonth(month))
       const fairness = prev?.fairnessSnapshot || {}
@@ -132,12 +132,14 @@ export default function WorkSchedule() {
       const chosen = new Set(memberIds)
       const members = allPeople.filter((p) => chosen.has(p.id))
       // Last month's shifts let the 40h/week cap see weeks that straddle the month boundary.
-      const { assignments, fairnessSnapshot } = generateSchedule(month, members, fairness, prev?.assignments || [])
+      const { assignments, fairnessSnapshot, balances } =
+        generateSchedule(month, members, fairness, prev?.assignments || [], schedules)
       const record = {
         id:                `schedule-${month}`,
         month,
         assignments,
         fairnessSnapshot,
+        balances,
         memberIds:         members.map((p) => p.id),
         excludedIds:       candidates.filter((p) => !chosen.has(p.id)).map((p) => p.id),
       }
@@ -473,6 +475,7 @@ export default function WorkSchedule() {
             {(centerPeople[activeCenter]||[]).map((p) => {
               const s = stats[p.id] || { total:0, weekend:0, holiday:0, weeks:{} }
               const prev = schedule.fairnessSnapshot?.[p.id]
+              const bal  = schedule.balances?.[p.id]
               const hrs  = s.total * SHIFT_HOURS
               const maxWeek = Math.max(0, ...Object.values(s.weeks)) * SHIFT_HOURS
               const over = maxWeek > MAX_WEEKLY_HOURS
@@ -488,7 +491,12 @@ export default function WorkSchedule() {
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
                   {s.weekend > 0 && <span style={{ color:'var(--warn)' }} title="Weekend days">🏖️{s.weekend}</span>}
                   {s.holiday > 0 && <span style={{ color:'var(--bad)' }} title="Holiday days">📅{s.holiday}</span>}
-                  {prev && <span style={{ color:'var(--text-faint)', fontSize:10 }} title="Cumulative weekend days all months">∑{prev.weekendTotal}we</span>}
+                  {bal ? (
+                    <span style={{ color: bal.targetDays !== STANDARD_DAYS ? 'var(--accent)' : 'var(--text-faint)', fontSize:10 }}
+                      title={balanceTitle(bal)}>
+                      🎯{bal.targetDays}d{bal.targetDays !== STANDARD_DAYS ? ` (${bal.targetDays > STANDARD_DAYS ? '+' : ''}${bal.targetDays - STANDARD_DAYS})` : ''}
+                    </span>
+                  ) : prev && <span style={{ color:'var(--text-faint)', fontSize:10 }} title="Cumulative weekend days all months">∑{prev.weekendTotal}we</span>}
                 </div>
               )
             })}
@@ -903,6 +911,19 @@ function SchedulePeopleModal({ month, candidates, initial, replacing, unplaced, 
  * (not the stored flags, which a drag to another day doesn't update). A shift on a holiday that
  * falls on a weekend counts as both.
  */
+/** Stat-chip tooltip for the history a schedule was generated with (schedule.balances[personId]). */
+function balanceTitle(b) {
+  const fmt = (n, unit) => n === 0 ? 'level with colleagues'
+    : `${Math.abs(n)} ${unit} ${n < 0 ? 'fewer' : 'more'} than colleagues`
+  if (!b.months) return `Planned target: ${b.targetDays} days\nNo earlier full month at this center yet`
+  return [
+    `Planned target: ${b.targetDays} days (standard ${STANDARD_DAYS})`,
+    `Before this month (${b.months} month${b.months === 1 ? '' : 's'} at this center):`,
+    `• Days: ${fmt(b.dayBalance, 'days')}`,
+    `• Weekends/holidays: ${fmt(b.specialBalance, 'days')}`,
+  ].join('\n')
+}
+
 function countShifts(assignments) {
   const out = {}
   for (const a of assignments || []) {

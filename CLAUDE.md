@@ -443,21 +443,40 @@ Browser (React SPA)
   calendar (ask the user for it), never from a generic India or Karnataka list. 2027 is still the
   old generic list, marked provisional. `MX` = LFT Art. 74 federal rest days plus Nov 2 (Día de
   Muertos), a company day off. Key rota rules, encoded in `generateSchedule`:
-  weekdays need ≥2 people, weekends/holidays exactly 1; each special day is re-ranked so it
-  goes to whoever has the lightest weekend/holiday load (this month's `specialUsed` +
-  cross-month `fairnessSnapshot`), so it rotates instead of piling on one person; a soft
-  preference skips whoever worked the day before (so a Saturday worker isn't also given the
-  Sunday) unless nobody else is free; working a Sunday or holiday hard-blocks that person the
-  next calendar day (a day is left short-staffed rather than broken); ~20–21 working days per
-  person; **hard cap of 40h per person per Mon–Sun week** (`MAX_WEEKLY_HOURS = 40`, 8h shifts →
-  5 shifts/week; `weekStart()` exported) — also enforced on the special-day and top-up steps, and
-  seeded with last month's shifts (`generateSchedule`'s 4th param `prevAssignments`, passed by
-  `WorkSchedule.jsx`'s `handleGenerate`) so a week straddling the month boundary still caps at 40h.
+  weekdays need ≥2 people, weekends/holidays exactly 1; **work history (Rule 7)**: `WorkSchedule.jsx`
+  passes *every* saved schedule as `generateSchedule`'s 5th param `pastSchedules`, and
+  `computeWorkHistory(schedules, beforeMonth)` counts what's actually saved for months before this
+  one (manual swaps/moves/removals included, cleared shifts excluded, weekend/holiday from the date +
+  center country). **Each center is compared only with itself**: per month, a person's days and
+  weekend/holiday days are set against the average of that center's full-month colleagues, and the
+  differences add up into `dayBalance`/`specialBalance` (negative = worked less than colleagues).
+  A month in which someone worked < `PARTIAL_MONTH_SHARE` (50%) of the center average (joined
+  mid-month, long leave) is a *partial month* and skipped, so it never becomes a debt. Day target =
+  `targetDaysFor(dayBalance)`: `STANDARD_DAYS` 21 + owed days, clamped to 20–23 (never below 160h,
+  catch-up ≤ +2/month; the rest carries on automatically since history is recomputed each time).
+  Each special day goes to the lowest `specialBalance` + this month's `specialUsed`; among equals,
+  Sundays/holidays (which cost the next day off) go to whoever is owed the fewest days and Saturdays
+  to whoever is owed the most (otherwise Sunday rest days block the catch-up), then whoever worked a
+  weekend/holiday least recently (`lastSpecial`, seeded from history). Weekday slots go to the
+  lowest `used/target` (progress towards their *own* target), then least recently worked, then most
+  owed, then name — no pool-order bias. Top-up goes biggest gap first, onto the least-staffed
+  weekdays. A soft preference skips whoever worked the day before (so a Saturday worker isn't also
+  given the Sunday) unless nobody else is free; working a Sunday or holiday hard-blocks that person
+  the next calendar day (a day is left short-staffed rather than broken; a Sunday/holiday on last
+  month's final day is seeded from `prevAssignments` too); **hard cap of 40h per person per Mon–Sun
+  week** (`MAX_WEEKLY_HOURS = 40`, 8h shifts → 5 shifts/week; `weekStart()` exported) — also
+  enforced on the special-day and top-up steps, and seeded with last month's shifts
+  (`generateSchedule`'s 4th param `prevAssignments`, passed by `WorkSchedule.jsx`'s
+  `generateFor`) so a week straddling the month boundary still caps at 40h.
   Like the rest rule, the cap leaves a day short-staffed rather than breaking it: with only 2
   people at a center (≈53 shifts needed/month vs 2×40h/week) some weekdays get 1 person instead of
   2 — 3+ people per center covers everything. Before the cap, the generator routinely handed out
-  48h weeks. Weekend burden balanced across months via the `fairnessSnapshot` persisted on the
-  schedule record. **Nobody is scheduled on their own birthday** (Rule 6, via `isBirthdayOn()` from
+  48h weeks. `generateSchedule` returns `balances` (per person: `center`, `targetDays`,
+  `dayBalance`, `specialBalance`, `months`), stored on the schedule record and shown on the stat
+  chips as `🎯21d` (accent + `(+1)` when carry-over moved the target; tooltip = `balanceTitle()`).
+  `fairnessSnapshot` is still written (totals now rebuilt from the saved schedules) for older
+  readers and the `∑Nwe` chip on schedules generated before `balances`; the generator only falls
+  back to it (weekend balance only) when `pastSchedules` isn't passed. **Nobody is scheduled on their own birthday** (Rule 6, via `isBirthdayOn()` from
   `birthdays.js`, pure string math, 29 Feb → 28 Feb in non-leap years). Unlike the rest rule
   and the 40h cap, this is a strong *preference*, not a hard block: every pick tries non-birthday
   candidates first and only falls back to the birthday person when nobody else can cover the day,
@@ -494,7 +513,7 @@ Browser (React SPA)
   fetched when the button is clicked) plus this month, so viewing October never counts an
   already-generated November. The footnote names the month range. On phones the table scrolls
   sideways inside `.ws-ov-wrap`, with the name column and center headings `position: sticky`.
-  This is display-only: the generator's fairness still uses `fairnessSnapshot`.
+  This is display-only, but it counts the same way as the generator's `computeWorkHistory`.
 - **Work-schedule editing (`WorkSchedule.jsx`)**: clicking a person's chip in a day cell opens a
   `ShiftModal` (`DraggableModal`) with a "Swap with" dropdown of the other people at that center —
   plain names, no day counts (removed on request); anyone already on that day is disabled, and anyone who
@@ -512,7 +531,8 @@ Browser (React SPA)
   `makeAssignment`). Each stat chip shows month hours plus `max Nh/wk` (tooltip = per-week
   breakdown); it turns red with ⚠ if any week exceeds `MAX_WEEKLY_HOURS` (e.g. after manual edits —
   manual swaps/assigns aren't blocked by the cap, only flagged).
-  Edits don't recompute the saved `fairnessSnapshot` (same as drag-and-drop always behaved).
+  Edits don't recompute the saved `fairnessSnapshot`/`balances`, but the next month's generation
+  reads the saved assignments directly, so manual edits do count towards everyone's history.
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
   "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so
   every `CENTERS` entry now carries a `tz` (IANA name). **Warsaw has winter hours**
