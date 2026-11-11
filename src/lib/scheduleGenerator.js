@@ -1,7 +1,7 @@
 import { getDaysInMonth, isWeekend, getHoliday } from './holidays.js'
 import { isBirthdayOn } from './birthdays.js'
 import { isWinterTime } from './worldClock.js'
-import { leaveMap } from './leave.js'
+import { leaveMap, leaveOn } from './leave.js'
 
 // `hours` are local to each center's own `tz` (used by onDuty.js for the Dashboard's 24/7 view).
 // `winterHours` (Warsaw only) apply while that zone is on winter time: Poland is the only one of
@@ -87,7 +87,8 @@ function prevDay(dateStr) {
   return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
-// 40h/week cap: shifts are 8h, so at most 5 shifts per person per Mon–Sun week.
+// Shifts are 8h. 40h = a full regular week (5 shifts) and also the hard ceiling: coverage may
+// go above a holiday-reduced week (see regularWeek) but never above 40h.
 export const SHIFT_HOURS = 8
 export const MAX_WEEKLY_HOURS = 40
 const MAX_SHIFTS_PER_WEEK = MAX_WEEKLY_HOURS / SHIFT_HOURS
@@ -100,12 +101,44 @@ export function weekStart(dateStr) {
   return t.toISOString().slice(0, 10)
 }
 
+// ── Regular working time (Rule 4) ───────────────────────────────────────────
+// 40h per Mon–Sun week, minus 8h for every national holiday of the center's country that falls on
+// Mon–Sat. A holiday on a Sunday doesn't reduce it (Polish rule, Labour Code Art. 130 §2: a Saturday
+// holiday still means a day off). Leave weekdays (Mon–Fri non-holidays) count as worked time, so
+// they use up the week too. The month's regular time follows the same rule (nominalDays).
+const plusDays = (dateStr, n) => {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+const holidayCounts = (dateStr, center) => dow(dateStr) !== 0 && !!getHoliday(dateStr, center.country)
+
+/**
+ * Regular time of the Mon–Sun week starting `monday` for `person` at `center` →
+ * { hours, shifts, holidays, leave } — hours = 40 − 8 × (holidays Mon–Sat + leave weekdays).
+ */
+export function regularWeek(monday, center, person = null) {
+  let holidays = 0, leave = 0
+  for (let i = 0; i < 7; i++) {
+    const d = plusDays(monday, i)
+    if (holidayCounts(d, center)) holidays++
+    else if (i < 5 && person && leaveOn(person, d)) leave++
+  }
+  const shifts = Math.max(0, MAX_SHIFTS_PER_WEEK - holidays - leave)
+  return { hours: shifts * SHIFT_HOURS, shifts, holidays, leave }
+}
+
+/** Regular working days of a month at a center: Mon–Fri days minus holidays on Mon–Sat (× 8h). */
+export function nominalDays(yearMonth, center) {
+  return getDaysInMonth(yearMonth).filter((d) => dow(d) >= 1 && dow(d) <= 5).length
+    - getDaysInMonth(yearMonth).filter((d) => holidayCounts(d, center)).length
+}
+
 // ── Work history (Rule 7) ───────────────────────────────────────────────────
-// Monthly day target: 21 days (168h) is the standard; a person's carry-over from earlier months
-// moves it within [MIN_TARGET_DAYS, MAX_TARGET_DAYS]. The 40h/week cap still has the final say.
-export const STANDARD_DAYS   = 21
-export const MIN_TARGET_DAYS = 20 // never planned below 160h because of carry-over
-export const MAX_TARGET_DAYS = 23 // catch up at most +2 days a month; the rest carries on
+// Monthly day target = the month's regular days (nominalDays); someone ahead of their colleagues
+// gets one day less until they're even. Nobody is planned above their regular time to catch up —
+// catching up means getting the full regular time while colleagues who are ahead get a day less.
+// STANDARD_DAYS is only for showing schedules generated before nominalDays existed.
+export const STANDARD_DAYS = 21
 // A month in which someone worked less than this share of their center's average (joined mid-month,
 // long leave) is a partial month and left out of their balance, so it doesn't turn into a debt.
 export const PARTIAL_MONTH_SHARE = 0.5
@@ -189,10 +222,11 @@ export function computeWorkHistory(schedules, beforeMonth, people = []) {
   return out
 }
 
-/** This month's day target for someone with `dayBalance` (see computeWorkHistory): owed days are added. */
-export function targetDaysFor(dayBalance = 0) {
+/** This month's credited-day target for someone with `dayBalance` (see computeWorkHistory):
+ *  the month's regular days, or one less for someone who worked more than their colleagues. */
+export function targetDaysFor(dayBalance = 0, nominal = STANDARD_DAYS) {
   const carry = Math.round(-dayBalance) || 0 // || 0 turns -0 into 0
-  return Math.min(MAX_TARGET_DAYS, Math.max(MIN_TARGET_DAYS, STANDARD_DAYS + carry))
+  return Math.min(nominal, Math.max(nominal - 1, nominal + carry))
 }
 
 function makeAssignment(dateStr, center, person, we, hol) {
@@ -220,12 +254,15 @@ function makeAssignment(dateStr, center, person, we, hol) {
  * 3. If someone works Sunday OR a national holiday → they are BLOCKED the next
  *    calendar day. This is a hard rule: if every remaining candidate is
  *    blocked, the day is left short-staffed rather than broken.
- * 4. Day target per person: 21 days (168h), moved by the carry-over from Rule 7 —
- *    someone who worked fewer days than colleagues gets more this month (up to 23),
- *    someone who worked more gets fewer (never below 20 = 160h).
- * 4a. Hard cap of 40h (5 shifts) per person per Mon–Sun week. Weeks that straddle
- *    the month boundary also count the previous month's shifts (`prevAssignments`).
- *    Like Rule 3, a day is left short-staffed rather than breaking the cap.
+ * 4. Regular time: 40h per Mon–Sun week minus 8h per national holiday on Mon–Sat at the
+ *    center (and per leave weekday) — regularWeek(). The month's day target is its regular
+ *    days (nominalDays), one less for someone ahead of colleagues (Rule 7).
+ * 4a. Nobody goes above their regular week — except to keep a day covered: if a day would
+ *    otherwise have nobody (24/7 coverage = at least 1 person every day), the first person of
+ *    that day may go above a holiday-reduced week, up to 40h. Never above 40h (5 shifts per
+ *    Mon–Sun week, leave included). Weeks that straddle the month boundary also count the
+ *    previous month's shifts (`prevAssignments`). The 2nd weekday person and top-up shifts
+ *    always stay within regular time, so a holiday week may get 1 person on some weekdays.
  * 4b. Weekday shifts rotate: each slot goes to whoever is furthest behind their own
  *    target (days worked ÷ target), then whoever worked least recently — so shifts
  *    spread through the month and nobody is favoured by their position in the list.
@@ -245,9 +282,11 @@ function makeAssignment(dateStr, center, person, we, hol) {
  *    weighs 1 ÷ share-of-month-present when ranking). Past months credit leave the same way, so
  *    leave never turns into owed days.
  *
- * → { assignments, fairnessSnapshot, balances }
- *   balances[personId] = { center, targetDays (credited: shifts + leave weekdays), shiftTarget,
- *   leaveDays, dayBalance, specialBalance, months } — the
+ * → { assignments, fairnessSnapshot, balances, gaps }
+ *   gaps = [{ center, date }] days nobody could cover (only when even 40h/rest/leave rules leave
+ *   nobody, e.g. 2 people with one on vacation).
+ *   balances[personId] = { center, nominalDays, targetDays (credited: shifts + leave weekdays),
+ *   shiftTarget, leaveDays, dayBalance, specialBalance, months } — the
  *   history this schedule was planned with (shown on the Work Schedule stat chips).
  */
 export function generateSchedule(yearMonth, people, fairness = {}, prevAssignments = [], pastSchedules = null, allPeople = people) {
@@ -263,6 +302,7 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
 
   const allAssignments = []
   const balances = {}
+  const gaps = []
 
   for (const center of CENTERS) {
     const pool = byCenter[center.id]
@@ -279,7 +319,8 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     }
     // Rule 8: leave. creditTarget = days to be credited (shifts + leave weekdays); target = shifts.
     const leave = Object.fromEntries(pool.map((p) => [p.id, leaveAt(p, days, center)]))
-    const creditTarget = Object.fromEntries(pool.map((p) => [p.id, targetDaysFor(hist(p.id).dayBalance)]))
+    const nominal = nominalDays(yearMonth, center)
+    const creditTarget = Object.fromEntries(pool.map((p) => [p.id, targetDaysFor(hist(p.id).dayBalance, nominal)]))
     const target = Object.fromEntries(pool.map((p) => [p.id, Math.max(0, creditTarget[p.id] - leave[p.id].workdays)]))
     // Share of the month someone is around (for their fair share of weekends/holidays)
     const avail = Object.fromEntries(pool.map((p) => [p.id, (days.length - leave[p.id].days) / days.length]))
@@ -287,6 +328,7 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       const h = hist(p.id)
       balances[p.id] = {
         center: center.id,
+        nominalDays: nominal,
         targetDays: creditTarget[p.id],
         shiftTarget: target[p.id],
         leaveDays: leave[p.id].workdays,
@@ -329,8 +371,30 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     }
     // Rule 6: birthday = avoid (last resort only)
     const onBirthday = (person, dateStr) => isBirthdayOn(person.birthday, dateStr)
-    function canWork(personId, dateStr) {
-      return !isBlocked(personId, dateStr) && !leave[personId].map[dateStr] && (weekCount[wk(personId, dateStr)] || 0) < MAX_SHIFTS_PER_WEEK
+    // Rule 4/4a: regular week (holidays + leave deducted); `overtime` (coverage only) allows up to
+    // 40h incl. leave days, i.e. it ignores the holiday deduction but nothing else.
+    const weekReg = {}
+    const regOf = (person, dateStr) => {
+      const m = weekStart(dateStr), k = `${person.id}|${m}`
+      return weekReg[k] ||= regularWeek(m, center, person)
+    }
+    // The month's last week may run into next month. Extra (non-coverage) shifts in that week keep
+    // some hours free, so next month can still cover its first days — otherwise everyone could reach
+    // 40h by the 31st and the 1st–3rd would have nobody.
+    const monthEnd = days[days.length - 1]
+    const tailMonday = weekStart(monthEnd)
+    const tailDays = Array.from({ length: 6 - ((dow(monthEnd) + 6) % 7) }, (_, i) => plusDays(monthEnd, i + 1))
+    const tailFree = pool.filter((p) => tailDays.some((d) => !leaveOn(p, d))).length
+    const tailReserve = tailDays.length ? Math.ceil(tailDays.length / Math.max(1, tailFree)) : 0
+    // coverage = the day's first person (may use the full week, ignoring the reserve);
+    // overtime = coverage above a holiday-reduced week, up to 40h incl. leave days (Rule 4a).
+    function canWork(person, dateStr, { coverage = false, overtime = false } = {}) {
+      if (isBlocked(person.id, dateStr) || leave[person.id].map[dateStr]) return false
+      const r = regOf(person, dateStr)
+      const ceiling = MAX_SHIFTS_PER_WEEK - r.leave
+      let limit = overtime ? ceiling : r.shifts
+      if (!coverage && weekStart(dateStr) === tailMonday) limit = Math.min(limit, r.shifts - tailReserve)
+      return (weekCount[wk(person.id, dateStr)] || 0) < limit
     }
 
     function assign(dateStr, person) {
@@ -363,27 +427,40 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     // A Sunday/holiday costs the next day off (Rule 3), which can stop someone reaching a raised
     // target. So among equally loaded people, Sundays/holidays go to whoever is owed the fewest
     // days and Saturdays to whoever is owed the most.
-    const owed = (p) => creditTarget[p.id] - STANDARD_DAYS
+    const owed = (p) => creditTarget[p.id] - nominal
     for (const dateStr of specialDays) {
       const costsRestDay = isSunday(dateStr) || !!getHoliday(dateStr, center.country)
+      // Someone on leave the next day loses nothing by taking a Sunday/holiday (the rest day
+      // falls on their leave), so they go first — that keeps the others free for the next day.
+      const restFree = (p) => costsRestDay && !!leaveOn(p, addOneDay(dateStr))
       const ranked = [...pool].sort((a, b) =>
-        (specialLoad(a) - specialLoad(b))
+        (restFree(b) - restFree(a))
+        || (specialLoad(a) - specialLoad(b))
         || (costsRestDay ? owed(a) - owed(b) : owed(b) - owed(a))
         || lastSpecial[a.id].localeCompare(lastSpecial[b.id]) // longest since last weekend/holiday first
         || (progress(a) - progress(b))
         || byName(a, b))
-      const free = ranked.filter((p) => canWork(p.id, dateStr))
       const workedDayBefore = (p) => onDay(p.id, prevDay(dateStr))
-      const pick =
+      const choose = (free) =>
         free.find((p) => !onBirthday(p, dateStr) && !workedDayBefore(p)) // rotate + no back-to-back
         || free.find((p) => !onBirthday(p, dateStr))      // back-to-back only if nobody else is free
         || free.find((p) => !workedDayBefore(p))          // birthday only as a last resort (Rule 6)
         || free[0]
-        // else: everyone hard-blocked (Rule 3) or at 40h (Rule 4a) → leave the day unassigned
+      // Look-ahead: a Sunday/holiday shift costs the next day off. Don't give it to someone whose
+      // rest day would leave the next day with nobody (everyone else on leave or blocked) if
+      // anyone else can take it.
+      const next = addOneDay(dateStr)
+      const strands = (p) => costsRestDay && !pool.some((q) => q.id !== p.id && !leaveOn(q, next) && !isBlocked(q.id, next))
+      // Regular time first; above a holiday-reduced week only if the day would be uncovered (4a)
+      const tier = (overtime, lookAhead) => ranked.filter((p) =>
+        canWork(p, dateStr, { coverage: true, overtime }) && (!lookAhead || !strands(p)))
+      const pick = choose(tier(false, true)) || choose(tier(true, true))
+        || choose(tier(false, false)) || choose(tier(true, false))
+        // else: everyone rest-blocked (Rule 3), on leave or at 40h → a coverage gap
       if (pick) {
         assign(dateStr, pick)
         specialUsed[pick.id]++
-      }
+      } else gaps.push({ center: center.id, date: dateStr })
     }
 
     // ── Step 2: weekdays (Mon–Fri, non-holiday), min 2 per day ────────────
@@ -397,20 +474,25 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       || ((hist(a.id).dayBalance || 0) - (hist(b.id).dayBalance || 0)) // owed days first
       || byName(a, b)
 
-    function fillWeekday(dateStr) {
+    function fillWeekday(dateStr, coverage = false) {
       const alreadyOn = new Set(
         allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
       )
       const sorted = [...pool].sort(weekdayRank)
-      const ok = (p) => !alreadyOn.has(p.id) && canWork(p.id, dateStr)
-      const pick = sorted.find((p) => ok(p) && !onBirthday(p, dateStr) && used[p.id] < target[p.id])
-               || sorted.find((p) => ok(p) && !onBirthday(p, dateStr))
-               || sorted.find(ok) // birthday only as a last resort (Rule 6)
+      const choose = (overtime) => {
+        const ok = (p) => !alreadyOn.has(p.id) && canWork(p, dateStr, { coverage, overtime })
+        return sorted.find((p) => ok(p) && !onBirthday(p, dateStr) && used[p.id] < target[p.id])
+          || sorted.find((p) => ok(p) && !onBirthday(p, dateStr))
+          || sorted.find(ok) // birthday only as a last resort (Rule 6)
+      }
+      // The day's first person (coverage) may go above a holiday-reduced week (4a); others may not.
+      const pick = choose(false) || (coverage ? choose(true) : null)
       if (pick) assign(dateStr, pick)
+      else if (coverage) gaps.push({ center: center.id, date: dateStr })
     }
 
-    // Pass A: first person on each weekday; Pass B: second person (enforce min 2)
-    for (const dateStr of trueWeekdays) fillWeekday(dateStr)
+    // Pass A: first person on each weekday (coverage); Pass B: second person (min 2, regular time only)
+    for (const dateStr of trueWeekdays) fillWeekday(dateStr, true)
     for (const dateStr of trueWeekdays) {
       if (allAssignments.filter((a) => a.date === dateStr && a.center === center.id).length < 2) fillWeekday(dateStr)
     }
@@ -424,9 +506,9 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       let gap = target[person.id] - used[person.id]
       if (gap <= 0) continue
       // Never top up onto a birthday (Rule 6) — these are extra shifts, not needed coverage.
-      const available = trueWeekdays.filter((d) => canWork(person.id, d) && !onDay(person.id, d) && !onBirthday(person, d))
+      const available = trueWeekdays.filter((d) => canWork(person, d) && !onDay(person.id, d) && !onBirthday(person, d))
       // Re-check the week cap at assignment time — earlier top-ups in this loop can fill a week.
-      const tryAssign = (d) => { if (gap > 0 && canWork(person.id, d) && !onDay(person.id, d)) { assign(d, person); gap-- } }
+      const tryAssign = (d) => { if (gap > 0 && canWork(person, d) && !onDay(person.id, d)) { assign(d, person); gap-- } }
       const step = Math.max(1, Math.floor(available.length / gap))
       const spread = []
       for (let i = 0; i < available.length; i += step) spread.push(available[i])
@@ -459,5 +541,5 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     }
   }
 
-  return { assignments: allAssignments, fairnessSnapshot, balances }
+  return { assignments: allAssignments, fairnessSnapshot, balances, gaps }
 }

@@ -454,7 +454,8 @@ Browser (React SPA)
   company holiday calendar** (from 2026): the intranet "Holiday Calendar" lists for "India" plus
   "India - Bangalore", combined — so it includes Karnataka/Bangalore location holidays (Sankranthi,
   Ugadi, Rajyotsava, Deepavali…), not just national days. Always add a new year from that company
-  calendar (ask the user for it), never from a generic India or Karnataka list. 2027 is still the
+  calendar (ask the user for it), never from a generic India or Karnataka list. `PL` includes 24 Dec
+  (Christmas Eve, a public holiday since 2025). 2027 `IN` is still the
   old generic list, marked provisional. `MX` = LFT Art. 74 federal rest days plus Nov 2 (Día de
   Muertos), a company day off. Key rota rules, encoded in `generateSchedule`:
   weekdays need ≥2 people, weekends/holidays exactly 1; **work history (Rule 7)**: `WorkSchedule.jsx`
@@ -465,9 +466,26 @@ Browser (React SPA)
   weekend/holiday days are set against the average of that center's full-month colleagues, and the
   differences add up into `dayBalance`/`specialBalance` (negative = worked less than colleagues).
   A month in which someone worked < `PARTIAL_MONTH_SHARE` (50%) of the center average (joined
-  mid-month, long leave) is a *partial month* and skipped, so it never becomes a debt. Day target =
-  `targetDaysFor(dayBalance)`: `STANDARD_DAYS` 21 + owed days, clamped to 20–23 (never below 160h,
-  catch-up ≤ +2/month; the rest carries on automatically since history is recomputed each time).
+  mid-month, long leave) is a *partial month* and skipped, so it never becomes a debt.
+  **Regular working time (Rule 4, on request):** 40h per Mon–Sun week minus 8h for every national
+  holiday of the center's country on **Mon–Sat** (a Sunday holiday doesn't reduce it — Polish rule,
+  Labour Code Art. 130 §2) and minus 8h per leave weekday: `regularWeek(monday, center, person)` →
+  `{ hours, shifts, holidays, leave }`. The month's regular days = `nominalDays(month, center)` (Mon–Fri
+  days minus Mon–Sat holidays). Day target = `targetDaysFor(dayBalance, nominal)`: the regular days, or
+  one less for someone ahead of colleagues — **never above regular time to catch up** (catching up =
+  getting full regular time while those ahead get a day less). `STANDARD_DAYS` (21) only labels
+  schedules generated before `nominalDays`. **24/7 coverage beats the reduced week:** `canWork(person,
+  date, { coverage, overtime })` — the special-day pick and weekday pass A are *coverage* (a day's
+  first person) and may, if nobody has regular time left, go above a holiday-reduced week up to 40h
+  (`overtime`, ceiling = 5 shifts minus leave days); pass B (2nd weekday person) and top-up stay within
+  regular time, so a holiday week can have 1 person on some weekdays. Never above 40h, never on leave,
+  rest rule unchanged; a day nobody can cover lands in the returned `gaps` (only happens with ~2 people
+  and one on leave all week). **Month-boundary reserve:** in the month's last week, if it runs into the
+  next month, non-coverage shifts keep `tailReserve` = ⌈next-month days in that week ÷ people not on
+  leave⌉ shifts of *regular* time free per person — without it, top-up filled everyone to 40h by the
+  31st and the 1st–3rd had nobody (seen in simulation). **Look-ahead:** a Sunday/holiday (costs the
+  next day off) never goes to someone whose rest day would leave the next day with nobody, if anyone
+  else can take it; and someone on leave the next day takes it first (their rest day is free).
   Each special day goes to the lowest `specialBalance` + this month's `specialUsed`; among equals,
   Sundays/holidays (which cost the next day off) go to whoever is owed the fewest days and Saturdays
   to whoever is owed the most (otherwise Sunday rest days block the catch-up), then whoever worked a
@@ -485,9 +503,9 @@ Browser (React SPA)
   Like the rest rule, the cap leaves a day short-staffed rather than breaking it: with only 2
   people at a center (≈53 shifts needed/month vs 2×40h/week) some weekdays get 1 person instead of
   2 — 3+ people per center covers everything. Before the cap, the generator routinely handed out
-  48h weeks. `generateSchedule` returns `balances` (per person: `center`, `targetDays`,
+  48h weeks. `generateSchedule` returns `balances` (per person: `center`, `nominalDays`, `targetDays`,
   `dayBalance`, `specialBalance`, `months`), stored on the schedule record and shown on the stat
-  chips as `🎯21d` (accent + `(+1)` when carry-over moved the target; tooltip = `balanceTitle()`).
+  chips as `🎯20d` (accent + `(−1)` when it differs from `nominalDays`; tooltip = `balanceTitle()`).
   `fairnessSnapshot` is still written (totals now rebuilt from the saved schedules) for older
   readers and the `∑Nwe` chip on schedules generated before `balances`; the generator only falls
   back to it (weekend balance only) when `pastSchedules` isn't passed. **Leave (Rule 8)** — see
@@ -573,7 +591,8 @@ Browser (React SPA)
   weekend shifts, national-holiday shifts (from the date + center country, like `countShifts`),
   vacation / sick / other leave **weekdays** (Mon–Fri non-holidays at their center, from
   `person.leave`) and credited days (shifts + leave). This month uses the on-screen schedule (unsaved
-  edits included), earlier months the saved ones. Below: busiest week vs the 40h cap, this month's
+  edits included), earlier months the saved ones. Below: the month's regular time (`nominalDays`), hours
+  per week as `32/32h` badges (grey ok, amber above regular, red above 40h; same rows as the chip), this month's
   weekend/holiday shift dates and leave ranges, and the balance vs colleagues at the same center
   before this month (`computeWorkHistory`, the numbers the generator plans with; |x| < 0.5 shows as
   "level"). Layout reuses the Overview's `.ws-ov*` table classes plus `.ws-ps-*`; rows stack on phones.
@@ -591,9 +610,14 @@ Browser (React SPA)
   Clicking an empty day's "—", or the "+" that appears on hover in every day header, opens the
   same modal in **assign mode** (`personId: null`: "Assign shift", no current person, no remove
   button) → `addAssignment()` adds a full assignment record (same fields as the generator's
-  `makeAssignment`). Each stat chip shows month hours plus `max Nh/wk` (tooltip = per-week
-  breakdown); it turns red with ⚠ if any week exceeds `MAX_WEEKLY_HOURS` (e.g. after manual edits —
-  manual swaps/assigns aren't blocked by the cap, only flagged).
+  `makeAssignment`). Each stat chip shows month hours plus `max Nh/wk`, or amber "⚠ +8h above regular"
+  when a week exceeds that person's regular week (coverage overtime), or red "⚠ over 40h/wk" (e.g.
+  after manual edits — manual swaps/assigns aren't blocked, only flagged). Weeks come from the page-level
+  `personWeekRows(person, assignments, month)` over this month **plus the previous/next month's saved
+  assignments** (`adjacent`, loaded in `load()`), so boundary weeks are counted whole; tooltip lines are
+  `weekRowText()` ("Week of 9 Nov: 32h of 32h regular (1 holiday)"). A red `.ws-gap-banner` above the
+  center tabs lists every day with nobody on duty per center (`coverageGaps`, live from the on-screen
+  schedule; the center name switches tabs).
   Edits don't recompute the saved `fairnessSnapshot`/`balances`, but the next month's generation
   reads the saved assignments directly, so manual edits do count towards everyone's history.
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
