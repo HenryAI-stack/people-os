@@ -165,37 +165,67 @@ export function getDaysInMonth(yearMonth) {
 /** Display names for the HOLIDAYS country codes. */
 export const COUNTRY_NAMES = { PL: 'Poland', IN: 'India', MX: 'Mexico', US: 'USA' }
 
-// All holidays across every HOLIDAYS table, the same holiday on the same date in several
-// countries (e.g. Christmas Day) merged into one entry. Sorted by date, then name.
-// Returns [{ date, name, countries: ['PL', …] }] (countries in table order).
-function mergedHolidays() {
-  const byKey = new Map()
+const COUNTRY_ORDER = Object.keys(HOLIDAYS)
+const byCountryOrder = (a, b) => COUNTRY_ORDER.indexOf(a) - COUNTRY_ORDER.indexOf(b)
+
+// Spelling variants of the same holiday across the tables, so they merge on a shared date:
+// "New Year's Day" = "New Year", "Labor Day" = "Labour Day", and May 1 "May Day" (IN) is the
+// same Workers' Day as "Labour Day" (PL/MX). Only used to *match* names; the label shown is the
+// spelling most countries use.
+function holidayKey(name) {
+  return name.toLowerCase()
+    .replace(/[’']s\b/g, '')
+    .replace(/\blabor\b/g, 'labour')
+    .replace(/^may day$/, 'labour day')
+    .replace(/^new year( day)?$/, 'new year')
+    .replace(/^christmas$/, 'christmas day')
+    .replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Every holiday across all HOLIDAYS tables, grouped **per date**: one entry per day, with
+ * `items` = the distinct holidays that day (the same holiday in several countries — by
+ * `holidayKey` — is one item with all its countries, most countries first) and `countries` =
+ * every country with a holiday that day, in table order. Sorted by date.
+ * Returns [{ date, countries: ['PL', …], items: [{ name, countries }] }].
+ */
+function holidaysByDate() {
+  const days = new Map()
   for (const [country, table] of Object.entries(HOLIDAYS)) {
     for (const [date, name] of Object.entries(table)) {
-      const key = `${date}|${name.toLowerCase()}`
-      if (byKey.has(key)) byKey.get(key).countries.push(country)
-      else byKey.set(key, { date, name, countries: [country] })
+      if (!days.has(date)) days.set(date, new Map())
+      const items = days.get(date)
+      const key = holidayKey(name)
+      if (!items.has(key)) items.set(key, { names: {}, countries: [] })
+      const item = items.get(key)
+      item.countries.push(country)
+      item.names[name] = (item.names[name] || 0) + 1
     }
   }
-  return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
+  return [...days.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, items]) => {
+      const list = [...items.values()].map((it) => ({
+        // Most-used spelling; on a tie, the one from the first country in table order.
+        name: Object.entries(it.names).sort((a, b) => b[1] - a[1])[0][0],
+        countries: it.countries.sort(byCountryOrder),
+      })).sort((a, b) => b.countries.length - a.countries.length || byCountryOrder(a.countries[0], b.countries[0]))
+      const countries = [...new Set(list.flatMap((it) => it.countries))].sort(byCountryOrder)
+      return { date, countries, items: list }
+    })
 }
 
 /**
- * The next `count` holidays across all countries, starting at `fromDateStr` ('YYYY-MM-DD',
- * inclusive, so a holiday today counts as upcoming). A holiday shared by several countries
- * takes one slot. Pure string comparison — 'YYYY-MM-DD' sorts correctly, no Date/timezone shift.
+ * The next `count` holiday **days** across all countries, starting at `fromDateStr`
+ * ('YYYY-MM-DD', inclusive, so a holiday today counts as upcoming). Everything on the same
+ * date shares one slot. Pure string comparison — no Date/timezone shift.
  */
-export function upcomingHolidays(fromDateStr, count = 5) {
-  return mergedHolidays().filter((h) => h.date >= fromDateStr).slice(0, count)
+export function upcomingHolidays(fromDateStr, count = 6) {
+  return holidaysByDate().filter((h) => h.date >= fromDateStr).slice(0, count)
 }
 
-/**
- * The most recent holiday date strictly before `fromDateStr`. If several different holidays
- * fall on that date (in different countries), they're all returned. [] if none.
- */
-export function lastHolidays(fromDateStr) {
-  const past = mergedHolidays().filter((h) => h.date < fromDateStr)
-  if (past.length === 0) return []
-  const lastDate = past[past.length - 1].date
-  return past.filter((h) => h.date === lastDate)
+/** The most recent holiday day strictly before `fromDateStr` (same shape), or null. */
+export function lastHoliday(fromDateStr) {
+  const past = holidaysByDate().filter((h) => h.date < fromDateStr)
+  return past.length ? past[past.length - 1] : null
 }

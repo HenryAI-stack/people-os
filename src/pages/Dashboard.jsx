@@ -8,7 +8,7 @@ import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { nextBirthday, lastBirthday } from '../lib/birthdays.js'
 import { lastOneOnOne, cadenceBadge, isOverdue, CADENCE_DAYS } from '../lib/cadence.js'
 import { computeTagCloud } from '../lib/interviewTags.js'
-import { upcomingHolidays, lastHolidays, COUNTRY_NAMES } from '../lib/holidays.js'
+import { upcomingHolidays, lastHoliday, COUNTRY_NAMES } from '../lib/holidays.js'
 
 // ── Topic tag cloud ─────────────────────────────────────────────────
 // Derived from every interview's `tags` — nothing stored. The period is a per-browser pref.
@@ -25,7 +25,52 @@ function readTagPeriod() {
   return 'all'
 }
 
-function TagCloud({ interviews, loading, onTagClick }) {
+// ── Collapsible sections ───────────────────────────────────────────
+// Every dashboard section header toggles its section; which ones are collapsed is a per-browser
+// pref ({ [sectionId]: true }), so the dashboard opens the way it was left.
+const COLLAPSE_KEY = 'peopleos.dashboard.collapsed'
+
+function readCollapsed() {
+  try { const v = JSON.parse(localStorage.getItem(COLLAPSE_KEY)); if (v && typeof v === 'object') return v } catch {}
+  return {}
+}
+
+function useCollapsedSections() {
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  function toggle(id) {
+    setCollapsed((prev) => {
+      const next = { ...prev }
+      if (next[id]) delete next[id]; else next[id] = true
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+  return [collapsed, toggle]
+}
+
+// Header = one button (chevron + title + `meta`), `right` = links/controls that don't toggle.
+// `right` is hidden while collapsed, except links (`rightWhenCollapsed`).
+function Section({ id, title, meta, right, rightWhenCollapsed = false, collapsed, onToggle, children }) {
+  const isCollapsed = !!collapsed[id]
+  return (
+    <section className={`dash-section${isCollapsed ? ' is-collapsed' : ''}`}>
+      <div className="section-title dash-section-head">
+        <button type="button" className="dash-section-toggle" aria-expanded={!isCollapsed}
+          title={isCollapsed ? 'Show section' : 'Hide section'} onClick={() => onToggle(id)}>
+          <span className="dash-chevron" aria-hidden="true">▾</span>
+          <span>{title}</span>
+          {meta}
+        </button>
+        {right && (!isCollapsed || rightWhenCollapsed) && <span className="dash-section-right">{right}</span>}
+      </div>
+      {!isCollapsed && <div className="dash-section-body">{children}</div>}
+    </section>
+  )
+}
+
+const HEAD_LINK = { fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }
+
+function TagCloud({ interviews, loading, onTagClick, collapsed, onToggle }) {
   const [period, setPeriod] = useState(readTagPeriod)
   const days = TAG_PERIODS.find((p) => p.id === period)?.days ?? null
   const cloud = useMemo(() => computeTagCloud(interviews, { days }), [interviews, days])
@@ -36,22 +81,19 @@ function TagCloud({ interviews, loading, onTagClick }) {
   }
 
   return (
-    <>
-      <div className="section-title tag-cloud-head">
-        <span>
-          🏷️ Conversation topics
-          {cloud.tags.length > 0 && (
-            <span className="tag-cloud-meta">
-              {cloud.totalTags > cloud.tags.length ? `top ${cloud.tags.length} of ${cloud.totalTags} tags` : `${cloud.tags.length} tags`} · {cloud.interviewCount} conversation{cloud.interviewCount === 1 ? '' : 's'}
-            </span>
-          )}
+    <Section id="topics" title="🏷️ Conversation topics" collapsed={collapsed} onToggle={onToggle}
+      meta={cloud.tags.length > 0 && (
+        <span className="tag-cloud-meta">
+          {cloud.totalTags > cloud.tags.length ? `top ${cloud.tags.length} of ${cloud.totalTags} tags` : `${cloud.tags.length} tags`} · {cloud.interviewCount} conversation{cloud.interviewCount === 1 ? '' : 's'}
         </span>
+      )}
+      right={
         <span className="tag-cloud-periods" role="group" aria-label="Period">
           {TAG_PERIODS.map((p) => (
             <button key={p.id} type="button" className={period === p.id ? 'active' : ''} onClick={() => changePeriod(p.id)}>{p.label}</button>
           ))}
         </span>
-      </div>
+      }>
       {!loading && cloud.tags.length === 0
         ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>
             {interviews.some((i) => i.tags) ? 'No tagged conversations in this period.' : <>No tags yet — use ✦ Generate tags when you <Link to="/interviews">log a conversation</Link>.</>}
@@ -76,7 +118,7 @@ function TagCloud({ interviews, loading, onTagClick }) {
             ))}
           </div>
         )}
-    </>
+    </Section>
   )
 }
 
@@ -175,8 +217,12 @@ function holidayCountdown(d) {
   return d > 0 ? `In ${d} days` : `${-d} days ago`
 }
 
-// One row of the "Upcoming holidays" list: the country flag(s) in place of an avatar.
-// A holiday shared by several countries (e.g. Christmas) is one row with all its flags.
+const flagStyle = (size) => ({ width: size * 4 / 3, height: size, objectFit:'cover', borderRadius:2, flexShrink:0 })
+
+// One row of the "Upcoming holidays" list = one DATE: every country's holiday that day, merged
+// (holidaysByDate in holidays.js). The country flags stand in for an avatar. A single holiday
+// (e.g. Christmas in all four countries) shows just its name; different holidays on the same day
+// (15 Aug: Assumption 🇵🇱 + Independence Day 🇮🇳) are listed with their own small flags.
 // `past` = the greyed-out "most recent" row, like the anniversaries/birthdays columns.
 function HolidayRow({ holiday, today, past = false, onClick }) {
   const [y, m, d] = holiday.date.split('-').map(Number)
@@ -188,18 +234,28 @@ function HolidayRow({ holiday, today, past = false, onClick }) {
   const weekday = date.toLocaleDateString('en-GB', { weekday:'long' })
   const fullDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
   const shortDate = date.toLocaleDateString('en-GB', { day:'numeric', month:'short' })
+  const several = holiday.items.length > 1
   return (
     <div className={`row-card${isToday ? ' is-today' : ''}`} onClick={onClick} style={{ cursor:'pointer', opacity: past ? 0.5 : 1 }}
       title={past ? 'Most recent — already passed' : isToday ? 'Today!' : undefined}>
       <div className="row-main" style={{ minWidth:0 }}>
-        <div style={{ display:'flex', gap:4, flexShrink:0, minWidth:34 }}>
+        <div className="hol-flags">
           {holiday.countries.map((c) => (
-            <img key={c} src={flagUrl(c)} alt={COUNTRY_NAMES[c] || c} title={COUNTRY_NAMES[c] || c}
-              style={{ width:24, height:18, objectFit:'cover', borderRadius:2 }} />
+            <img key={c} src={flagUrl(c)} alt={COUNTRY_NAMES[c] || c} title={COUNTRY_NAMES[c] || c} style={flagStyle(18)} />
           ))}
         </div>
         <div style={{ minWidth:0 }}>
-          <div className="row-title">{holiday.name}</div>
+          <div className="row-title hol-names">
+            {holiday.items.map((it, i) => (
+              <span key={it.name} className="hol-name">
+                {i > 0 && <span className="hol-sep" aria-hidden="true">·</span>}
+                {it.name}
+                {several && it.countries.map((c) => (
+                  <img key={c} src={flagUrl(c)} alt={COUNTRY_NAMES[c] || c} title={COUNTRY_NAMES[c] || c} style={flagStyle(11)} />
+                ))}
+              </span>
+            ))}
+          </div>
           <div className="row-sub">{weekday}, {fullDate} · {names.join(', ')}</div>
         </div>
       </div>
@@ -336,8 +392,10 @@ export default function Dashboard() {
   const lastBday = mostRecent(reports.filter((r) => r.birthday),  (r) => lastBirthday(r.birthday))
 
   const today = todayStr(now)
-  const nextHolidays = upcomingHolidays(today, 5)
-  const prevHolidays = lastHolidays(today)
+  const nextHolidays = upcomingHolidays(today, 6)
+  const prevHoliday  = lastHoliday(today)
+  const [collapsed, toggleSection] = useCollapsedSections()
+  const sec = { collapsed, onToggle: toggleSection }
 
   return (
     <>
@@ -351,21 +409,20 @@ export default function Dashboard() {
         <div className="card stat-card"><div className="label">Notes saved</div><div className="value">{loading ? '–' : notes.length}</div><div className="sub">{loading ? '' : `${notes.filter((n) => n.pinned).length} pinned`}</div></div>
       </div>
 
-      <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
-        🌍 24/7 on duty
-        <Link to="/work-schedule" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>Work schedule →</Link>
-      </div>
-      {!loading && !duty.hasSchedule
-        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No work schedule saved yet — <Link to="/work-schedule">generate one</Link> to see who's on duty.</div>
-        : (
-          <div className="grid cols-3" style={{ alignItems:'start', marginBottom:28 }}>
-            <ShiftCard kind="previous" shifts={duty.previous ? [duty.previous] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
-            <ShiftCard kind="now" shifts={duty.current} now={now} photoById={photoById} nextShift={duty.next} onClick={() => navigate('/work-schedule')} />
-            <ShiftCard kind="next" shifts={duty.next ? [duty.next] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
-          </div>
-        )}
+      <Section id="duty" title="🌍 24/7 on duty" {...sec} rightWhenCollapsed
+        right={<Link to="/work-schedule" style={HEAD_LINK}>Work schedule →</Link>}>
+        {!loading && !duty.hasSchedule
+          ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No work schedule saved yet — <Link to="/work-schedule">generate one</Link> to see who's on duty.</div>
+          : (
+            <div className="grid cols-3" style={{ alignItems:'start' }}>
+              <ShiftCard kind="previous" shifts={duty.previous ? [duty.previous] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
+              <ShiftCard kind="now" shifts={duty.current} now={now} photoById={photoById} nextShift={duty.next} onClick={() => navigate('/work-schedule')} />
+              <ShiftCard kind="next" shifts={duty.next ? [duty.next] : []} now={now} photoById={photoById} onClick={() => navigate('/work-schedule')} />
+            </div>
+          )}
+      </Section>
 
-      {/* Follow-ups alert */}
+      {/* Follow-ups alert — only shown when something is overdue or due within 7 days */}
       {(() => {
         const today = new Date().setHours(0,0,0,0)
         const overdue = followUps.filter(f => !f.done && f.dueDate && new Date(f.dueDate) < today)
@@ -373,12 +430,10 @@ export default function Dashboard() {
         const urgent = [...overdue, ...dueThisWeek].sort((a,b) => new Date(a.dueDate)-new Date(b.dueDate)).slice(0,4)
         if (urgent.length === 0) return null
         return (
-          <>
-            <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
-              📋 Follow-ups due soon
-              <Link to="/follow-ups" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>View all →</Link>
-            </div>
-            <div className="list" style={{ marginBottom:28 }}>
+          <Section id="followups" title="📋 Follow-ups due soon" {...sec} rightWhenCollapsed
+            meta={collapsed.followups && <span className="tag-cloud-meta">{overdue.length + dueThisWeek.length} due</span>}
+            right={<Link to="/follow-ups" style={HEAD_LINK}>View all →</Link>}>
+            <div className="list">
               {urgent.map((f) => {
                 const urg = urgencyLabel(f.dueDate, false)
                 return (
@@ -389,113 +444,116 @@ export default function Dashboard() {
                 )
               })}
             </div>
-          </>
+          </Section>
         )
       })()}
 
-      <div className="section-title">🎉 Anniversaries & birthdays</div>
-      <div className="grid cols-2" style={{ alignItems:'start' }}>
-        <div>
-          <div style={COLUMN_HEADING}>🎂 Anniversaries</div>
-          {!loading && !lastAnn && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
-          <div className="list">
-            {lastAnn && (
-              <EventRow person={lastAnn} past onClick={() => navigate(`/direct-reports/${lastAnn.id}`)}
-                sub={`${ordinal(lastAnn.past.years)} anniversary · ${formatDate(lastAnn.past.date)}`}
-                badge={pastLabel(lastAnn.past.daysAgo)} />
-            )}
-            {upcomingAnniversaries.map((r) => (
-              <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
-                sub={`${ordinal(r.ann.years)} anniversary · ${formatDate(r.ann.date)}`}
-                badge={daysLabel(r.ann.daysUntil)} badgeCls={urgencyClass(r.ann.daysUntil)} isToday={r.ann.daysUntil === 0} />
-            ))}
-          </div>
-        </div>
-        <div>
-          <div style={COLUMN_HEADING}>🎈 Birthdays</div>
-          {!loading && !lastBday && upcomingBirthdays.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No birthdays — add them on your <Link to="/direct-reports">direct reports</Link>.</div>}
-          <div className="list">
-            {lastBday && (
-              <EventRow person={lastBday} past onClick={() => navigate(`/direct-reports/${lastBday.id}`)}
-                sub={`${formatDate(lastBday.past.date)}${lastBday.past.age != null ? ` · turned ${lastBday.past.age}` : ''}`}
-                badge={pastLabel(lastBday.past.daysAgo)} />
-            )}
-            {upcomingBirthdays.map((r) => (
-              <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
-                sub={`${formatDate(r.bday.date)}${r.bday.turningAge != null ? ` · turning ${r.bday.turningAge}` : ''}`}
-                badge={daysLabel(r.bday.daysUntil)} badgeCls={urgencyClass(r.bday.daysUntil)} isToday={r.bday.daysUntil === 0} />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="section-title" style={{ display:'flex', justifyContent:'space-between' }}>
-        🏖️ Upcoming national holidays
-        <Link to="/work-schedule" style={{ fontSize:12, fontWeight:400, color:'var(--accent)', textTransform:'none', letterSpacing:0 }}>Work schedule →</Link>
-      </div>
-      {nextHolidays.length === 0 && prevHolidays.length === 0
-        ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No holidays in the holiday tables.</div>
-        : (
-          <div className="list">
-            {prevHolidays.map((h) => (
-              <HolidayRow key={`${h.date}|${h.name}`} holiday={h} today={today} past onClick={() => navigate('/work-schedule')} />
-            ))}
-            {nextHolidays.map((h) => (
-              <HolidayRow key={`${h.date}|${h.name}`} holiday={h} today={today} onClick={() => navigate('/work-schedule')} />
-            ))}
-          </div>
-        )}
-
-      <div className="section-title">🗣️ 1:1s overdue <span style={{ marginLeft:6, fontWeight:400, color:'var(--text-faint)', textTransform:'none', letterSpacing:0, fontSize:12 }}>no 1:1 in the last {CADENCE_DAYS} days</span></div>
-      {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}
-      <div className="list">
-        {overdueOneOnOnes.map((r) => {
-          const b = cadenceBadge(r.last)
-          return (
-            <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
-              <div className="row-main">
-                <Avatar photo={r.photo} name={r.name} size={34} />
-                <div>
-                  <div className="row-title">{r.name}</div>
-                  <div className="row-sub">{r.last ? `Last 1:1 on ${r.last.date}` : 'No 1:1 logged yet'}{r.role && ` · ${r.role}`}</div>
-                </div>
-              </div>
-              <span className={`badge ${b.cls}`}>{b.label}</span>
+      <Section id="events" title="🎉 Anniversaries & birthdays" {...sec}>
+        <div className="grid cols-2" style={{ alignItems:'start' }}>
+          <div>
+            <div style={COLUMN_HEADING}>🎂 Anniversaries</div>
+            {!loading && !lastAnn && upcomingAnniversaries.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No anniversaries — add start dates to your <Link to="/direct-reports">direct reports</Link>.</div>}
+            <div className="list">
+              {lastAnn && (
+                <EventRow person={lastAnn} past onClick={() => navigate(`/direct-reports/${lastAnn.id}`)}
+                  sub={`${ordinal(lastAnn.past.years)} anniversary · ${formatDate(lastAnn.past.date)}`}
+                  badge={pastLabel(lastAnn.past.daysAgo)} />
+              )}
+              {upcomingAnniversaries.map((r) => (
+                <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
+                  sub={`${ordinal(r.ann.years)} anniversary · ${formatDate(r.ann.date)}`}
+                  badge={daysLabel(r.ann.daysUntil)} badgeCls={urgencyClass(r.ann.daysUntil)} isToday={r.ann.daysUntil === 0} />
+              ))}
             </div>
-          )
-        })}
-      </div>
+          </div>
+          <div>
+            <div style={COLUMN_HEADING}>🎈 Birthdays</div>
+            {!loading && !lastBday && upcomingBirthdays.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No birthdays — add them on your <Link to="/direct-reports">direct reports</Link>.</div>}
+            <div className="list">
+              {lastBday && (
+                <EventRow person={lastBday} past onClick={() => navigate(`/direct-reports/${lastBday.id}`)}
+                  sub={`${formatDate(lastBday.past.date)}${lastBday.past.age != null ? ` · turned ${lastBday.past.age}` : ''}`}
+                  badge={pastLabel(lastBday.past.daysAgo)} />
+              )}
+              {upcomingBirthdays.map((r) => (
+                <EventRow key={r.id} person={r} onClick={() => navigate(`/direct-reports/${r.id}`)}
+                  sub={`${formatDate(r.bday.date)}${r.bday.turningAge != null ? ` · turning ${r.bday.turningAge}` : ''}`}
+                  badge={daysLabel(r.bday.daysUntil)} badgeCls={urgencyClass(r.bday.daysUntil)} isToday={r.bday.daysUntil === 0} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </Section>
 
-      <TagCloud interviews={interviews} loading={loading}
+      <Section id="holidays" title="🏖️ Upcoming national holidays" {...sec} rightWhenCollapsed
+        right={<Link to="/work-schedule" style={HEAD_LINK}>Work schedule →</Link>}>
+        {nextHolidays.length === 0 && !prevHoliday
+          ? <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No holidays in the holiday tables.</div>
+          : (
+            <div className="list">
+              {prevHoliday && (
+                <HolidayRow holiday={prevHoliday} today={today} past onClick={() => navigate('/work-schedule')} />
+              )}
+              {nextHolidays.map((h) => (
+                <HolidayRow key={h.date} holiday={h} today={today} onClick={() => navigate('/work-schedule')} />
+              ))}
+            </div>
+          )}
+      </Section>
+
+      <Section id="oneonones" title="🗣️ 1:1s overdue" {...sec}
+        meta={<span className="tag-cloud-meta">{collapsed.oneonones && overdueOneOnOnes.length > 0 ? `${overdueOneOnOnes.length} overdue · ` : ''}no 1:1 in the last {CADENCE_DAYS} days</span>}>
+        {!loading && activeReports.length > 0 && overdueOneOnOnes.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>Everyone's had a 1:1 in the last {CADENCE_DAYS} days ✓</div>}
+        <div className="list">
+          {overdueOneOnOnes.map((r) => {
+            const b = cadenceBadge(r.last)
+            return (
+              <div className="row-card" key={r.id} onClick={() => navigate(`/direct-reports/${r.id}`)} style={{ cursor:'pointer' }}>
+                <div className="row-main">
+                  <Avatar photo={r.photo} name={r.name} size={34} />
+                  <div>
+                    <div className="row-title">{r.name}</div>
+                    <div className="row-sub">{r.last ? `Last 1:1 on ${r.last.date}` : 'No 1:1 logged yet'}{r.role && ` · ${r.role}`}</div>
+                  </div>
+                </div>
+                <span className={`badge ${b.cls}`}>{b.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      </Section>
+
+      <TagCloud interviews={interviews} loading={loading} {...sec}
         onTagClick={(tag) => navigate('/interviews', { state: { tag } })} />
 
-      <div className="section-title">Recent conversations</div>
-      {!loading && recentInterviews.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No conversations yet. <Link to="/interviews">Log your first one →</Link></div>}
-      <div className="list">
-        {recentInterviews.map((it) => (
-          <div className="row-card" key={it.id}
-            onClick={() => it.personId
-              ? navigate(`/direct-reports/${it.personId}`, { state: { expandInterview: it.id } })
-              : navigate('/interviews', { state: { expandInterview: it.id } })}
-            style={{ cursor:'pointer' }}>
-            <div className="row-main"><div>
-              <div className="row-title">{it.title}</div>
-              <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div>
-              {it.tags && (
-                <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>
-                  {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                    <span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>
-                  ))}
-                </div>
-              )}
-            </div></div>
-            <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-              {it.faceToFace && <span className="badge good" title="Face-to-face meeting">🤝 Face-to-face</span>}
-              <span className="badge">{it.type}</span>
+      <Section id="recent" title="💬 Recent conversations" {...sec}>
+        {!loading && recentInterviews.length === 0 && <div style={{ fontSize:13, color:'var(--text-faint)', padding:'12px 0' }}>No conversations yet. <Link to="/interviews">Log your first one →</Link></div>}
+        <div className="list">
+          {recentInterviews.map((it) => (
+            <div className="row-card" key={it.id}
+              onClick={() => it.personId
+                ? navigate(`/direct-reports/${it.personId}`, { state: { expandInterview: it.id } })
+                : navigate('/interviews', { state: { expandInterview: it.id } })}
+              style={{ cursor:'pointer' }}>
+              <div className="row-main"><div>
+                <div className="row-title">{it.title}</div>
+                <div className="row-sub">{it.person ? `${it.person} · ` : ''}{it.date}</div>
+                {it.tags && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:5 }}>
+                    {it.tags.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
+                      <span className="badge" key={t} style={{ fontSize:10.5, padding:'2px 7px' }}>{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div></div>
+              <div className="row-actions" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                {it.faceToFace && <span className="badge good" title="Face-to-face meeting">🤝 Face-to-face</span>}
+                <span className="badge">{it.type}</span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Section>
 
     </>
   )

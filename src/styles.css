@@ -140,6 +140,21 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Dashboard topic tag cloud (Dashboard.jsx TagCloud) + Interviews tag filter */
 .tag-cloud-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Dashboard: collapsible sections (header button toggles; state in localStorage) */
+.dash-section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dash-section-toggle { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 2px 4px 2px 0; margin: 0; border: 0; background: none; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; border-radius: 4px; }
+.dash-section-toggle:hover { color: var(--text); }
+.dash-section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dash-section-toggle .tag-cloud-meta { margin-left: 2px; }
+.dash-chevron { display: inline-block; width: 12px; font-size: 11px; transition: transform 0.15s; }
+.dash-section.is-collapsed .dash-chevron { transform: rotate(-90deg); }
+.dash-section.is-collapsed .dash-section-head { margin-bottom: 0; }
+.dash-section-right { display: inline-flex; align-items: center; }
+/* Holiday rows: one row per date, several holidays share it */
+.hol-flags { display: flex; flex-wrap: wrap; align-content: center; gap: 4px; flex-shrink: 0; width: 52px; }
+.hol-names { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; }
+.hol-name { display: inline-flex; align-items: center; gap: 4px; }
+.hol-sep { color: var(--text-faint); margin-right: 2px; }
 .tag-cloud-meta { margin-left: 8px; font-weight: 400; color: var(--text-faint); text-transform: none; letter-spacing: 0; font-size: 12px; }
 .tag-cloud-periods { display: inline-flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; text-transform: none; letter-spacing: 0; }
 .tag-cloud-periods button { font: inherit; font-size: 11.5px; font-weight: 500; padding: 3px 10px; border: 0; background: transparent; color: var(--text-dim); cursor: pointer; }

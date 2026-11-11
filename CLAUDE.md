@@ -361,14 +361,18 @@ Browser (React SPA)
   `lastBirthday()` in `birthdays.js` and a Dashboard-local `prevAnniversary()` (which skips
   anyone with no full year of tenure yet). "Today" counts as upcoming, not past. In the half-width
   columns, location shows as just the flag next to the name, not the full location text.
-  Directly below sits "🏖️ Upcoming national holidays": the next 5 entries across all `HOLIDAYS`
+  Directly below sits "🏖️ Upcoming national holidays": the next **6 holiday days** across all `HOLIDAYS`
   tables (PL/IN/MX/US — `US` = the company's US holiday calendar, not the federal list: 2026 from the
-  intranet, 2027 provisional; Dashboard-only since there's no US center), from `upcomingHolidays(todayStr, 5)` in `holidays.js` (pure string compare,
-  today inclusive; the same name on the same date in several countries is merged into one row
-  with all flags, e.g. Christmas), preceded by one greyed-out row for the most recent past holiday
-  (`lastHolidays(todayStr)`; several rows only if different holidays share that date). Each row shows
-  the full date (weekday in the subtitle) and an exact day count in the badge (`holidayCountdown`, not
-  the rounding `daysLabel`). Flags via `flagUrl(code)`; rows link to the Work Schedule.
+  intranet, 2027 provisional; Dashboard-only since there's no US center), from `upcomingHolidays(todayStr, 6)`
+  in `holidays.js` (pure string compare, today inclusive). **Grouped per date** (`holidaysByDate()`):
+  everything on one day is one row `{ date, countries, items: [{ name, countries }] }`. Within a day, the
+  same holiday in several countries is one item, matched by `holidayKey()` (case, "'s", Labor/Labour, IN's
+  May 1 "May Day" = "Labour Day", "New Year's Day" = "New Year"), labelled with the most-used spelling — so
+  Christmas is one name with four flags, while 15 Aug reads "Assumption 🇵🇱 · Independence Day 🇮🇳" (small
+  per-item flags only when a day has several items). The row's flag column is a fixed 52px 2×2 grid so names
+  line up. Preceded by one greyed-out row for the most recent past holiday day (`lastHoliday(todayStr)`).
+  Each row shows the full date (weekday in the subtitle) and an exact day count in the badge
+  (`holidayCountdown`, not the rounding `daysLabel`). Rows link to the Work Schedule.
   Since it reads the same tables, it is only as complete as they are (2027 `IN` is provisional).
   An anniversary, birthday or holiday falling **today** gets `.row-card.is-today` (accent-tinted
   background via `color-mix`, accent border, solid accent badge) — `isToday` prop on `EventRow`,
@@ -402,6 +406,15 @@ Browser (React SPA)
   period are included so they surface under "Fewest"; externals count toward totals only.
   Future-dated entries are excluded (scheduled, not conducted). Date math is split-string + local
   `Date`, same as `cadence.js`.
+- **Collapsible Dashboard sections**: every section (24/7 on duty, Follow-ups due soon, Anniversaries &
+  birthdays, Upcoming national holidays, 1:1s overdue, Conversation topics, Recent conversations) renders
+  through `Dashboard.jsx`'s `Section` (`id`, `title`, optional `meta` inside the header button, `right` for
+  links/controls outside it). The whole title is one `<button aria-expanded>` with a ▾ chevron that rotates
+  when collapsed; collapsed ids persist per browser as `peopleos.dashboard.collapsed` (`{ [id]: true }`,
+  try/catch, `useCollapsedSections()`). Header links ("Work schedule →", "View all →") stay visible when
+  collapsed (`rightWhenCollapsed`); the tag cloud's period toggle hides. Collapsed follow-ups / 1:1s show a
+  count in the header (`1 due`, `2 overdue`). Styles: `.dash-section*`, `.dash-chevron`. The stat cards on top
+  aren't a section and always show. New dashboard sections should use `Section` too.
 - **Topic tag cloud (Dashboard)**: "🏷️ Conversation topics", just above "Recent conversations",
   derived from every interview's comma-separated `tags` — nothing stored. `src/lib/interviewTags.js`
   is the one place tags are split/normalised (`splitTags`, `tagKey` = lower-case, spaces → hyphens,
@@ -785,7 +798,7 @@ src/
   sw-template.js       Service-worker source; NOT imported — vite.config.js's serviceWorker()
                        plugin fills in the precache list/version and emits dist/sw.js
   pages/
-    Dashboard.jsx      Team stats, 24/7 on duty (before/now/next), follow-ups, anniversaries | birthdays (two columns,
+    Dashboard.jsx      Team stats, then collapsible sections: 24/7 on duty (before/now/next), follow-ups, anniversaries | birthdays (two columns,
                        last-passed row greyed + next 3), 1:1s overdue, recent conversations (5 newest by
                        interview `date`, not storage order; same day → latest `createdAt` first)
     DirectReports.jsx  Team roster CRUD, grouped by team; also exports `Avatar`, `ReportForm`
