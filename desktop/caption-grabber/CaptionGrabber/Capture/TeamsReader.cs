@@ -7,7 +7,9 @@ namespace CaptionGrabber.Capture;
 
 internal enum ReaderState { TeamsNotRunning, NoMeeting, CaptionsOff, Capturing }
 
-internal sealed record Snapshot(ReaderState State, string Source, IReadOnlyList<ParsedCaption> Captions);
+/// <param name="Generation">Goes up every time the reader drops what it found and searches again (call
+/// ended, window closed, or Rescan). Caption keys from an earlier generation may be reused by Windows.</param>
+internal sealed record Snapshot(ReaderState State, string Source, IReadOnlyList<ParsedCaption> Captions, int Generation);
 
 /// <summary>
 /// Reads Teams live captions through Windows UI Automation (the accessibility interface screen
@@ -32,12 +34,31 @@ internal sealed class TeamsReader : IDisposable
     private DateTime _lastFullScan = DateTime.MinValue;
     private AutomationElement? _hangup;
     private AutomationElement? _container;
+    private IntPtr _containerHwnd;
     private string _source = "";
+    private int _generation;
+    private int _rescanRequested; // set from the UI thread, read on the reader thread
 
     private sealed record Doc(IntPtr Hwnd, AutomationElement Root, string Title, string Source);
 
     /// <summary>Raised on the reader thread about once a second.</summary>
     public event Action<Snapshot>? SnapshotTaken;
+
+    /// <summary>Forget the current Teams window and look for a call again on the next tick (any thread).</summary>
+    public void Rescan() => Interlocked.Exchange(ref _rescanRequested, 1);
+
+    /// <summary>Drops everything found so far, so the next tick searches every Teams window from scratch.</summary>
+    private void Reset(string why)
+    {
+        if (_container != null || _hangup != null) Log.Write($"Searching again: {why}.");
+        _hangup = null;
+        _container = null;
+        _containerHwnd = IntPtr.Zero;
+        _docs = [];
+        _lastWindowRefresh = DateTime.MinValue;
+        _lastFullScan = DateTime.MinValue;
+        _generation++;
+    }
 
     public TeamsReader() => _subtree = NewRequest();
 
@@ -88,10 +109,8 @@ internal sealed class TeamsReader : IDisposable
             catch (Exception ex)
             {
                 Log.Write($"Tick failed: {ex.GetType().Name}: {ex.Message}");
-                _hangup = null;
-                _container = null;
-                _lastWindowRefresh = DateTime.MinValue;
-                snap = new Snapshot(ReaderState.NoMeeting, _source, []);
+                Reset("the Teams window stopped responding");
+                snap = new Snapshot(ReaderState.NoMeeting, _source, [], _generation);
             }
             SnapshotTaken?.Invoke(snap);
             var wait = PollInterval - (DateTime.UtcNow - started);
@@ -101,20 +120,24 @@ internal sealed class TeamsReader : IDisposable
 
     private Snapshot Tick()
     {
+        if (Interlocked.Exchange(ref _rescanRequested, 0) == 1) Reset("Rescan clicked");
+
         var now = DateTime.UtcNow;
         if (now - _lastWindowRefresh > WindowRefresh)
         {
             _docs = FindDocuments();
             _lastWindowRefresh = now;
+            // The call window was closed or hidden: its captions area belongs to a call that is over.
+            if (_container != null && !_docs.Any(d => d.Hwnd == _containerHwnd)) Reset("the call window closed");
         }
         if (_docs.Count == 0)
         {
-            _hangup = null;
-            _container = null;
-            return new Snapshot(ReaderState.TeamsNotRunning, "", []);
+            if (_container != null || _hangup != null) Reset("Teams closed");
+            return new Snapshot(ReaderState.TeamsNotRunning, "", [], _generation);
         }
 
-        if (_hangup != null && !IsAlive(_hangup)) _hangup = null;
+        // The Leave button went away: the call ended. Don't keep reading that call's (now empty) captions.
+        if (_hangup != null && !IsAlive(_hangup)) Reset("the call ended");
 
         if ((_hangup == null || _container == null) && now - _lastFullScan > FullScanInterval)
         {
@@ -127,20 +150,31 @@ internal sealed class TeamsReader : IDisposable
             try
             {
                 var tree = ToNode(_container.GetUpdatedCache(_subtree));
-                return new Snapshot(ReaderState.Capturing, _source, CaptionParser.Parse(tree));
+                return new Snapshot(ReaderState.Capturing, _source, CaptionParser.Parse(tree), _generation);
             }
             catch (ElementNotAvailableException)
             {
                 Log.Write("Captions area disappeared (captions turned off or call ended).");
                 _container = null;
+                _containerHwnd = IntPtr.Zero;
             }
         }
 
-        return new Snapshot(_hangup != null ? ReaderState.CaptionsOff : ReaderState.NoMeeting, _source, []);
+        return new Snapshot(_hangup != null ? ReaderState.CaptionsOff : ReaderState.NoMeeting, _source, [], _generation);
     }
 
+    /// <summary>
+    /// Looks through every Teams window for the call controls and the captions area. The window that
+    /// has the Leave button wins: a captions area left over in another window (an ended call) is
+    /// replaced as soon as a new call shows up, or dropped if the new call has captions off.
+    /// </summary>
     private void FullScan()
     {
+        Doc? callDoc = null;
+        UiNode? callHangup = null, callCaptions = null;
+        Doc? otherDoc = null;
+        UiNode? otherCaptions = null;
+
         foreach (var doc in _docs)
         {
             UiNode tree;
@@ -155,22 +189,47 @@ internal sealed class TeamsReader : IDisposable
             }
 
             var hangup = CaptionParser.FindHangup(tree);
-            if (hangup != null)
+            if (hangup != null && callDoc == null)
             {
-                _hangup = (AutomationElement?)hangup.Source;
-                _source = doc.Source;
+                callDoc = doc;
+                callHangup = hangup;
+                callCaptions = CaptionParser.FindCaptionsContainer(tree, inMeeting: true);
             }
-            if (_container == null)
+            else if (hangup == null && otherDoc == null)
             {
-                var c = CaptionParser.FindCaptionsContainer(tree, inMeeting: hangup != null || _hangup != null);
-                if (c?.Source is AutomationElement el)
-                {
-                    _container = el;
-                    _source = doc.Source;
-                    Log.Write($"Captions found in {doc.Source} (name='{c.Name}', id='{c.AutomationId}').");
-                }
+                var c = CaptionParser.FindCaptionsContainer(tree, inMeeting: _hangup != null);
+                if (c != null) { otherDoc = doc; otherCaptions = c; }
             }
         }
+
+        if (callDoc != null)
+        {
+            _hangup = callHangup!.Source as AutomationElement;
+            _source = callDoc.Source;
+            if (callCaptions?.Source is AutomationElement el)
+                UseCaptions(el, callDoc, callCaptions);
+            else if (_container != null && _containerHwnd != callDoc.Hwnd)
+            {
+                Log.Write("New call found; its captions are off. Dropping the captions area of the earlier window.");
+                _container = null;
+                _containerHwnd = IntPtr.Zero;
+                _generation++;
+            }
+        }
+        else if (_container == null && otherCaptions?.Source is AutomationElement el)
+        {
+            UseCaptions(el, otherDoc!, otherCaptions);
+        }
+    }
+
+    private void UseCaptions(AutomationElement el, Doc doc, UiNode node)
+    {
+        if (_container != null && _containerHwnd == doc.Hwnd) return; // already reading this window
+        if (_container != null) _generation++;                       // switching to another call window
+        _container = el;
+        _containerHwnd = doc.Hwnd;
+        _source = doc.Source;
+        Log.Write($"Captions found in {doc.Source} '{doc.Title}' (name='{node.Name}', id='{node.AutomationId}').");
     }
 
     /// <summary>The web content areas of every visible Teams window (desktop app or browser tab).</summary>

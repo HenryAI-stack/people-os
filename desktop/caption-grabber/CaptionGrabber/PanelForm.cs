@@ -34,6 +34,7 @@ internal sealed class PanelForm : Form
     private readonly ToolTip _tips = new();
 
     private ReaderState _state = ReaderState.TeamsNotRunning;
+    private int _generation;
     private string _source = "";
     private bool _paused, _mini, _unsaved, _backupDue, _clearArmed;
     private List<TranscriptEntry>? _earlier;
@@ -42,7 +43,7 @@ internal sealed class PanelForm : Form
     private readonly TableLayoutPanel _root, _titleBar;
     private readonly FlowLayoutPanel _titleLeft, _titleRight, _row1, _row2;
     private readonly Label _title, _miniInfo, _status, _last, _toast;
-    private readonly Button _miniCopy, _minBtn, _closeBtn, _copyBtn, _saveBtn, _pauseBtn, _clearBtn, _restoreBtn;
+    private readonly Button _miniCopy, _rescanIcon, _minBtn, _closeBtn, _copyBtn, _saveBtn, _pauseBtn, _clearBtn, _rescanBtn, _restoreBtn;
     private readonly LinkLabel _diag;
 
     public PanelForm()
@@ -73,12 +74,14 @@ internal sealed class PanelForm : Form
         _miniCopy.Margin = new Padding(0, S(1), S(4), 0);
         _miniCopy.Visible = false;
         _miniCopy.Click += (_, _) => CopyTranscript();
+        _rescanIcon = MakeIconButton("⟳", "Rescan: look for a new Teams call window");
+        _rescanIcon.Click += (_, _) => RescanClicked();
         _minBtn = MakeIconButton("–", "Minimize to one line");
         _minBtn.Click += (_, _) => SetMini(!_mini, persist: true);
         _closeBtn = MakeIconButton("×", "Close Caption Grabber");
         _closeBtn.Click += (_, _) => Close();
         _titleRight = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        _titleRight.Controls.AddRange([_miniCopy, _minBtn, _closeBtn]);
+        _titleRight.Controls.AddRange([_miniCopy, _rescanIcon, _minBtn, _closeBtn]);
 
         _titleBar = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, Cursor = Cursors.SizeAll };
         _titleBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -107,11 +110,14 @@ internal sealed class PanelForm : Form
         _pauseBtn.Click += (_, _) => { _paused = !_paused; _pauseBtn.Text = _paused ? "Resume" : "Pause"; Render(); };
         _clearBtn = MakeButton("Clear");
         _clearBtn.Click += (_, _) => ClearClicked();
+        _rescanBtn = MakeButton("Rescan");
+        _rescanBtn.Click += (_, _) => RescanClicked();
+        _tips.SetToolTip(_rescanBtn, "Look for a new Teams call window, e.g. after the last call ended. The transcript is kept.");
         _restoreBtn = MakeButton("Restore earlier");
         _restoreBtn.Visible = false;
         _restoreBtn.Click += (_, _) => RestoreEarlier();
         _row2 = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = Padding.Empty };
-        _row2.Controls.AddRange([_pauseBtn, _clearBtn, _restoreBtn]);
+        _row2.Controls.AddRange([_pauseBtn, _clearBtn, _rescanBtn, _restoreBtn]);
 
         _toast = new Label { AutoSize = true, ForeColor = Ok, Margin = new Padding(0, S(6), 0, 0) };
         _diag = new LinkLabel
@@ -246,6 +252,7 @@ internal sealed class PanelForm : Form
         _toast.Visible = !on && _toast.Text.Length > 0;
         _miniInfo.Visible = on;
         _miniCopy.Visible = on;
+        _rescanIcon.Visible = on; // the full view has the labelled Rescan button instead
         _minBtn.Text = on ? "▢" : "–";
         _tips.SetToolTip(_minBtn, on ? "Expand" : "Minimize to one line");
 
@@ -270,6 +277,11 @@ internal sealed class PanelForm : Form
     {
         _state = snap.State;
         if (snap.Source.Length > 0) _source = snap.Source;
+        if (snap.Generation != _generation)
+        {
+            _generation = snap.Generation;
+            _transcript.ForgetElements(); // new call: never merge its captions into the previous call's lines
+        }
         if (!_paused && snap.Captions.Count > 0 && _transcript.Apply(snap.Captions, DateTime.Now))
         {
             _unsaved = true;
@@ -356,6 +368,12 @@ internal sealed class PanelForm : Form
         {
             Flash($"Couldn't save: {ex.Message}");
         }
+    }
+
+    private void RescanClicked()
+    {
+        _reader.Rescan();
+        Flash("Looking for a Teams call… The transcript is kept; use Clear to start a new one.");
     }
 
     private void ClearClicked()

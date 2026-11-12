@@ -20,6 +20,7 @@ internal sealed class Transcript
 {
     private readonly List<TranscriptEntry> _entries = [];
     private readonly Dictionary<string, TranscriptEntry> _byKey = [];
+    private int _matchFloor; // entries before this index belong to an earlier call and are never merged into
 
     public IReadOnlyList<TranscriptEntry> Entries => _entries;
     public int Count => _entries.Count;
@@ -57,7 +58,7 @@ internal sealed class Transcript
 
     private TranscriptEntry? FindRecentMatch(ParsedCaption c)
     {
-        for (int i = _entries.Count - 1; i >= Math.Max(0, _entries.Count - 8); i--)
+        for (int i = _entries.Count - 1; i >= Math.Max(_matchFloor, _entries.Count - 8); i--)
         {
             var e = _entries[i];
             if (e.Speaker == c.Speaker &&
@@ -72,10 +73,26 @@ internal sealed class Transcript
     {
         _entries.Clear();
         _byKey.Clear();
+        _matchFloor = 0;
+    }
+
+    /// <summary>
+    /// Called when the reader starts over (new call or Rescan). Windows can hand out the same element
+    /// ids again, so a new call's captions must never update entries from the call before.
+    /// </summary>
+    public void ForgetElements()
+    {
+        _byKey.Clear();
+        _matchFloor = _entries.Count;
     }
 
     /// <summary>Puts earlier entries (from the backup) in front of the current ones.</summary>
-    public void Prepend(IEnumerable<TranscriptEntry> earlier) => _entries.InsertRange(0, earlier);
+    public void Prepend(IEnumerable<TranscriptEntry> earlier)
+    {
+        var list = earlier.ToList();
+        _entries.InsertRange(0, list);
+        _matchFloor += list.Count;
+    }
 
     /// <summary>
     /// Plain text for pasting into interview notes: one paragraph per speaker turn,

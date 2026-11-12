@@ -118,6 +118,19 @@ public class ParserAndTranscriptTests
     }
 
     [Fact]
+    public void New_call_never_updates_the_previous_calls_lines()
+    {
+        var t = new Transcript();
+        var now = DateTime.Now;
+        t.Apply([new ParsedCaption("42", "Anna", "Thanks, bye.")], now);
+        t.ForgetElements(); // call ended; Windows may reuse element id 42 in the next call
+        t.Apply([new ParsedCaption("42", "Anna", "Thanks, bye. Hello again")], now);
+        Assert.Equal(2, t.Count);
+        Assert.Equal("Thanks, bye.", t.Entries[0].Text);
+        Assert.Equal("Thanks, bye. Hello again", t.Entries[1].Text);
+    }
+
+    [Fact]
     public void Backup_round_trips()
     {
         var t = new Transcript();
