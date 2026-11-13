@@ -14,7 +14,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Product>Caption Grabber</Product>
     <Company>Max Bielecki</Company>
     <Description>Captures Microsoft Teams live captions on screen and copies them as a transcript.</Description>

@@ -1,3 +1,7 @@
+**1.0.2**: Finds the captions when Teams shows them in a separate window, and switches back when
+that window is closed. Moving the captions to another window, or clicking Rescan, no longer adds the
+captions that are still on screen a second time.
+
 **1.0.1**: Picks up the next Teams call by itself after a call ends, and adds a **Rescan** button
 (⟳ in the one-line view) to look for a new call window manually. Captions of a new call are never
 merged into the previous call's lines.

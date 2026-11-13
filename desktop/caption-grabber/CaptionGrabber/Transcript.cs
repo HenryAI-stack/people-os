@@ -21,6 +21,7 @@ internal sealed class Transcript
     private readonly List<TranscriptEntry> _entries = [];
     private readonly Dictionary<string, TranscriptEntry> _byKey = [];
     private int _matchFloor; // entries before this index belong to an earlier call and are never merged into
+    private bool _resync;    // the reader started over: line up the captions still on screen with captured lines
 
     public IReadOnlyList<TranscriptEntry> Entries => _entries;
     public int Count => _entries.Count;
@@ -29,6 +30,12 @@ internal sealed class Transcript
     /// <returns>true when anything changed.</returns>
     public bool Apply(IReadOnlyList<ParsedCaption> captions, DateTime now)
     {
+        if (_resync && captions.Count > 0)
+        {
+            _resync = false;
+            return Resync(captions, now);
+        }
+
         bool changed = false;
         foreach (var c in captions)
         {
@@ -74,16 +81,71 @@ internal sealed class Transcript
         _entries.Clear();
         _byKey.Clear();
         _matchFloor = 0;
+        _resync = false;
     }
 
     /// <summary>
-    /// Called when the reader starts over (new call or Rescan). Windows can hand out the same element
-    /// ids again, so a new call's captions must never update entries from the call before.
+    /// Called when the reader starts over: a new call, the captions moved to another window, or
+    /// Rescan. Windows can hand out the same element ids again, so old ids are forgotten; the next
+    /// captions are lined up with what was captured (see <see cref="Resync"/>).
     /// </summary>
     public void ForgetElements()
     {
         _byKey.Clear();
-        _matchFloor = _entries.Count;
+        _resync = true;
+    }
+
+    /// <summary>
+    /// First captions after the reader started over. In the same call, Teams still shows the recent
+    /// captions (in the new window or after Rescan): they're matched to the lines already captured,
+    /// in order, so nothing is added twice. A caption counts as the same line only if it's the same
+    /// speaker and either the same text or a longer version of a line of 12+ characters, captured in
+    /// the last 10 minutes (Teams shows at most the last 5). Anything else is a new line, so a new
+    /// call never changes the previous call's lines.
+    /// </summary>
+    private bool Resync(IReadOnlyList<ParsedCaption> captions, DateTime now)
+    {
+        bool changed = false;
+        int startCount = _entries.Count;
+        int pos = Math.Max(_matchFloor, startCount - 300);
+        int firstMatch = -1;
+        var cutoff = now - TimeSpan.FromMinutes(10);
+
+        foreach (var c in captions)
+        {
+            int found = -1;
+            for (int i = pos; i < startCount; i++)
+            {
+                var old = _entries[i];
+                if (old.Time < cutoff || old.Speaker != c.Speaker) continue;
+                if (c.Text == old.Text ||
+                    (old.Text.Length >= 12 && c.Text.StartsWith(old.Text, StringComparison.Ordinal)))
+                {
+                    found = i;
+                    break;
+                }
+            }
+
+            TranscriptEntry e;
+            if (found >= 0)
+            {
+                e = _entries[found];
+                if (c.Text.Length > e.Text.Length) { e.Text = c.Text; changed = true; }
+                if (firstMatch < 0) firstMatch = found;
+                pos = found + 1;
+            }
+            else
+            {
+                e = new TranscriptEntry { Speaker = c.Speaker, Text = c.Text, Time = now };
+                _entries.Add(e);
+                pos = startCount; // later captions can't match lines captured before this one
+                changed = true;
+            }
+            _byKey[c.Key] = e;
+        }
+
+        _matchFloor = firstMatch >= 0 ? firstMatch : startCount;
+        return changed;
     }
 
     /// <summary>Puts earlier entries (from the backup) in front of the current ones.</summary>

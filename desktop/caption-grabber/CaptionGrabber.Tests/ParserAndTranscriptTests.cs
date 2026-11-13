@@ -124,10 +124,87 @@ public class ParserAndTranscriptTests
         var now = DateTime.Now;
         t.Apply([new ParsedCaption("42", "Anna", "Thanks, bye.")], now);
         t.ForgetElements(); // call ended; Windows may reuse element id 42 in the next call
-        t.Apply([new ParsedCaption("42", "Anna", "Thanks, bye. Hello again")], now);
+        t.Apply([new ParsedCaption("42", "Anna", "Hello again.")], now);
         Assert.Equal(2, t.Count);
         Assert.Equal("Thanks, bye.", t.Entries[0].Text);
-        Assert.Equal("Thanks, bye. Hello again", t.Entries[1].Text);
+        Assert.Equal("Hello again.", t.Entries[1].Text);
+    }
+
+    [Fact]
+    public void Switching_window_in_the_same_call_adds_nothing_twice()
+    {
+        var t = new Transcript();
+        var now = DateTime.Now;
+        t.Apply([
+            new ParsedCaption("1", "Anna", "I led a team of eight."),
+            new ParsedCaption("2", "Max", "How big was the budget?"),
+            new ParsedCaption("3", "Anna", "Around two million"),
+        ], now);
+
+        t.ForgetElements(); // captions popped out into their own window: new element ids
+        t.Apply([
+            new ParsedCaption("7", "Anna", "I led a team of eight."),
+            new ParsedCaption("8", "Max", "How big was the budget?"),
+            new ParsedCaption("9", "Anna", "Around two million a year."),
+            new ParsedCaption("10", "Max", "Thanks."),
+        ], now);
+
+        Assert.Equal(4, t.Count);
+        Assert.Equal("Around two million a year.", t.Entries[2].Text);
+        Assert.Equal("Thanks.", t.Entries[3].Text);
+
+        // The new window's ids are tracked from now on.
+        t.Apply([new ParsedCaption("10", "Max", "Thanks, that helps.")], now);
+        Assert.Equal(4, t.Count);
+        Assert.Equal("Thanks, that helps.", t.Entries[3].Text);
+    }
+
+    private static UiNode CaptionsPanel(params UiNode[] items) => new()
+    {
+        ControlType = "Group", Name = "Live Captions",
+        Children = [new UiNode { ControlType = "List", Children = [.. items] }],
+    };
+
+    private static UiNode Document(params UiNode[] children) => new() { ControlType = "Document", Children = [.. children] };
+
+    private static UiNode Leave() => new() { ControlType = "Button", AutomationId = "hangup-button", Name = "Leave" };
+
+    [Fact]
+    public void Finds_captions_popped_out_into_their_own_window()
+    {
+        var call = new WindowScan(1, "Interview | Microsoft Teams", Document(Leave()));
+        var popout = new WindowScan(2, "Live captions | Microsoft Teams | Pinned window",
+            Document(new UiNode { ControlType = "List", Children = [Caption("1", "Anna", "Hi Max.")] }));
+        var choice = CaptionParser.Choose([call, popout], new HashSet<IntPtr>());
+        Assert.Equal(0, choice.CallIndex);
+        Assert.Equal(1, choice.CaptionsIndex);
+        Assert.Equal("Hi Max.", CaptionParser.Parse(choice.Captions!)[0].Text);
+    }
+
+    [Fact]
+    public void Prefers_the_window_where_captions_appear_over_an_empty_panel()
+    {
+        var call = new WindowScan(1, "Interview | Microsoft Teams", Document(Leave(), CaptionsPanel()));
+        var popout = new WindowScan(2, "Microsoft Teams | Pinned window", Document(CaptionsPanel(Caption("1", "Anna", "Hi."))));
+        var choice = CaptionParser.Choose([call, popout], new HashSet<IntPtr>());
+        Assert.Equal(1, choice.CaptionsIndex);
+    }
+
+    [Fact]
+    public void Ignores_captions_left_in_the_window_of_an_ended_call()
+    {
+        var oldCall = new WindowScan(1, "Earlier call | Microsoft Teams", Document(CaptionsPanel(Caption("1", "Anna", "Bye."))));
+        var newCall = new WindowScan(2, "Next interview | Microsoft Teams", Document(Leave()));
+        var choice = CaptionParser.Choose([oldCall, newCall], new HashSet<IntPtr> { 1 });
+        Assert.Equal(1, choice.CallIndex);
+        Assert.Null(choice.Captions); // captions are off in the new call
+    }
+
+    [Fact]
+    public void Captions_button_is_not_a_captions_area()
+    {
+        var call = Document(Leave(), new UiNode { ControlType = "MenuItem", AutomationId = "closed-captions-button", Name = "Show live captions" });
+        Assert.Null(CaptionParser.FindCaptionsContainer(call, inMeeting: true));
     }
 
     [Fact]

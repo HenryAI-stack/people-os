@@ -24,6 +24,9 @@ internal sealed class TeamsReader : IDisposable
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(800);
     private static readonly TimeSpan WindowRefresh = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan FullScanInterval = TimeSpan.FromSeconds(3);
+    // While the captions area we read is empty, look around now and then: the captions may have
+    // moved to a separate window, or another window may be the one that fills.
+    private static readonly TimeSpan EmptyScanInterval = TimeSpan.FromSeconds(5);
 
     private readonly CacheRequest _subtree;
     private Thread? _thread;
@@ -35,6 +38,9 @@ internal sealed class TeamsReader : IDisposable
     private AutomationElement? _hangup;
     private AutomationElement? _container;
     private IntPtr _containerHwnd;
+    private IntPtr _hangupHwnd;
+    private int _lastCaptionCount;
+    private readonly HashSet<IntPtr> _endedWindows = []; // windows whose call ended; their leftover captions are ignored
     private string _source = "";
     private int _generation;
     private int _rescanRequested; // set from the UI thread, read on the reader thread
@@ -52,8 +58,10 @@ internal sealed class TeamsReader : IDisposable
     {
         if (_container != null || _hangup != null) Log.Write($"Searching again: {why}.");
         _hangup = null;
+        _hangupHwnd = IntPtr.Zero;
         _container = null;
         _containerHwnd = IntPtr.Zero;
+        _lastCaptionCount = 0;
         _docs = [];
         _lastWindowRefresh = DateTime.MinValue;
         _lastFullScan = DateTime.MinValue;
@@ -127,6 +135,7 @@ internal sealed class TeamsReader : IDisposable
         {
             _docs = FindDocuments();
             _lastWindowRefresh = now;
+            _endedWindows.IntersectWith(_docs.Select(d => d.Hwnd)); // forget windows that are gone
             // The call window was closed or hidden: its captions area belongs to a call that is over.
             if (_container != null && !_docs.Any(d => d.Hwnd == _containerHwnd)) Reset("the call window closed");
         }
@@ -137,9 +146,18 @@ internal sealed class TeamsReader : IDisposable
         }
 
         // The Leave button went away: the call ended. Don't keep reading that call's (now empty) captions.
-        if (_hangup != null && !IsAlive(_hangup)) Reset("the call ended");
+        // If the window still has a Leave button on the next scan (Teams only redrew it), it's taken off the list again.
+        if (_hangup != null && !IsAlive(_hangup))
+        {
+            _endedWindows.Add(_hangupHwnd);
+            if (_containerHwnd != IntPtr.Zero && _containerHwnd != _hangupHwnd) _endedWindows.Add(_containerHwnd);
+            Reset("the call ended");
+        }
 
-        if ((_hangup == null || _container == null) && now - _lastFullScan > FullScanInterval)
+        var interval = _hangup == null || _container == null ? FullScanInterval
+                     : _lastCaptionCount == 0 ? EmptyScanInterval
+                     : TimeSpan.MaxValue;
+        if (interval != TimeSpan.MaxValue && now - _lastFullScan > interval)
         {
             FullScan();
             _lastFullScan = now;
@@ -150,13 +168,16 @@ internal sealed class TeamsReader : IDisposable
             try
             {
                 var tree = ToNode(_container.GetUpdatedCache(_subtree));
-                return new Snapshot(ReaderState.Capturing, _source, CaptionParser.Parse(tree), _generation);
+                var captions = CaptionParser.Parse(tree);
+                _lastCaptionCount = captions.Count;
+                return new Snapshot(ReaderState.Capturing, _source, captions, _generation);
             }
             catch (ElementNotAvailableException)
             {
                 Log.Write("Captions area disappeared (captions turned off or call ended).");
                 _container = null;
                 _containerHwnd = IntPtr.Zero;
+                _lastCaptionCount = 0;
             }
         }
 
@@ -164,72 +185,69 @@ internal sealed class TeamsReader : IDisposable
     }
 
     /// <summary>
-    /// Looks through every Teams window for the call controls and the captions area. The window that
-    /// has the Leave button wins: a captions area left over in another window (an ended call) is
-    /// replaced as soon as a new call shows up, or dropped if the new call has captions off.
+    /// Looks through every Teams window for the call controls and the captions area. The captions can
+    /// be in the call window or in Teams' separate captions window; see <see cref="CaptionParser.Choose"/>.
     /// </summary>
     private void FullScan()
     {
-        Doc? callDoc = null;
-        UiNode? callHangup = null, callCaptions = null;
-        Doc? otherDoc = null;
-        UiNode? otherCaptions = null;
-
+        var scans = new List<WindowScan>();
+        var docs = new List<Doc>();
         foreach (var doc in _docs)
         {
-            UiNode tree;
             try
             {
-                tree = ToNode(doc.Root.GetUpdatedCache(_subtree));
+                scans.Add(new WindowScan(doc.Hwnd, doc.Title, ToNode(doc.Root.GetUpdatedCache(_subtree))));
+                docs.Add(doc);
             }
             catch (ElementNotAvailableException)
             {
                 _lastWindowRefresh = DateTime.MinValue;
-                continue;
-            }
-
-            var hangup = CaptionParser.FindHangup(tree);
-            if (hangup != null && callDoc == null)
-            {
-                callDoc = doc;
-                callHangup = hangup;
-                callCaptions = CaptionParser.FindCaptionsContainer(tree, inMeeting: true);
-            }
-            else if (hangup == null && otherDoc == null)
-            {
-                var c = CaptionParser.FindCaptionsContainer(tree, inMeeting: _hangup != null);
-                if (c != null) { otherDoc = doc; otherCaptions = c; }
             }
         }
 
-        if (callDoc != null)
+        // A window with a Leave button has a call running, so it isn't an ended call's window.
+        foreach (var w in scans)
+            if (CaptionParser.FindHangup(w.Tree) != null) _endedWindows.Remove(w.Hwnd);
+
+        var choice = CaptionParser.Choose(scans, _endedWindows);
+
+        if (choice.Hangup?.Source is AutomationElement hangup)
         {
-            _hangup = callHangup!.Source as AutomationElement;
-            _source = callDoc.Source;
-            if (callCaptions?.Source is AutomationElement el)
-                UseCaptions(el, callDoc, callCaptions);
-            else if (_container != null && _containerHwnd != callDoc.Hwnd)
-            {
-                Log.Write("New call found; its captions are off. Dropping the captions area of the earlier window.");
-                _container = null;
-                _containerHwnd = IntPtr.Zero;
-                _generation++;
-            }
+            _hangup = hangup;
+            _hangupHwnd = docs[choice.CallIndex].Hwnd;
+            _source = docs[choice.CallIndex].Source;
         }
-        else if (_container == null && otherCaptions?.Source is AutomationElement el)
+
+        if (choice.Captions?.Source is AutomationElement el)
         {
-            UseCaptions(el, otherDoc!, otherCaptions);
+            var doc = docs[choice.CaptionsIndex];
+            UseCaptions(el, doc, choice.Captions, separateWindow: choice.CaptionsIndex != choice.CallIndex && choice.CallIndex >= 0);
+        }
+        else if (_container != null)
+        {
+            Log.Write("No captions area in any open Teams window any more (captions off or call ended).");
+            _container = null;
+            _containerHwnd = IntPtr.Zero;
+            _lastCaptionCount = 0;
+            _generation++;
         }
     }
 
-    private void UseCaptions(AutomationElement el, Doc doc, UiNode node)
+    private void UseCaptions(AutomationElement el, Doc doc, UiNode node, bool separateWindow)
     {
-        if (_container != null && _containerHwnd == doc.Hwnd) return; // already reading this window
-        if (_container != null) _generation++;                       // switching to another call window
+        if (_container != null && _containerHwnd == doc.Hwnd && SameElement(el, _container)) return; // already reading it
+        if (_container != null) _generation++; // switching windows: the transcript lines up the captions still on screen
         _container = el;
         _containerHwnd = doc.Hwnd;
-        _source = doc.Source;
-        Log.Write($"Captions found in {doc.Source} '{doc.Title}' (name='{node.Name}', id='{node.AutomationId}').");
+        _lastCaptionCount = 0;
+        _source = separateWindow ? $"{doc.Source} (captions window)" : doc.Source;
+        Log.Write($"Captions found in {_source} '{doc.Title}' (name='{node.Name}', id='{node.AutomationId}').");
+    }
+
+    private static bool SameElement(AutomationElement a, AutomationElement b)
+    {
+        try { return Automation.Compare(a, b); }
+        catch (Exception ex) when (ex is ElementNotAvailableException or COMException) { return false; }
     }
 
     /// <summary>The web content areas of every visible Teams window (desktop app or browser tab).</summary>
@@ -319,27 +337,30 @@ internal sealed class TeamsReader : IDisposable
         sb.AppendLine($"Caption Grabber diagnostics – {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"Windows: {Environment.OSVersion}  App: {Application.ProductVersion}");
         sb.AppendLine($"Teams windows found: {docs.Count}");
+
+        var scans = new List<(Doc Doc, WindowScan? Scan, string? Error)>();
         foreach (var d in docs)
+        {
+            try { scans.Add((d, new WindowScan(d.Hwnd, d.Title, ToNode(d.Root.GetUpdatedCache(request))), null)); }
+            catch (Exception ex) { scans.Add((d, null, $"{ex.GetType().Name}: {ex.Message}")); }
+        }
+
+        var ok = scans.Where(s => s.Scan != null).ToList();
+        var choice = CaptionParser.Choose(ok.Select(s => s.Scan!).ToList(), new HashSet<IntPtr>());
+        sb.AppendLine("Call window: " + (choice.CallIndex >= 0 ? $"'{ok[choice.CallIndex].Doc.Title}'" : "none"));
+        sb.AppendLine("Captions: " + (choice.Captions == null ? "not found"
+            : $"'{ok[choice.CaptionsIndex].Doc.Title}' (name='{choice.Captions.Name}', id='{choice.Captions.AutomationId}', class='{choice.Captions.ClassName}')"));
+        if (choice.Captions != null)
+            foreach (var c in CaptionParser.Parse(choice.Captions))
+                sb.AppendLine($"  parsed -> {c.Speaker}: {c.Text}");
+
+        foreach (var (d, scan, error) in scans)
         {
             sb.AppendLine();
             sb.AppendLine($"=== {d.Source}: '{d.Title}' ===");
-            try
-            {
-                var tree = ToNode(d.Root.GetUpdatedCache(request));
-                var hangup = CaptionParser.FindHangup(tree);
-                var container = CaptionParser.FindCaptionsContainer(tree, hangup != null);
-                sb.AppendLine($"Leave button: {(hangup != null ? "found" : "not found")}; captions: " +
-                              (container == null ? "not found" : $"'{container.Name}' id='{container.AutomationId}' class='{container.ClassName}'"));
-                if (container != null)
-                    foreach (var c in CaptionParser.Parse(container))
-                        sb.AppendLine($"  parsed -> {c.Speaker}: {c.Text}");
-                int count = 0;
-                Dump(sb, tree, 0, ref count);
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine($"(failed: {ex.GetType().Name}: {ex.Message})");
-            }
+            if (scan == null) { sb.AppendLine($"(failed: {error})"); continue; }
+            int count = 0;
+            Dump(sb, scan.Tree, 0, ref count);
         }
         return sb.ToString();
     }

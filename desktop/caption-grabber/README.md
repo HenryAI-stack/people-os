@@ -34,6 +34,8 @@ are available. Whether a caption transcript of an interview needs consent is a c
 - The app follows you from one call to the next on its own. If it ever keeps showing an ended call,
   click **Rescan** (⟳ in the one-line view): it looks for the current Teams call again and keeps
   the transcript. Use **Clear** first if you want the next call in a separate transcript.
+- Captions popped out into their own window (Teams' "open in new window") are found too, within
+  a few seconds. Lines that were already captured aren't added again when the captions move.
 - If the app closes during a call, start it again and click **Restore earlier**.
 - If captions are on but nothing is captured, click **Not capturing? Save diagnostics**. It writes a text
   description of the Teams window to Documents, which is enough to fix the app if Teams changed.

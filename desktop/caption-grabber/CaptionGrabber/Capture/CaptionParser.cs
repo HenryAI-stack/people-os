@@ -2,6 +2,12 @@ namespace CaptionGrabber.Capture;
 
 internal sealed record ParsedCaption(string Key, string Speaker, string Text);
 
+/// <summary>One Teams window's UI tree. Hwnd identifies the window across scans.</summary>
+internal sealed record WindowScan(IntPtr Hwnd, string Title, UiNode Tree);
+
+/// <summary>Which window holds the call (Leave button) and which holds the captions; -1 when none.</summary>
+internal sealed record CaptionsChoice(int CallIndex, UiNode? Hangup, int CaptionsIndex, UiNode? Captions);
+
 /// <summary>
 /// Finds the live-captions area in a Teams UI tree and turns it into (speaker, text) pairs.
 /// Teams renders each caption as a "fui-ChatMessageCompact" element; the desktop app's
@@ -35,10 +41,13 @@ internal static class CaptionParser
 
         if (paths.Count == 0)
         {
-            // Captions are on, but nobody has spoken yet.
+            // Captions are on, but nobody has spoken yet. Never mistake the "Captions" button or
+            // menu item (id "closed-captions-button") for the captions area.
             return tree.Descendants().FirstOrDefault(n =>
-                n.Name.Equals("Live Captions", StringComparison.OrdinalIgnoreCase) ||
-                n.AutomationId.Contains("closed-caption", StringComparison.OrdinalIgnoreCase));
+                !IsControl(n) &&
+                (n.Name.Equals("Live Captions", StringComparison.OrdinalIgnoreCase) ||
+                 (n.AutomationId.Contains("closed-caption", StringComparison.OrdinalIgnoreCase) &&
+                  !n.AutomationId.Contains("button", StringComparison.OrdinalIgnoreCase))));
         }
 
         foreach (var path in paths)
@@ -62,6 +71,62 @@ internal static class CaptionParser
             n.Name.Contains("chat", StringComparison.OrdinalIgnoreCase) ||
             n.Name.Contains("message", StringComparison.OrdinalIgnoreCase));
         return looksLikeChat ? null : lca;
+    }
+
+    private static bool IsControl(UiNode n) =>
+        n.ControlType is "Button" or "MenuItem" or "CheckBox" or "SplitButton" or "ToggleButton";
+
+    /// <summary>
+    /// Window titles Teams gives its separate captions window ("… | Microsoft Teams | Pinned window").
+    /// Only used to rank windows and to allow the looser search inside them.
+    /// </summary>
+    public static bool LooksLikeCaptionsWindow(string title) =>
+        new[] { "pinned window", "caption", "untertitel", "napisy", "subtítulos" }
+            .Any(w => title.Contains(w, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Picks the call window and the captions area across all Teams windows.
+    /// Captions can be in the call window or in a separate window (Teams can pop the captions out).
+    /// A captions area that has captions in it wins over an empty one; among equals the call window
+    /// comes first, then windows that look like a captions window. Windows in <paramref name="ended"/>
+    /// (a call ended there) are skipped, so a leftover panel never hides the current call's captions.
+    /// </summary>
+    public static CaptionsChoice Choose(IReadOnlyList<WindowScan> windows, IReadOnlySet<IntPtr> ended)
+    {
+        int callIdx = -1;
+        UiNode? hangup = null;
+        for (int i = 0; i < windows.Count && callIdx < 0; i++)
+        {
+            hangup = FindHangup(windows[i].Tree);
+            if (hangup != null) callIdx = i;
+        }
+
+        var candidates = new List<(int Index, UiNode? Node, int Items)>();
+        void Add(int i, UiNode? n)
+        {
+            if (n != null) candidates.Add((i, n, Parse(n).Count));
+        }
+
+        if (callIdx >= 0) Add(callIdx, FindCaptionsContainer(windows[callIdx].Tree, inMeeting: true));
+
+        var others = Enumerable.Range(0, windows.Count)
+            .Where(i => i != callIdx && !ended.Contains(windows[i].Hwnd))
+            .OrderBy(i => LooksLikeCaptionsWindow(windows[i].Title) ? 0 : 1); // stable: keeps window order otherwise
+        foreach (var i in others)
+        {
+            var w = windows[i];
+            var c = FindCaptionsContainer(w.Tree, inMeeting: false);
+            // In a separate captions window the items may have no "caption" ancestor: allow the looser search there.
+            if (c == null && callIdx >= 0 && LooksLikeCaptionsWindow(w.Title))
+                c = FindCaptionsContainer(w.Tree, inMeeting: true);
+            Add(i, c);
+        }
+
+        var pick = candidates.FirstOrDefault(c => c.Items > 0);
+        if (pick.Node == null) pick = candidates.FirstOrDefault();
+        return pick.Node == null
+            ? new CaptionsChoice(callIdx, hangup, -1, null)
+            : new CaptionsChoice(callIdx, hangup, pick.Index, pick.Node);
     }
 
     private static void CollectItemPaths(UiNode node, List<UiNode> ancestors, List<List<UiNode>> results)
