@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, computeWorkHistory, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
-  SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection, STANDARD_DAYS, regularWeek, nominalDays } from '../lib/scheduleGenerator.js'
+  SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection, STANDARD_DAYS, regularWeek, nominalDays,
+  OVERTIME_RULES, quarterMonths, quarterLabel } from '../lib/scheduleGenerator.js'
 import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName, downloadOvertimeExcel } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
 import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
@@ -69,6 +70,7 @@ export default function WorkSchedule() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
   const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
+  const [quarterOther, setQuarterOther] = useState([]) // the quarter's other saved months (Bangalore overtime)
   const [adjacent,    setAdjacent]    = useState([])    // last + next month's assignments (boundary weeks)
   const [personStats, setPersonStats] = useState(null)  // employee stats modal: { person, schedules } (schedules null = loading)
   const [overview,    setOverview]    = useState(null)  // "Overview" modal: { schedules } (null = closed, schedules null = loading)
@@ -105,6 +107,8 @@ export default function WorkSchedule() {
       const schedules = await schedulesStore.list()
       const found = schedules.find((s) => s.month === month)
       setSchedule(found || null)
+      const qMonths = quarterMonths(month)
+      setQuarterOther(schedules.filter((s) => s.month !== month && qMonths.includes(s.month)).flatMap((s) => s.assignments || []))
       setAdjacent(schedules.filter((s) => s.month === prevMonth(month) || s.month === nextMonth(month))
         .flatMap((s) => s.assignments || []))
     } catch (e) { setError(e.message) }
@@ -443,6 +447,35 @@ export default function WorkSchedule() {
     })).filter((g) => g.days.length)
   }, [schedule, centerPeople, days, assignmentMap])
 
+  // Overtime limits (OVERTIME_RULES): Bangalore = weekend/holiday shifts per calendar quarter (this
+  // month on screen + the quarter's other saved months); Warsaw = hours above the regular week.
+  const quarterOt = useMemo(() => {
+    const out = {}
+    const all = [...(schedule?.assignments || []), ...quarterOther]
+    for (const p of people) {
+      const c = CENTERS.find((x) => x.id === getCenter(p))
+      const rule = c && OVERTIME_RULES[c.id]
+      if (rule?.kind !== 'special') continue
+      const shifts = all.filter((a) => !a.cleared && a.personId === p.id && a.center === c.id
+        && (isWeekend(a.date) || getHoliday(a.date, c.country))).length
+      out[p.id] = { hours: shifts * SHIFT_HOURS, max: rule.maxHours, shifts }
+    }
+    return out
+  }, [schedule, quarterOther, people])
+
+  const overtimeBreaches = useMemo(() => {
+    if (!schedule) return []
+    const list = []
+    for (const p of people) {
+      const q = quarterOt[p.id]
+      if (q && q.hours > q.max) list.push({ person: p, text: `${q.hours}h overtime in ${quarterLabel(month)} (max ${q.max}h)` })
+      for (const r of weekRows[p.id] || []) {
+        if (r.overOt) list.push({ person: p, text: `+${r.hours - r.regular}h overtime in the week of ${fmtShort(r.monday)} (max ${r.otLimit}h)` })
+      }
+    }
+    return list
+  }, [schedule, people, quarterOt, weekRows, month])
+
   // Summary stats per person for this month
   const stats = useMemo(() => {
     const s = {}
@@ -545,6 +578,16 @@ export default function WorkSchedule() {
 
       {schedule && (
         <>
+          {overtimeBreaches.length > 0 && (
+            <div className="ws-gap-banner no-print">
+              <strong>⚠ Overtime limit exceeded</strong> — the generator only does this when nobody else can cover the day; manual changes can too:
+              {overtimeBreaches.map((b, i) => (
+                <div key={i}><strong style={{ color: 'var(--text)' }}>{b.person.name}</strong> ({getCenter(b.person)}): {b.text}</div>
+              ))}
+              <div className="ws-gap-hint">Swap one of their weekend/holiday or extra shifts to a colleague with time left.</div>
+            </div>
+          )}
+
           {coverageGaps.length > 0 && (
             <div className="ws-gap-banner no-print">
               <strong>⚠ No one on duty</strong> — 24/7 coverage needs at least 1 person every day:
@@ -584,18 +627,27 @@ export default function WorkSchedule() {
               const maxWeek = Math.max(0, ...rows.map((r) => r.hours))
               const extra = rows.reduce((n, r) => n + Math.max(0, r.hours - r.regular), 0)
               const over = rows.some((r) => r.hours > r.ceiling) // above 40h (leave counted)
+              const otRow = rows.find((r) => r.overOt)             // Warsaw: > 8h overtime in a week
+              const q = quarterOt[p.id]                            // Bangalore: quarter overtime
               const weekTitle = rows.map(weekRowText).join('\n')
               return (
-                <div key={p.id} className="ws-stat-chip is-clickable" style={{ borderColor: over ? 'var(--bad)' : extra ? 'var(--warn)' : undefined }}
+                <div key={p.id} className="ws-stat-chip is-clickable" style={{ borderColor: over || otRow || (q && q.hours > q.max) ? 'var(--bad)' : extra ? 'var(--warn)' : undefined }}
                   role="button" tabIndex={0} title={`${p.name}: click for stats`}
                   onClick={() => openPersonStats(p)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPersonStats(p) } }}>
                   <Avatar photo={p.photo} name={p.name} size={22} />
                   <strong>{p.name}</strong>
                   <span title={`${s.total} days × ${SHIFT_HOURS}h`}>{hrs}h</span>
-                  <span style={{ color: over ? 'var(--bad)' : extra ? 'var(--warn)' : 'var(--text-faint)', fontSize:11 }} title={weekTitle || 'No shifts'}>
-                    {over ? `⚠ over ${MAX_WEEKLY_HOURS}h/wk` : extra ? `⚠ +${extra}h above regular` : `max ${maxWeek}h/wk`}
+                  <span style={{ color: over || otRow ? 'var(--bad)' : extra ? 'var(--warn)' : 'var(--text-faint)', fontSize:11 }} title={weekTitle || 'No shifts'}>
+                    {over ? `⚠ over ${MAX_WEEKLY_HOURS}h/wk` : otRow ? `⚠ +${otRow.hours - otRow.regular}h overtime/wk (max ${otRow.otLimit}h)`
+                      : extra ? `⚠ +${extra}h above regular` : `max ${maxWeek}h/wk`}
                   </span>
+                  {q && (
+                    <span style={{ color: q.hours > q.max ? 'var(--bad)' : q.hours + SHIFT_HOURS > q.max ? 'var(--warn)' : 'var(--text-faint)', fontSize:11 }}
+                      title={`${OVERTIME_RULES[getCenter(p)].label}.\n${quarterLabel(month)}: ${q.shifts} weekend/holiday shift${q.shifts === 1 ? '' : 's'} = ${q.hours}h (all saved months of the quarter)`}>
+                      {q.hours > q.max ? '⚠ ' : ''}OT {q.hours}/{q.max}h {quarterLabel(month).split(' ')[0]}
+                    </span>
+                  )}
                   <span style={{ color:'var(--text-faint)', fontSize:11 }}>{s.total}d</span>
                   {leaveInfo.workdays[p.id] > 0 && (
                     <span style={{ color:'var(--text-faint)', fontSize:11 }} title={`${leaveInfo.workdays[p.id]} leave weekdays this month (count as worked)`}>
@@ -754,6 +806,7 @@ export default function WorkSchedule() {
 
       {personStats && (
         <EmployeeStatsModal person={personStats.person} month={month} schedule={schedule} weekRows={weekRows[personStats.person.id] || []}
+          quarterOt={quarterOt[personStats.person.id]}
           schedules={personStats.schedules} allPeople={allPeople} onClose={() => setPersonStats(null)} />
       )}
 
@@ -1086,8 +1139,11 @@ function personWeekRows(person, assignments, month) {
     const end = plusDaysStr(monday, 6)
     const shifts = assignments.filter((a) => !a.cleared && a.personId === person.id && a.date >= monday && a.date <= end).length
     const reg = regularWeek(monday, center, person)
-    return { monday, hours: shifts * SHIFT_HOURS, regular: reg.hours, ceiling: MAX_WEEKLY_HOURS - reg.leave * SHIFT_HOURS,
-      holidays: reg.holidays, leave: reg.leave }
+    const rule = OVERTIME_RULES[center.id]
+    const otLimit = rule?.kind === 'aboveRegular' ? rule.maxHours : null
+    const hours = shifts * SHIFT_HOURS
+    return { monday, hours, regular: reg.hours, ceiling: MAX_WEEKLY_HOURS - reg.leave * SHIFT_HOURS,
+      holidays: reg.holidays, leave: reg.leave, otLimit, overOt: otLimit != null && hours - reg.hours > otLimit }
   })
 }
 
@@ -1095,6 +1151,7 @@ function weekRowText(r) {
   const why = [r.holidays && `${r.holidays} holiday${r.holidays > 1 ? 's' : ''}`, r.leave && `${r.leave} leave day${r.leave > 1 ? 's' : ''}`].filter(Boolean).join(', ')
   const base = `Week of ${fmtShort(r.monday)}: ${r.hours}h of ${r.regular}h regular${why ? ` (${why})` : ''}`
   if (r.hours > r.ceiling) return `${base} — ⚠ above ${MAX_WEEKLY_HOURS}h`
+  if (r.overOt) return `${base} — ⚠ ${r.hours - r.regular}h overtime, above the ${r.otLimit}h/week limit`
   if (r.hours > r.regular) return `${base} — ${r.hours - r.regular}h above regular, needed for 24/7 coverage`
   return base
 }
@@ -1244,7 +1301,7 @@ function lastDayOf(month) {
  * Below: this month's weekend/holiday shift dates, leave, weekly hours, and the balance against
  * colleagues at the same center (computeWorkHistory, same numbers the generator plans with).
  */
-function EmployeeStatsModal({ person, month, schedule, weekRows = [], schedules, allPeople, onClose }) {
+function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt = null, schedules, allPeople, onClose }) {
   const loading = !schedules
   const center = CENTERS.find((x) => x.id === getCenter(person))
   const year = month.slice(0, 4)
@@ -1340,11 +1397,26 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], schedules,
               <span>{nominalDays(month, center)} days · {nominalDays(month, center) * SHIFT_HOURS}h <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>(40h/week minus national holidays)</span></span>
             </div>
           )}
+          {center && OVERTIME_RULES[center.id] && (
+            <div className="ws-ps-line">
+              <span>Overtime</span>
+              {quarterOt ? (
+                <span style={{ color: quarterOt.hours > quarterOt.max ? 'var(--bad)' : undefined }}>
+                  {quarterOt.hours > quarterOt.max ? '⚠ ' : ''}{quarterLabel(month)}: {quarterOt.hours}h of max {quarterOt.max}h{' '}
+                  <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>({quarterOt.shifts} weekend/holiday shift{quarterOt.shifts === 1 ? '' : 's'})</span>
+                </span>
+              ) : (
+                <span>{weekRows.some((r) => r.overOt)
+                  ? <span style={{ color: 'var(--bad)' }}>⚠ above {OVERTIME_RULES[center.id].maxHours}h in a week</span>
+                  : `max ${OVERTIME_RULES[center.id].maxHours}h per week above regular time`}</span>
+              )}
+            </div>
+          )}
           <div className="ws-ps-line" style={{ alignItems: 'flex-start' }}>
             <span title="40h per week minus 8h per national holiday (Mon–Sat) and per leave weekday">Hours per week</span>
             <span className="ws-ps-tags">
               {weekRows.map((r) => (
-                <span key={r.monday} className={`badge ${r.hours > r.ceiling ? 'bad' : r.hours > r.regular ? 'warn' : 'ws-week-ok'}`} title={weekRowText(r)}>
+                <span key={r.monday} className={`badge ${r.hours > r.ceiling || r.overOt ? 'bad' : r.hours > r.regular ? 'warn' : 'ws-week-ok'}`} title={weekRowText(r)}>
                   {fmtShort(r.monday)}: {r.hours}/{r.regular}h
                 </span>
               ))}

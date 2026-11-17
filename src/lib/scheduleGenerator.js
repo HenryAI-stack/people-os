@@ -127,6 +127,29 @@ export function regularWeek(monday, center, person = null) {
   return { hours: shifts * SHIFT_HOURS, shifts, holidays, leave }
 }
 
+// ── Overtime limits per center (Rule 9) ─────────────────────────────────────
+// Bangalore (India): every weekend or national-holiday shift counts as overtime (8h each, still
+//   within the 40h week); at most 50h per calendar quarter → 6 such shifts.
+// Warsaw (Poland): overtime = hours above the regular week (regularWeek); at most 8h per week.
+// Mexico City: no limit beyond the 40h week.
+// The generator keeps within these limits whenever anyone at the center can cover the day; only if
+// nobody can does 24/7 coverage win (the page flags that person in red).
+export const OVERTIME_RULES = {
+  Bangalore: { kind: 'special', maxHours: 50, per: 'quarter', label: 'Weekend & holiday shifts count as overtime, max 50h per quarter' },
+  Warsaw:    { kind: 'aboveRegular', maxHours: 8, per: 'week', label: 'Overtime (above regular time) max 8h per week' },
+}
+
+/** The 3 months ('YYYY-MM') of the calendar quarter containing yearMonth. */
+export function quarterMonths(yearMonth) {
+  const [y, m] = yearMonth.split('-').map(Number)
+  const first = Math.floor((m - 1) / 3) * 3 + 1
+  return [0, 1, 2].map((i) => `${y}-${String(first + i).padStart(2, '0')}`)
+}
+export const quarterLabel = (yearMonth) => {
+  const [y, m] = yearMonth.split('-').map(Number)
+  return `Q${Math.floor((m - 1) / 3) + 1} ${y}`
+}
+
 /** Regular working days of a month at a center: Mon–Fri days minus holidays on Mon–Sat (× 8h). */
 export function nominalDays(yearMonth, center) {
   return getDaysInMonth(yearMonth).filter((d) => dow(d) >= 1 && dow(d) <= 5).length
@@ -276,6 +299,10 @@ function makeAssignment(dateStr, center, person, we, hol) {
  *    weekend/holiday days are compared with colleagues at the same center, month by month,
  *    and the differences carry over until they're evened out. Without `pastSchedules` the
  *    old chained `fairness` snapshot is used for weekend balance only.
+ * 9. Overtime limits (OVERTIME_RULES): Bangalore — weekend/holiday shifts are overtime, max 50h
+ *    (6 shifts) per calendar quarter, counting earlier saved months of the quarter; Warsaw — max
+ *    8h per week above the regular week. Respected whenever anyone can cover the day; otherwise
+ *    coverage wins, giving the shift to whoever has the least overtime.
  * 8. Leave (`leave` on the direct report: vacation / sick / other, see leave.js) is a hard block.
  *    Leave weekdays count as worked: someone with 5 vacation weekdays and a 21-day target gets
  *    16 shifts. Their weekend/holiday share shrinks with the days they're away (a weekend shift
@@ -371,6 +398,24 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     }
     // Rule 6: birthday = avoid (last resort only)
     const onBirthday = (person, dateStr) => isBirthdayOn(person.birthday, dateStr)
+    // Rule 9: this center's overtime limit. Bangalore: weekend/holiday shifts already worked in
+    // this quarter's earlier months (saved schedules), counted per person.
+    const otRule = OVERTIME_RULES[center.id]
+    const qUsed = Object.fromEntries(pool.map((p) => [p.id, 0]))
+    const qMax = otRule?.kind === 'special' ? Math.floor(otRule.maxHours / SHIFT_HOURS) : Infinity
+    if (otRule?.kind === 'special') {
+      const earlier = new Set(quarterMonths(yearMonth).filter((m) => m < yearMonth))
+      const seenMonths = new Set()
+      for (const sch of pastSchedules || []) {
+        if (!earlier.has(sch.month) || seenMonths.has(sch.month)) continue
+        seenMonths.add(sch.month)
+        for (const a of sch.assignments || []) {
+          if (!a.cleared && a.center === center.id && a.personId in qUsed && isSpecialDay(a.date, center)) qUsed[a.personId]++
+        }
+      }
+    }
+    const weekOtShifts = otRule?.kind === 'aboveRegular' ? Math.floor(otRule.maxHours / SHIFT_HOURS) : Infinity
+
     // Rule 4/4a: regular week (holidays + leave deducted); `overtime` (coverage only) allows up to
     // 40h incl. leave days, i.e. it ignores the holiday deduction but nothing else.
     const weekReg = {}
@@ -388,11 +433,14 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
     const tailReserve = tailDays.length ? Math.ceil(tailDays.length / Math.max(1, tailFree)) : 0
     // coverage = the day's first person (may use the full week, ignoring the reserve);
     // overtime = coverage above a holiday-reduced week, up to 40h incl. leave days (Rule 4a).
-    function canWork(person, dateStr, { coverage = false, overtime = false } = {}) {
+    // beyondCap = ignore the center's overtime limit (Rule 9) — coverage's very last resort.
+    function canWork(person, dateStr, { coverage = false, overtime = false, beyondCap = false } = {}) {
       if (isBlocked(person.id, dateStr) || leave[person.id].map[dateStr]) return false
+      if (!beyondCap && qUsed[person.id] >= qMax && isSpecialDay(dateStr, center)) return false
       const r = regOf(person, dateStr)
       const ceiling = MAX_SHIFTS_PER_WEEK - r.leave
       let limit = overtime ? ceiling : r.shifts
+      if (overtime && !beyondCap) limit = Math.min(limit, r.shifts + weekOtShifts)
       if (!coverage && weekStart(dateStr) === tailMonday) limit = Math.min(limit, r.shifts - tailReserve)
       return (weekCount[wk(person.id, dateStr)] || 0) < limit
     }
@@ -404,6 +452,7 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       used[person.id]++
       lastWorked[person.id] = dateStr
       if (we || hol) lastSpecial[person.id] = dateStr
+      if (we || hol) qUsed[person.id]++ // only limits Bangalore (qMax is Infinity elsewhere)
       weekCount[wk(person.id, dateStr)] = (weekCount[wk(person.id, dateStr)] || 0) + 1
       // Rule 3: block next day after Sunday or holiday
       if (isSunday(dateStr) || !!hol) blockNextDay(person.id, dateStr)
@@ -452,10 +501,13 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
       const next = addOneDay(dateStr)
       const strands = (p) => costsRestDay && !pool.some((q) => q.id !== p.id && !leaveOn(q, next) && !isBlocked(q.id, next))
       // Regular time first; above a holiday-reduced week only if the day would be uncovered (4a)
-      const tier = (overtime, lookAhead) => ranked.filter((p) =>
-        canWork(p, dateStr, { coverage: true, overtime }) && (!lookAhead || !strands(p)))
+      const tier = (overtime, lookAhead, beyondCap = false) => ranked.filter((p) =>
+        canWork(p, dateStr, { coverage: true, overtime, beyondCap }) && (!lookAhead || !strands(p)))
+      // Rule 9's last resort: above the overtime limit, least overtime first.
+      const leastOt = (list) => [...list].sort((a, b) => qUsed[a.id] - qUsed[b.id])
       const pick = choose(tier(false, true)) || choose(tier(true, true))
         || choose(tier(false, false)) || choose(tier(true, false))
+        || choose(leastOt(tier(true, true, true))) || choose(leastOt(tier(true, false, true)))
         // else: everyone rest-blocked (Rule 3), on leave or at 40h → a coverage gap
       if (pick) {
         assign(dateStr, pick)
@@ -479,14 +531,15 @@ export function generateSchedule(yearMonth, people, fairness = {}, prevAssignmen
         allAssignments.filter((a) => a.date === dateStr && a.center === center.id).map((a) => a.personId)
       )
       const sorted = [...pool].sort(weekdayRank)
-      const choose = (overtime) => {
-        const ok = (p) => !alreadyOn.has(p.id) && canWork(p, dateStr, { coverage, overtime })
+      const choose = (overtime, beyondCap = false) => {
+        const ok = (p) => !alreadyOn.has(p.id) && canWork(p, dateStr, { coverage, overtime, beyondCap })
         return sorted.find((p) => ok(p) && !onBirthday(p, dateStr) && used[p.id] < target[p.id])
           || sorted.find((p) => ok(p) && !onBirthday(p, dateStr))
           || sorted.find(ok) // birthday only as a last resort (Rule 6)
       }
       // The day's first person (coverage) may go above a holiday-reduced week (4a); others may not.
-      const pick = choose(false) || (coverage ? choose(true) : null)
+      // …and only if nobody can, above the center's overtime limit (Rule 9).
+      const pick = choose(false) || (coverage ? choose(true) || choose(true, true) : null)
       if (pick) assign(dateStr, pick)
       else if (coverage) gaps.push({ center: center.id, date: dateStr })
     }

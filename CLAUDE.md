@@ -486,6 +486,25 @@ Browser (React SPA)
   31st and the 1st–3rd had nobody (seen in simulation). **Look-ahead:** a Sunday/holiday (costs the
   next day off) never goes to someone whose rest day would leave the next day with nobody, if anyone
   else can take it; and someone on leave the next day takes it first (their rest day is free).
+  **Overtime limits (Rule 9, on request)** — `OVERTIME_RULES` in `scheduleGenerator.js`, per center:
+  **Bangalore** (`kind: 'special'`): every weekend or national-holiday shift is overtime (8h; still inside
+  the 40h week — confirmed by the user), max **50h per calendar quarter** → 6 such shifts
+  (`quarterMonths()`/`quarterLabel()`; quarters = Jan–Mar…, same boundaries as India's Apr–Mar fiscal
+  year). The generator seeds `qUsed` from the quarter's *earlier* saved months (`pastSchedules`, months
+  deduped) and counts as it assigns. **Warsaw** (`kind: 'aboveRegular'`): overtime = hours above
+  `regularWeek()`, max **8h per week** → the coverage `overtime` tier is limited to `r.shifts + 1`.
+  **Mexico City**: no rule (coverage may still use up to 40h). `canWork(…, { beyondCap })`: the limits
+  hold for every pick; only when no one can cover a day under them does coverage go beyond (special
+  days: extra tiers sorted by least `qUsed`; weekday pass A: `choose(true, true)`) — **coverage wins**,
+  an assumption made because the user didn't answer that question (they had stressed 24/7 coverage).
+  Capacity check: Bangalore has 26–31 weekend/holiday days per quarter, so the 50h limit can only hold
+  with ≥5–6 people there; with 3 it's ~72–88h each (simulated). Page: `quarterOther` (the quarter's other
+  saved months, loaded in `load()`) + on-screen schedule → `quarterOt` per Bangalore person, shown on the
+  stat chip as `OT 40/50h Q4` (amber when one more shift would break it, red above) and in the stats
+  modal's "Overtime" line; Warsaw weeks get `otLimit`/`overOt` in `personWeekRows()` (red chip/badge
+  "⚠ +16h overtime/wk (max 8h)"). `overtimeBreaches` feeds a red "⚠ Overtime limit exceeded" banner
+  above the coverage-gap banner. (The separate "🏖️ Overtime holidays" Excel export is unchanged: it
+  still lists only national-holiday shifts.)
   Each special day goes to the lowest `specialBalance` + this month's `specialUsed`; among equals,
   Sundays/holidays (which cost the next day off) go to whoever is owed the fewest days and Saturdays
   to whoever is owed the most (otherwise Sunday rest days block the catch-up), then whoever worked a
