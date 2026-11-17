@@ -676,7 +676,7 @@ Browser (React SPA)
   `scheduleGenerator.js`, and `fmtDate`/`fmtDay`/`fmtWeekday`/month-header labels in
   `WorkSchedule.jsx`.
 - **"🏖️ Overtime holidays" (`WorkSchedule.jsx`)**: toolbar button next to Export Excel that downloads
-  `overtime-holidays-YYYY-MM.xlsx`, an overtime payment request modelled on the Mexico HR template
+  `ULS_Overtime_247_<Month><Year>.xlsx` (e.g. `ULS_Overtime_247_November2026.xlsx`), an overtime payment request modelled on the Mexico HR template
   ("Solicitud de pago de horas extra", translated to English): one sheet per center (all three, an empty
   one says so), red title "Overtime payment request - <center>", columns ID / Full name / Overtime date
   (dd/mm/yyyy) / Overtime hours (day) / Comments. One row per non-cleared shift on a national holiday of

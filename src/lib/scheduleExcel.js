@@ -259,7 +259,12 @@ export function holidayOvertimeRows(month, schedule, allPeople) {
   return out
 }
 
-export function overtimeFileName(month) { return `overtime-holidays-${month}.xlsx` }
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+/** "2026-11" → "ULS_Overtime_247_November2026.xlsx" (month name + year of the exported month). */
+export function overtimeFileName(month) {
+  const [y, m] = month.split('-').map(Number)
+  return `ULS_Overtime_247_${MONTH_NAMES[m - 1]}${y}.xlsx`
+}
 
 function buildOvertimeSheet(workbook, center, rows) {
   const sheet = workbook.addWorksheet(center.id, {
