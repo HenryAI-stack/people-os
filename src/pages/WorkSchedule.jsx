@@ -3,7 +3,7 @@ import { directReportsStore, schedulesStore } from '../lib/dataStore'
 import { Avatar } from './DirectReports.jsx'
 import { CENTERS, getCenter, generateSchedule, computeWorkHistory, weekStart, SHIFT_HOURS, MAX_WEEKLY_HOURS, centerHours, centerHoursForMonth,
   SCHEDULE_TEAM, scheduleMembers, defaultScheduleSelection, STANDARD_DAYS, regularWeek, nominalDays } from '../lib/scheduleGenerator.js'
-import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName } from '../lib/scheduleExcel.js'
+import { downloadScheduleExcel, buildScheduleExcelFile, scheduleFileName, downloadOvertimeExcel } from '../lib/scheduleExcel.js'
 import { uploadFileToSharePoint, checkMembersAccess, findSharePointFile, syncOnDutyCalendar } from '../lib/msGraph.js'
 import { buildOnDutyEntries, calendarMarker } from '../lib/onDutyCalendar.js'
 import { getDaysInMonth, isWeekend, getHoliday } from '../lib/holidays.js'
@@ -65,6 +65,7 @@ export default function WorkSchedule() {
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
   const [shiftModal,  setShiftModal]  = useState(null)  // { date, center, personId } — click-to-swap/remove
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingOt,  setExportingOt]  = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [uploadingSp, setUploadingSp] = useState(false)
   const [replaceAsk,  setReplaceAsk]  = useState(null)  // existing SharePoint file → "Replace it?" modal
@@ -319,6 +320,18 @@ export default function WorkSchedule() {
     finally { setExportingExcel(false) }
   }
 
+  // "Overtime holidays": everyone who worked a national holiday this month (on-screen schedule,
+  // unsaved edits included), one sheet per center, ID = the profile's personal number.
+  async function handleExportOvertime() {
+    setExportingOt(true); setError('')
+    try {
+      const res = await downloadOvertimeExcel(month, schedule, allPeople)
+      const base = res.count ? `🏖️ Overtime holidays: ${res.count} holiday shift${res.count === 1 ? '' : 's'} exported.` : '🏖️ No shifts on national holidays this month — file has empty sheets.'
+      res.missingId.length ? showToast(`${base} ⚠ No personal number in profile: ${res.missingId.join(', ')}`, { tone: 'warn' }) : showToast(base)
+    } catch (e) { setError(e.message) }
+    finally { setExportingOt(false) }
+  }
+
   // ── Send via Email ───────────────────────────────────────────────────────
   // Fires schedule-email.yml (GitHub Actions), which rebuilds the same PDF +
   // Excel server-side (from the saved schedule) and emails both as attachments
@@ -486,6 +499,12 @@ export default function WorkSchedule() {
           {schedule && (
             <button className="btn" onClick={handleExportExcel} disabled={exportingExcel} style={{ fontSize:13 }}>
               {exportingExcel ? '⏳ Exporting…' : '📊 Export Excel'}
+            </button>
+          )}
+          {schedule && (
+            <button className="btn" onClick={handleExportOvertime} disabled={exportingOt} style={{ fontSize:13 }}
+              title="Excel overtime request: everyone who worked a national holiday this month, one sheet per center">
+              {exportingOt ? '⏳ Exporting…' : '🏖️ Overtime holidays'}
             </button>
           )}
           {schedule && (

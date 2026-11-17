@@ -221,3 +221,117 @@ export async function downloadScheduleExcel(month, people, schedule) {
   a.remove()
   URL.revokeObjectURL(url)
 }
+
+// ── "Overtime holidays" export ─────────────────────────────────────────────
+// Overtime payment request: everyone who worked a national holiday of their center's
+// country in the month, one sheet per center. Modelled on the Mexico HR template
+// ("Solicitud de pago de horas extra"), translated to English.
+export const OVERTIME_HOURS_PER_SHIFT = 8
+export const OVERTIME_COMMENT = '24/7 Ops duty'
+const OT_RED   = 'FFC00000' // template's title/header fill
+const OT_ROW   = 'FFFFF2CC' // template's data-row fill
+const OT_FONT  = 'Calibri'
+
+/** Pure: per center, the non-cleared shifts on that center's national holidays this month,
+ * filled from the person's profile (personalNumber, name). Date-sorted, then name. */
+export function holidayOvertimeRows(month, schedule, allPeople) {
+  const byId = new Map((allPeople || []).map((p) => [p.id, p]))
+  const out = {}
+  for (const center of CENTERS) out[center.id] = []
+  for (const a of schedule?.assignments || []) {
+    if (a.cleared || !a.personId || !a.date?.startsWith(month)) continue
+    const center = CENTERS.find((c) => c.id === a.center)
+    if (!center) continue
+    const holiday = getHoliday(a.date, center.country)
+    if (!holiday) continue
+    const p = byId.get(a.personId)
+    out[center.id].push({
+      personId: a.personId,
+      id: (p?.personalNumber || '').trim(),
+      name: p?.name || a.personName || '',
+      date: a.date,
+      holiday,
+      hours: OVERTIME_HOURS_PER_SHIFT,
+      comment: OVERTIME_COMMENT,
+    })
+  }
+  for (const rows of Object.values(out)) rows.sort((x, y) => x.date.localeCompare(y.date) || x.name.localeCompare(y.name))
+  return out
+}
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+/** "2026-11" → "ULS_Overtime_247_November2026.xlsx" (month name + year of the exported month). */
+export function overtimeFileName(month) {
+  const [y, m] = month.split('-').map(Number)
+  return `ULS_Overtime_247_${MONTH_NAMES[m - 1]}${y}.xlsx`
+}
+
+function buildOvertimeSheet(workbook, center, rows) {
+  const sheet = workbook.addWorksheet(center.id, {
+    views: [{ state: 'frozen', ySplit: 2 }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  sheet.columns = [{ width: 14 }, { width: 30 }, { width: 19 }, { width: 20 }, { width: 34 }]
+
+  sheet.mergeCells('A1:E1')
+  const title = sheet.getCell('A1')
+  title.value = `Overtime payment request - ${center.id}`
+  title.font = { name: OT_FONT, bold: true, size: 15, color: { argb: 'FFFFFFFF' } }
+  title.fill = fill(OT_RED)
+  title.alignment = { horizontal: 'center', vertical: 'middle' }
+  sheet.getRow(1).height = 28
+
+  const header = sheet.getRow(2)
+  header.values = ['ID', 'Full name', 'Overtime date', 'Overtime hours (day)', 'Comments']
+  header.height = 34
+  header.eachCell((c) => {
+    c.font = { name: OT_FONT, bold: true, size: 11, color: { argb: 'FFFFFFFF' } }
+    c.fill = fill(OT_RED)
+    c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+  })
+
+  rows.forEach((r, i) => {
+    const [y, m, d] = r.date.split('-').map(Number)
+    const row = sheet.getRow(3 + i)
+    // ID as text so leading zeros survive (as the template's instructions ask)
+    row.values = [r.id, r.name, new Date(Date.UTC(y, m - 1, d)), r.hours, r.comment]
+    row.eachCell({ includeEmpty: true }, (c, col) => {
+      if (col > 5) return
+      c.font = { name: OT_FONT, size: 11 }
+      c.fill = fill(OT_ROW)
+      c.alignment = { vertical: 'middle', wrapText: col === 5 }
+    })
+    row.getCell(3).numFmt = 'dd/mm/yyyy'
+    row.getCell(4).numFmt = '0.00'
+    if (!r.id) row.getCell(1).note = 'Personal number missing in PeopleOS profile'
+  })
+  if (!rows.length) {
+    const c = sheet.getCell('A3')
+    c.value = 'No shifts on national holidays this month.'
+    c.font = { name: OT_FONT, italic: true, size: 11, color: { argb: 'FF6B7280' } }
+  }
+}
+
+/** Builds the overtime .xlsx; returns the file plus who's missing a personal number. */
+export async function buildOvertimeExcelFile(month, schedule, allPeople) {
+  const { default: ExcelJS } = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'PeopleOS'
+  workbook.created = new Date()
+  const rowsByCenter = holidayOvertimeRows(month, schedule, allPeople)
+  for (const center of CENTERS) buildOvertimeSheet(workbook, center, rowsByCenter[center.id])
+  const all = Object.values(rowsByCenter).flat()
+  const missingId = [...new Set(all.filter((r) => !r.id).map((r) => r.name))]
+  const buffer = await workbook.xlsx.writeBuffer()
+  return { buffer, filename: overtimeFileName(month), mimeType: XLSX_MIME, count: all.length, missingId }
+}
+
+export async function downloadOvertimeExcel(month, schedule, allPeople) {
+  const res = await buildOvertimeExcelFile(month, schedule, allPeople)
+  const url = URL.createObjectURL(new Blob([res.buffer], { type: res.mimeType }))
+  const a = document.createElement('a')
+  a.href = url; a.download = res.filename
+  document.body.appendChild(a); a.click(); a.remove()
+  URL.revokeObjectURL(url)
+  return res
+}

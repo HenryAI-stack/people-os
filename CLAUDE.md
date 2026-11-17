@@ -675,6 +675,16 @@ Browser (React SPA)
   fix applied to `isWeekend`/`getDaysInMonth` in `holidays.js`, `dow`/`addOneDay`/`prevDay` in
   `scheduleGenerator.js`, and `fmtDate`/`fmtDay`/`fmtWeekday`/month-header labels in
   `WorkSchedule.jsx`.
+- **"🏖️ Overtime holidays" (`WorkSchedule.jsx`)**: toolbar button next to Export Excel that downloads
+  `ULS_Overtime_247_<Month><Year>.xlsx` (e.g. `ULS_Overtime_247_November2026.xlsx`), an overtime payment request modelled on the Mexico HR template
+  ("Solicitud de pago de horas extra", translated to English): one sheet per center (all three, an empty
+  one says so), red title "Overtime payment request - <center>", columns ID / Full name / Overtime date
+  (dd/mm/yyyy) / Overtime hours (day) / Comments. One row per non-cleared shift on a national holiday of
+  that center's country (`getHoliday` by date, not the stored `isHoliday` flag), from the on-screen
+  schedule. ID = the profile's `personalNumber` (as text, keeps leading zeros; missing → blank cell with a
+  note, plus a warning toast naming those people), hours = `OVERTIME_HOURS_PER_SHIFT` (8), comment =
+  `OVERTIME_COMMENT` ("24/7 Ops duty"). Pure `holidayOvertimeRows()` + `buildOvertimeExcelFile()` in
+  `scheduleExcel.js`.
 - **Work-schedule email**: unlike accomplishments, there's no cron — the "📧 Send via Email"
   button on `WorkSchedule.jsx` (`handleSendEmail`, next to Print PDF/Export Excel) calls
   `sendScheduleEmailNow(month)` in `src/lib/githubActions.js`, which fires
