@@ -8,7 +8,7 @@ import { getCountryCode, flagUrl } from '../lib/locationFlag.js'
 import { parseBirthday, formatBirthdayValue } from '../lib/birthdays.js'
 import { DraggableModal } from '../components/DraggableModal.jsx'
 
-const EMPTY = { name:'', role:'', team:'', startDate:'', birthday:'', level:'', location:'', status:'active', email:'', notes:'', photo:'' }
+const EMPTY = { name:'', role:'', team:'', startDate:'', birthday:'', level:'', location:'', status:'active', personalNumber:'', email:'', notes:'', photo:'' }
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 export default function DirectReports() {
@@ -211,6 +211,7 @@ export function ReportForm({ initial, onCancel, onSave }) {
             <option value="offboarding">Offboarding</option>
           </select>
         </div>
+        <div className="field"><label>Personal number</label><input value={form.personalNumber || ''} onChange={(e) => set('personalNumber', e.target.value)} placeholder="e.g. 104523" /></div>
         <div className="field"><label>Notes</label><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Strengths, growth areas, context…" /></div>
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>Cancel</button>

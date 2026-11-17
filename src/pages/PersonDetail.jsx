@@ -187,6 +187,7 @@ export default function PersonDetail() {
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {person.level && <Chip label="Level" value={person.level} />}
             {person.email && <Chip label="Email" value={person.email} />}
+            {person.personalNumber && <Chip label="Personal no." value={person.personalNumber} />}
             {person.startDate && (
               <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                 <Chip label="Since" value={person.startDate} />
