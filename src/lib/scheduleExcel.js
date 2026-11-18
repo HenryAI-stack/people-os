@@ -282,7 +282,7 @@ function buildOvertimeSheet(workbook, center, rows) {
   sheet.getRow(1).height = 28
 
   const header = sheet.getRow(2)
-  header.values = ['ID', 'Full name', 'Overtime date', 'Overtime hours (day)', 'Comments']
+  header.values = ['ID', 'Full name', 'Overtime date', 'Overtime hours', 'Comments']
   header.height = 34
   header.eachCell((c) => {
     c.font = { name: OT_FONT, bold: true, size: 11, color: { argb: 'FFFFFFFF' } }

@@ -698,7 +698,7 @@ Browser (React SPA)
   `ULS_Overtime_247_<Month><Year>.xlsx` (e.g. `ULS_Overtime_247_November2026.xlsx`), an overtime payment request modelled on the Mexico HR template
   ("Solicitud de pago de horas extra", translated to English): one sheet per center (all three, an empty
   one says so), red title "Overtime payment request - <center>", columns ID / Full name / Overtime date
-  (dd/mm/yyyy) / Overtime hours (day) / Comments. One row per non-cleared shift on a national holiday of
+  (dd/mm/yyyy) / Overtime hours / Comments. One row per non-cleared shift on a national holiday of
   that center's country (`getHoliday` by date, not the stored `isHoliday` flag), from the on-screen
   schedule. ID = the profile's `personalNumber` (as text, keeps leading zeros; missing → blank cell with a
   note, plus a warning toast naming those people), hours = `OVERTIME_HOURS_PER_SHIFT` (8), comment =
