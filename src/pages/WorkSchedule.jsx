@@ -67,6 +67,8 @@ export default function WorkSchedule() {
   const [error,       setError]       = useState('')
   const [autoSaved,   setAutoSaved]   = useState('')  // '' | 'saving' | 'saved'
   const autoSaveTimer = useRef(null)
+  const lastSaved     = useRef(null)  // the schedule object as loaded/last saved — auto-save skips it
+  const pendingSave   = useRef(null)  // an edited schedule waiting for its auto-save
   const [dragSrc,     setDragSrc]     = useState(null)  // { date, center }
   const [commentModal,setCommentModal]= useState(null)  // { date, center, text }
   const [shiftModal,  setShiftModal]  = useState(null)  // { date, center, personId } — click-to-swap/remove
@@ -88,29 +90,41 @@ export default function WorkSchedule() {
     setTimeout(() => setToast(null), opts?.tone === 'warn' ? 15000 : opts?.href ? 9000 : 4000)
   }
 
-  // Auto-save 1.5s after any change to the schedule
+  // Auto-save 1.5s after an edit in the calendar. Opening a month (load), generating and the manual
+  // Save store the schedule themselves and mark it in lastSaved, so they don't trigger a second write.
+  // Every edit builds a new schedule object, so "not the one last saved" = "changed".
   useEffect(() => {
-    if (!schedule) return
+    if (!schedule || schedule === lastSaved.current) return
+    pendingSave.current = schedule
     clearTimeout(autoSaveTimer.current)
     setAutoSaved('saving')
-    autoSaveTimer.current = setTimeout(async () => {
-      try {
-        await schedulesStore.upsert(schedule)
-        setAutoSaved('saved')
-        setTimeout(() => setAutoSaved(''), 2500)
-      } catch { setAutoSaved('') }
-    }, 1500)
+    autoSaveTimer.current = setTimeout(flushAutoSave, 1500)
     return () => clearTimeout(autoSaveTimer.current)
   }, [schedule])
+
+  async function flushAutoSave() {
+    const s = pendingSave.current
+    if (!s) return
+    pendingSave.current = null
+    clearTimeout(autoSaveTimer.current)
+    try {
+      await schedulesStore.upsert(s)
+      lastSaved.current = s
+      setAutoSaved('saved')
+      setTimeout(() => setAutoSaved(''), 2500)
+    } catch (e) { setAutoSaved(''); setError(`Auto-save failed: ${e.message}`) }
+  }
 
   async function load() {
     setLoading(true); setError('')
     try {
+      await flushAutoSave()  // an edit still waiting when the month changed is saved, not dropped
       setAllPeople(await directReportsStore.list())
 
       // Load schedule for this month (+ the months before/after, for weeks that run across)
       const schedules = await schedulesStore.list()
       const found = schedules.find((s) => s.month === month)
+      lastSaved.current = found || null
       setSchedule(found || null)
       const qMonths = quarterMonths(month)
       setQuarterOther(schedules.filter((s) => s.month !== month && qMonths.includes(s.month)).flatMap((s) => s.assignments || []))
@@ -160,6 +174,7 @@ export default function WorkSchedule() {
         excludedIds:       candidates.filter((p) => !chosen.has(p.id)).map((p) => p.id),
       }
       await schedulesStore.upsert(record)
+      lastSaved.current = record
       setSchedule(record)
     } catch (e) { setError(e.message) }
     finally { setGenerating(false) }
@@ -169,7 +184,8 @@ export default function WorkSchedule() {
   async function handleSave() {
     if (!schedule) return
     setSaving(true); setError('')
-    try { await schedulesStore.upsert(schedule) }
+    clearTimeout(autoSaveTimer.current); pendingSave.current = null; setAutoSaved('')
+    try { await schedulesStore.upsert(schedule); lastSaved.current = schedule }
     catch (e) { setError(e.message) }
     finally { setSaving(false) }
   }
@@ -298,7 +314,9 @@ export default function WorkSchedule() {
     if (!confirm(`Delete the schedule for ${month}? This cannot be undone.`)) return
     setSaving(true); setError('')
     try {
+      clearTimeout(autoSaveTimer.current); pendingSave.current = null; setAutoSaved('')
       await schedulesStore.remove(schedule.id)
+      lastSaved.current = null
       setSchedule(null)
     } catch (e) { setError(e.message) }
     finally { setSaving(false) }

@@ -650,6 +650,12 @@ from the page-local pure `personPeriodStats(person, assignments, from, to)`: shi
   schedule; the center name switches tabs).
   Edits don't recompute the saved `fairnessSnapshot`/`balances`, but the next month's generation
   reads the saved assignments directly, so manual edits do count towards everyone's history.
+  **Auto-save** runs 1.5s after an *edit* only (swap, assign, remove, move, comment, leave): `lastSaved`
+  (ref) holds the schedule object as loaded / generated / manually saved, and the effect skips it, so
+  just opening a month writes nothing (it used to upsert on every open). Every edit builds a new
+  schedule object, which is how a change is detected. A pending edit is flushed (`flushAutoSave()`)
+  before another month loads, so switching months within 1.5s no longer drops it; manual Save and
+  Delete cancel a pending auto-save. A failed auto-save shows "Auto-save failed: …".
 - **24/7 on-duty view (Dashboard)**: the three centers' shifts are each in *local* time and chain
   "follow the sun" (Bangalore 07:00–15:00 IST → Warsaw 11:30–19:30 → Mexico City 11:30–19:30), so
   every `CENTERS` entry now carries a `tz` (IANA name). **Warsaw has winter hours**
