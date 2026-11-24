@@ -34,6 +34,11 @@ function fmtDate(dateStr) {
 function fmtDay(dateStr) {
   return Number(dateStr.split('-')[2])
 }
+// Day tile label in the calendar: "12 December"
+function fmtDayMonth(dateStr) {
+  const month = new Date(dateStr).toLocaleDateString('en-GB', { month:'long', timeZone:'UTC' })
+  return `${fmtDay(dateStr)} ${month}`
+}
 function fmtWeekday(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short', timeZone:'UTC' })
 }
@@ -702,7 +707,7 @@ export default function WorkSchedule() {
                       onDrop={() => onDrop(dateStr, c.id)}>
                       <div className="ws-day-num">
                         <span className="ws-day-wd">{fmtWeekday(dateStr)}</span>
-                        {fmtDay(dateStr)}
+                        <span className="ws-day-date">{fmtDayMonth(dateStr)}</span>
                         {hol && <span className="ws-hol-label" title={hol}>🗓️</span>}
                         {hol && <span className="ws-hol-name">{hol}</span>}
                         <button className="ws-add-btn no-print" title="Assign someone to this day"
