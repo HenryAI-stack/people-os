@@ -598,6 +598,8 @@ Browser (React SPA)
   grouped by center, with three column groups — last month, **this month** (framed: `.ws-ov-cur*`,
   accent border + tint, same look as the Employee stats) and this year (Jan → this month) — each split
   into Days / Wknd / Hol. (It used to show this month + an all-time "Total"; replaced on request.)
+  A person's Days cell also shows, in brackets, the shifts on workdays (Mon–Fri, not a holiday) =
+  Days − Wknd − Hol (`.ws-ov-wd`), comparable with the orange workdays on the location row.
   Each location heading row shows that center's **calendar** for the same three periods in orange
   (`.ws-ov-ref`, `var(--accent)`): public holidays of the center's country (any weekday), weekend days
   that aren't a holiday, and workdays (Mon–Fri, not a holiday) — disjoint, so they add up to the days in

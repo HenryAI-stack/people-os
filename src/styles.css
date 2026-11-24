@@ -503,6 +503,8 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-ov th.ws-ov-name { z-index: 2; }
 .ws-ov-person { display: inline-flex; align-items: center; gap: 7px; }
 .ws-ov-num { text-align: right; font-variant-numeric: tabular-nums; width: 52px; }
+.ws-ov-days { white-space: nowrap; width: 74px; }
+.ws-ov-wd { font-size: 11.5px; color: var(--text-dim); }
 .ws-ov-first { border-left: 1px solid var(--border); }
 .ws-ov-center td > span { position: sticky; left: 8px; }
 .ws-ov-center td { font-size: 12.5px; font-weight: 600; color: var(--text); padding-top: 26px; border-bottom: none; }

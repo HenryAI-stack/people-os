@@ -1295,7 +1295,9 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
     const c = g.counts[id] || zero
     return (
       <React.Fragment key={g.key}>
-        <td className={cls(g, 0)}>{c.days}</td><td className={cls(g, 1)}>{c.weekends}</td><td className={cls(g, 2)}>{c.holidays}</td>
+        <td className={`${cls(g, 0)} ws-ov-days`} title={`${c.days} shifts in total, ${c.days - c.weekends - c.holidays} of them on workdays (Mon–Fri, not a public holiday)`}>
+          {c.days} <span className="ws-ov-wd">({c.days - c.weekends - c.holidays})</span>
+        </td><td className={cls(g, 1)}>{c.weekends}</td><td className={cls(g, 2)}>{c.holidays}</td>
       </React.Fragment>
     )
   })
@@ -1315,7 +1317,7 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
               <tr>
                 {groups.map((g) => (
                   <React.Fragment key={g.key}>
-                    <th className={cls(g, 0)} title="Worked days">Days</th>
+                    <th className={cls(g, 0)} title="Shifts worked in total; in brackets: on workdays (Mon–Fri, not a public holiday)">Days</th>
                     <th className={cls(g, 1)} title="Of those, on a Saturday or Sunday">Wknd</th>
                     <th className={cls(g, 2)} title="Of those, on a public holiday of the person's country">Hol</th>
                   </React.Fragment>
@@ -1359,7 +1361,7 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
           </table>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
-          Days = all shifts worked; Wknd = those on a weekend day that isn't a public holiday, Hol = those on
+          Days = all shifts worked, in brackets those on workdays (Mon–Fri, not a public holiday); Wknd = those on a weekend day that isn't a public holiday, Hol = those on
           a public holiday (also when it falls on a weekend). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
           <span style={{ color: 'var(--accent)' }}> Orange numbers on each location row</span> = that location's calendar in the
           period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays; a holiday on a
