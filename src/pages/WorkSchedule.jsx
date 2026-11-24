@@ -616,7 +616,7 @@ export default function WorkSchedule() {
                 onClick={() => setActiveCenter(c.id)}>
                 <img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} />
                 {c.label}
-                <span style={{ fontSize:11, marginLeft:6, opacity:0.7 }}>{centerHoursForMonth(c, month).label}</span>
+                <span className="ws-tab-hours">{centerHoursForMonth(c, month).label}</span>
               </button>
             ))}
           </div>
