@@ -780,8 +780,8 @@ export default function WorkSchedule() {
                               {a.dayOffGranted && <span title="Day-off credit">💤</span>}
                               <button className="ws-comment-btn"
                                 onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id, a.personId) }}
-                                title={a.comment || 'Add comment'}>
-                                {a.comment ? '💬' : '○'}
+                                title={a.comment || 'Add comment'} aria-label={a.comment ? 'Edit comment' : 'Add comment'}>
+                                <NoteIcon filled={!!a.comment} />
                               </button>
                               <button className="ws-clear-btn"
                                 onClick={(e) => { e.stopPropagation(); clearAssignment(dateStr, c.id, a.personId) }}
@@ -1184,6 +1184,21 @@ function weekRowText(r) {
   if (r.overOt) return `${base} — ⚠ ${r.hours - r.regular}h overtime, above the ${r.otLimit}h/week limit`
   if (r.hours > r.regular) return `${base} — ${r.hours - r.regular}h above regular, needed for 24/7 coverage`
   return base
+}
+
+/**
+ * Comment icon on a shift chip: an outlined speech bubble ("add comment") or a filled one (has a
+ * comment). Inline SVG in currentColor, so it looks the same everywhere — the old "○" placeholder
+ * read as an empty, not-loaded icon on iOS.
+ */
+function NoteIcon({ filled }) {
+  return (
+    <svg className="ws-note-icon" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"
+      fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.2"
+      strokeLinejoin="round" strokeLinecap="round">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" />
+    </svg>
+  )
 }
 
 /**

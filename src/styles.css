@@ -682,6 +682,9 @@ body.light .ws-chip { color: var(--accent); }
   flex-shrink: 0;
 }
 .ws-comment-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.ws-comment-btn { display: inline-flex; align-items: center; justify-content: center; }
+.ws-note-icon { display: block; }
+.ws-comment-btn:has(.ws-note-icon[fill="currentColor"]) { color: var(--accent); }
 
 .ws-legend {
   display: flex;

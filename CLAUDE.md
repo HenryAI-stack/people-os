@@ -650,6 +650,8 @@ from the page-local pure `personPeriodStats(person, assignments, from, to)`: shi
   `personId`/`personName` in place (date/center/flags/comment kept) and drops any *cleared* entry
   the replacement already had that day, so nobody is listed twice. Drag-and-drop (move to another
   day), ✕ and 💬 still work as before; their buttons `stopPropagation` so they don't open the modal.
+  The comment button shows the page-local `NoteIcon` (inline SVG speech bubble, outlined = no comment,
+  filled orange = has one); the old "○" placeholder looked like an empty, unloaded icon on iOS.
   Clicking an empty day's "—", or the "+" that appears on hover in every day header, opens the
   same modal in **assign mode** (`personId: null`: "Assign shift", no current person, no remove
   button) → `addAssignment()` adds a full assignment record (same fields as the generator's
