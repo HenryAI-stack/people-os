@@ -77,7 +77,15 @@ Browser (React SPA)
   safety net for any remaining case (versions installed before this fix, plain tabs left open
   across a deploy). It listens for Vite's `vite:preloadError` and moves to the new version: it
   activates a waiting SW after `reg.update()`, otherwise reloads, at most once per 30s via
-  sessionStorage, and shows "Switching to it…" through `AppBanners`. The SW versions the cache with a hash of that list + the built `index.html`, and emits
+  sessionStorage, and shows "Switching to it…" through `AppBanners`. **Blank-page fix (Nov 2026):** the SW's install
+  precaches with `fetch(..., { cache: 'reload' })` — GitHub Pages serves `max-age=600`, so several
+  deploys within 10 minutes let a new SW precache the *previous* `index.html` (from the HTTP cache)
+  next to the new build's files; that shell pointed at deleted hashed files and the iPad app/Edge
+  showed a blank page. Install also checks that every `assets/…` file the cached shell references
+  is in this build's list, else it deletes its cache and fails (the old worker keeps serving).
+  Plus an inline ES5 **boot watchdog** in `index.html`: if an `/assets/` script/stylesheet fails to
+  load, or `#root` is still empty after 15s, it unregisters the SW, deletes `peopleos-*` caches and
+  reloads with `?r=<ts>` (bypasses HTTP cache), at most once per 60s (sessionStorage). The SW versions the cache with a hash of that list + the built `index.html`, and emits
   `dist/sw.js`. It only handles same-origin GETs inside the scope: navigations get the cached
   shell (cache-first → instant, offline-capable launch), other assets cache-first. **Data is
   never cached** — GitHub API/Firebase/OpenRouter/Graph are cross-origin and pass straight

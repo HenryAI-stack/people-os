@@ -25,6 +25,39 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Boot watchdog: if the app's own script fails to load (a cached page pointing at files a newer
+         deploy removed) or nothing has rendered after 15s, drop the service worker + its caches and
+         load the page fresh from the network (?r= skips the HTTP cache too). At most once a minute,
+         so a real outage can't loop. Plain ES5 on purpose: it must run even when the bundle can't. -->
+    <script>
+      (function () {
+        var KEY = 'peopleos-boot-recover';
+        function recover() {
+          try {
+            if (Date.now() - Number(sessionStorage.getItem(KEY) || 0) < 60000) return;
+            sessionStorage.setItem(KEY, String(Date.now()));
+          } catch (e) {}
+          var jobs = [];
+          if ('serviceWorker' in navigator) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          }));
+          if (window.caches) jobs.push(caches.keys().then(function (ks) {
+            return Promise.all(ks.filter(function (k) { return k.indexOf('peopleos-') === 0; }).map(function (k) { return caches.delete(k); }));
+          }));
+          Promise.all(jobs).catch(function () {}).then(function () {
+            location.replace(location.pathname + '?r=' + Date.now() + location.hash);
+          });
+        }
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK') && /\/assets\//.test(t.src || t.href || '')) recover();
+        }, true);
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && !root.firstChild) recover();
+        }, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

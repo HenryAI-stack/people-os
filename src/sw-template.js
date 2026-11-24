@@ -12,9 +12,25 @@ const SCOPE    = self.registration.scope            // e.g. https://…/people-o
 const SHELL    = SCOPE                              // precached as './' (= index.html)
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE.map((p) => new URL(p, SCOPE).href)))
-  )
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE)
+    // cache: 'reload' bypasses the browser's HTTP cache. GitHub Pages serves everything with
+    // max-age=600, so a deploy within 10 minutes of the previous one could otherwise precache the
+    // *previous* index.html next to this build's files. That shell points at hashed files the new
+    // deploy already deleted, and the app launched to a blank page (seen on iPad, Nov 2026).
+    await cache.addAll(PRECACHE.map((p) => new Request(new URL(p, SCOPE).href, { cache: 'reload' })))
+    // Sanity check: every /assets/ file the cached shell loads must belong to this build. If not
+    // (e.g. a half-finished deploy), fail the install: the current worker keeps serving a working
+    // version and the browser retries on the next update check.
+    const shell = await cache.match(SHELL)
+    const html = shell ? await shell.text() : ''
+    const refs = [...html.matchAll(/(?:src|href)="[^"]*?(assets\/[^"?#]+)"/g)].map((m) => m[1])
+    const missing = refs.filter((r) => !PRECACHE.includes(r))
+    if (!shell || missing.length) {
+      await caches.delete(CACHE)
+      throw new Error(`PeopleOS SW: shell doesn't match this build (${missing.join(', ') || 'no shell'})`)
+    }
+  })())
   // No skipWaiting() here: the page shows an "Update available" banner and sends SKIP_WAITING
   // when the user taps it, so a deploy never swaps code under an open form.
 })
