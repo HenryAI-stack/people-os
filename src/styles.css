@@ -505,7 +505,10 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-ov-num { text-align: right; font-variant-numeric: tabular-nums; width: 52px; }
 .ws-ov-first { border-left: 1px solid var(--border); }
 .ws-ov-center td > span { position: sticky; left: 8px; }
-.ws-ov-center td { font-size: 12.5px; font-weight: 600; color: var(--text); padding-top: 12px; border-bottom: none; }
+.ws-ov-center td { font-size: 12.5px; font-weight: 600; color: var(--text); padding-top: 26px; border-bottom: none; }
+/* Location separator: thick line + extra space above every location block except the first */
+.ws-ov tbody tr.ws-ov-center:not(:first-child) td { border-top: 3px solid color-mix(in srgb, var(--text-faint) 80%, var(--bg-elevated)); }
+.ws-ov tbody tr.ws-ov-center:first-child td { padding-top: 12px; }
 .ws-ov-center td.ws-ov-ref { color: var(--accent); font-weight: 700; vertical-align: bottom; cursor: help; }
 /* Overview: frame around this month's column group */
 .ws-ov .ws-ov-cur { background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)); }
