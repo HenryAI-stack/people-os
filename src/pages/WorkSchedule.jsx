@@ -701,6 +701,11 @@ export default function WorkSchedule() {
               </div>
 
               <div className="ws-calendar">
+                {/* 6 vertical separator lines between the weekday columns, through the whole calendar.
+                    Absolutely positioned, so it takes no grid cell (and doesn't shift the day cells). */}
+                <div className="ws-col-lines" aria-hidden="true">
+                  {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
+                </div>
                 {/* Week header */}
                 {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
                   <div key={d} className="ws-day-header">{d}</div>

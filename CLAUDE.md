@@ -101,7 +101,10 @@ Browser (React SPA)
   the 7 columns would be too narrow to show names. The grid itself is
   `repeat(7, minmax(0, 1fr))` (plain `1fr` refused to shrink below the name chips and pushed
   Sunday off-screen), and `.main:has(.ws-calendar)` lifts `.main`'s 1100px max-width on that page
-  so the grid gets the full window. Print resets the container (`container-type: normal`) and
+  so the grid gets the full window. Six vertical separator lines run between the weekday columns
+  through the whole calendar (on request): `.ws-col-lines`, an absolutely positioned overlay grid
+  with the same columns and `--ws-gap` (absolute, so it takes no grid cell), each column but Sunday
+  drawing a line in the middle of its gap; hidden in list mode. Print resets the container (`container-type: normal`) and
   always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
   content clear of the notch and home indicator.

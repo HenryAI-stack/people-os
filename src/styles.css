@@ -562,9 +562,17 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   --ws-line: color-mix(in srgb, var(--text-faint) 70%, var(--bg-card));
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr)); /* minmax(0,…): plain 1fr won't shrink below the name chips, pushing Sunday off the edge */
-  gap: 4px;
+  --ws-gap: 10px;
+  gap: var(--ws-gap);
   margin-bottom: 12px;
+  position: relative;
 }
+/* Separator line between the weekday columns (6 lines), running through the whole calendar:
+   an absolutely positioned overlay grid with the same columns/gap; each column but Sunday draws a
+   line in the middle of the gap to its right. Hidden in the one-column list mode below. */
+.ws-col-lines { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); column-gap: var(--ws-gap); pointer-events: none; }
+.ws-col-lines > span { position: relative; }
+.ws-col-lines > span:not(:last-child)::after { content: ''; position: absolute; top: 0; bottom: 0; right: calc(var(--ws-gap) / -2 - 1px); width: 2px; border-radius: 1px; background: var(--ws-line); }
 
 .ws-day-header {
   text-align: center;
@@ -737,12 +745,14 @@ body.light .ws-chip { color: var(--accent); }
      and the 5–6 week rows share the remaining height evenly. */
   .ws-calendar {
     flex: 1 1 auto;
-    gap: 3px;
+    --ws-gap: 5px;
+    gap: var(--ws-gap);
     margin-bottom: 0;
     grid-template-rows: auto;
     grid-auto-rows: 1fr;
   }
   .ws-day-header { font-size: 10px; padding: 2px 0; color: #444; }
+  .ws-col-lines > span:not(:last-child)::after { width: 1px; right: calc(var(--ws-gap) / -2 - 0.5px); background: #999; }
   .ws-day-cell {
     min-height: 0;
     border: 0.5px solid #bbb;
@@ -778,6 +788,7 @@ body.light .ws-chip { color: var(--accent); }
 .ws-day-wd, .ws-hol-name { display: none; }
 @container wscal (max-width: 999px) {
   .ws-calendar { grid-template-columns: 1fr; gap: 6px; max-width: 760px; }
+  .ws-col-lines { display: none; }
   .ws-calendar .ws-day-header, .ws-calendar .ws-day-empty { display: none; }
   .ws-day-cell { min-height: 0; display: grid; grid-template-columns: 92px 1fr 30px; column-gap: 8px; row-gap: 0; padding: 8px; align-items: start; }
   /* date column spans every chip row (chips auto-place into column 2); spare spanned rows are 0px */
