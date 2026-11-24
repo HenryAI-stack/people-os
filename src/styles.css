@@ -543,6 +543,8 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 
 /* Calendar grid — 7 columns (Mon–Sun) */
 .ws-calendar {
+  /* Day-cell outlines: --border alone was barely visible against --bg-card in both themes */
+  --ws-line: color-mix(in srgb, var(--text-faint) 70%, var(--bg-card));
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr)); /* minmax(0,…): plain 1fr won't shrink below the name chips, pushing Sunday off the edge */
   gap: 4px;
@@ -562,7 +564,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-day-cell {
   min-height: 90px;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--ws-line);
   border-radius: 6px;
   padding: 4px;
   display: flex;
@@ -573,7 +575,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 }
 .ws-day-cell:hover { border-color: var(--accent); }
 .ws-day-cell.ws-weekend  { background: rgba(217,178,94,0.06); }
-.ws-day-cell.ws-holiday  { background: rgba(217,113,106,0.08); border-color: rgba(217,113,106,0.3); }
+.ws-day-cell.ws-holiday  { background: rgba(217,113,106,0.08); border-color: rgba(217,113,106,0.55); }
 .ws-day-cell.ws-dragging { opacity: 0.4; border: 2px dashed var(--accent); }
 .ws-day-cell.ws-day-empty { background: transparent; border-color: transparent; }
 
@@ -670,6 +672,16 @@ body.light .ws-chip { color: var(--accent); }
 /* The month grid needs every pixel: lift .main's 1100px reading-width cap on the Work Schedule page. */
 .main:has(.ws-calendar) { max-width: none; }
 .ws-controls > * { flex-wrap: wrap; }
+
+/* "⚙️ Schedule Action" dropdown (ScheduleActionsMenu) */
+.ws-menu { position: relative; }
+.ws-menu-caret { font-size: 11px; transition: transform 0.15s; }
+.ws-menu-caret.open { transform: rotate(180deg); }
+.ws-menu-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 50; min-width: 210px; padding: 4px; display: flex; flex-direction: column; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.ws-menu-item { background: none; border: none; color: var(--text); text-align: left; font-size: 13px; padding: 9px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.ws-menu-item:hover:not(:disabled) { background: var(--bg-card); color: var(--accent); }
+.ws-menu-item.danger { color: var(--bad); }
+.ws-menu-item:disabled { opacity: 0.5; cursor: default; }
 
 /* ── Print styles ── */
 .print-only { display: none; }

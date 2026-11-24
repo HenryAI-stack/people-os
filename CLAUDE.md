@@ -570,7 +570,7 @@ Browser (React SPA)
   wins over leave there. Leave is read live from the person, not snapshotted on the schedule, so
   editing old leave changes past history too (intended: it should reflect the truth). The person's
   `status: 'leave'` is unrelated and still just means "on long leave" (unticked by default).
-- **Who's on the schedule ("Select employees")**: "✦ Generate schedule"/"↻ Regenerate" no longer
+- **Who's on the schedule ("Select employees")**: "✦ Generate schedule"/"↻ Regenerate Schedule" no longer
   just confirms; it opens `SchedulePeopleModal` (`WorkSchedule.jsx`, a `DraggableModal`) listing every
   direct report at a support center (`getCenter(p)` non-null), grouped by center with a checkbox each,
   a per-center "N of M" count (amber below 2, plus a "weekdays need 2 people" note), and an All/None
@@ -586,6 +586,13 @@ Browser (React SPA)
   Schedules saved before this existed (no `memberIds`) fall back to the whole 24/7 team, as before.
   `WorkSchedule.jsx` loads all direct reports (`allPeople`) and derives `people` from that; its old
   local `TEAM_NAME` is gone, and `send-schedule-email.mjs` imports `SCHEDULE_TEAM` too.
+- **Toolbar / "⚙️ Schedule Action" (`WorkSchedule.jsx`)**: once a month has a schedule, Regenerate,
+  Delete, Print PDF, Export Excel and Email live in one dropdown, the page-local `ScheduleActionsMenu`
+  (items "↻ Regenerate Schedule", "🗑️ Delete Schedule", "🖨️ Print PDF", "📊 Export Excel",
+  "📧 Email Schedule"; renamed on request). It opens on click (not hover, for phones) and closes on an
+  item click, a click/touch outside or Escape; while generating/exporting/queuing, the button shows
+  that state and is disabled. Without a schedule there's just "✦ Generate schedule". Save, Overtime
+  holidays, Overview and Upload to SharePoint stay separate buttons. Styles: `.ws-menu*`.
 - **"📈 Overview" (`WorkSchedule.jsx`)**: a toolbar button (shown once a month has a schedule) that
   opens `ShiftOverviewModal`: everyone on this month's schedule (`people`, i.e. `scheduleMembers`),
   grouped by center, with three column groups — last month, **this month** (framed: `.ws-ov-cur*`,
@@ -693,7 +700,7 @@ from the page-local pure `personPeriodStats(person, assignments, from, to)`: shi
   fix applied to `isWeekend`/`getDaysInMonth` in `holidays.js`, `dow`/`addOneDay`/`prevDay` in
   `scheduleGenerator.js`, and `fmtDate`/`fmtDay`/`fmtWeekday`/month-header labels in
   `WorkSchedule.jsx`.
-- **"🏖️ Overtime holidays" (`WorkSchedule.jsx`)**: toolbar button next to Export Excel that downloads
+- **"🏖️ Overtime holidays" (`WorkSchedule.jsx`)**: toolbar button (next to the "⚙️ Schedule Action" menu) that downloads
   `ULS_Overtime_247_<Month><Year>.xlsx` (e.g. `ULS_Overtime_247_November2026.xlsx`), an overtime payment request modelled on the Mexico HR template
   ("Solicitud de pago de horas extra", translated to English): one sheet per center (all three, an empty
   one says so), red title "Overtime payment request - <center>", columns ID / Full name / Overtime date
@@ -703,8 +710,8 @@ from the page-local pure `personPeriodStats(person, assignments, from, to)`: shi
   note, plus a warning toast naming those people), hours = `OVERTIME_HOURS_PER_SHIFT` (8), comment =
   `OVERTIME_COMMENT` ("24/7 Ops duty"). Pure `holidayOvertimeRows()` + `buildOvertimeExcelFile()` in
   `scheduleExcel.js`.
-- **Work-schedule email**: unlike accomplishments, there's no cron — the "📧 Send via Email"
-  button on `WorkSchedule.jsx` (`handleSendEmail`, next to Print PDF/Export Excel) calls
+- **Work-schedule email**: unlike accomplishments, there's no cron — the "📧 Email Schedule"
+  item in the "⚙️ Schedule Action" menu on `WorkSchedule.jsx` (`handleSendEmail`) calls
   `sendScheduleEmailNow(month)` in `src/lib/githubActions.js`, which fires
   `.github/workflows/schedule-email.yml` (`workflow_dispatch` only) on demand. That workflow
   runs `scripts/send-schedule-email.mjs`, which re-reads `direct-reports.json` and
@@ -924,7 +931,7 @@ scripts/
 .github/workflows/
   deploy.yml               Build + deploy to GitHub Pages on push to main
   accomplishments-email.yml Thursday cron + manual dispatch for the monthly email
-  schedule-email.yml       Manual dispatch only — "📧 Send via Email" on WorkSchedule.jsx
+  schedule-email.yml       Manual dispatch only — "📧 Email Schedule" on WorkSchedule.jsx
 ```
 
 Data collections (each a JSON file in the **separate, private** data repo — default name
@@ -1006,7 +1013,7 @@ only and not in `.env.example`).
 | `VITE_OPENROUTER_MODEL` | app build (`ai.js`) | Optional model-slug override; falls back to `ai.js`'s `MODEL` default. Set when OpenRouter retires the current slug (with the proxy, its `OPENROUTER_MODEL` wins) |
 | `OPENROUTER_API_KEY`, `FIREBASE_PROJECT_ID`, `ALLOWED_EMAIL` (+ optional `OPENROUTER_MODEL`, `ALLOWED_ORIGINS`) | Vercel env of `ai-proxy/` | Server-side only, set in the Vercel project, never in GitHub secrets — see `ai-proxy/README.md` |
 | `VITE_MS_GRAPH_TOKEN` | app build (`msGraph.js`) | Build-time fallback Graph token for Outlook / Microsoft To Do sync; expires ~1h. Normally set instead from the Settings page at runtime (`localStorage`, no rebuild needed) — see `src/lib/settings.js` |
-| `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" and "Send via Email" buttons |
+| `VITE_GH_ACTIONS_TOKEN` | app build (`githubActions.js`) | Fine-grained PAT, "Actions: write" on this repo only, for the manual "send email now" button and the "Email Schedule" menu item |
 | `RESEND_API_KEY` | both email jobs | Server-side Resend API key, shared by both the accomplishments and work-schedule emails |
 | `ACCOMPLISHMENTS_EMAIL_TO` | accomplishments email job (workflow env) | Recipient of the monthly summary (currently hardcoded in the workflow) |
 | `SCHEDULE_EMAIL_TO` | schedule email job (workflow env) | Recipient of the work-schedule PDF+Excel email (hardcoded to `henry.ai.server@gmail.com` in `schedule-email.yml` — the Resend account's own verified address; see the note under Work-schedule email above before changing it) |

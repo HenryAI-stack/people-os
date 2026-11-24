@@ -519,10 +519,23 @@ export default function WorkSchedule() {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           {error && <span style={{ color:'var(--bad)', fontSize:13, alignSelf:'center' }}>⚠️ {error}</span>}
-          <button className="btn" onClick={handleGenerate} disabled={generating || loading || candidates.length===0}
-            style={{ fontSize:13 }}>
-            {generating ? '⏳ Generating…' : schedule ? '↻ Regenerate' : '✦ Generate schedule'}
-          </button>
+          {schedule ? (
+            <ScheduleActionsMenu busy={generating || exportingExcel || sendingEmail}
+              label={generating ? '⏳ Generating…' : exportingExcel ? '⏳ Exporting…' : sendingEmail ? '⏳ Queuing…' : '⚙️ Schedule Action'}
+              items={[
+                { key: 'regen', label: '↻ Regenerate Schedule', onClick: handleGenerate, disabled: generating || loading || candidates.length===0 },
+                { key: 'delete', label: '🗑️ Delete Schedule', onClick: handleDelete, disabled: saving, danger: true },
+                { key: 'print', label: '🖨️ Print PDF', onClick: handlePrint },
+                { key: 'excel', label: '📊 Export Excel', onClick: handleExportExcel, disabled: exportingExcel },
+                { key: 'email', label: '📧 Email Schedule', onClick: handleSendEmail, disabled: sendingEmail,
+                  title: `Email the ${month} schedule (PDF + Excel) — recipient set by SCHEDULE_EMAIL_TO in schedule-email.yml` },
+              ]} />
+          ) : (
+            <button className="btn" onClick={handleGenerate} disabled={generating || loading || candidates.length===0}
+              style={{ fontSize:13 }}>
+              {generating ? '⏳ Generating…' : '✦ Generate schedule'}
+            </button>
+          )}
           {schedule && (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               {autoSaved === 'saving' && <span style={{ fontSize:12, color:'var(--text-faint)' }}>⏳ Auto-saving…</span>}
@@ -532,23 +545,10 @@ export default function WorkSchedule() {
               </button>
             </div>
           )}
-          {schedule && <button className="btn ghost danger" onClick={handleDelete} disabled={saving} style={{ fontSize:13 }}>🗑️ Delete</button>}
-          {schedule && <button className="btn" onClick={handlePrint} style={{ fontSize:13 }}>🖨️ Print PDF</button>}
-          {schedule && (
-            <button className="btn" onClick={handleExportExcel} disabled={exportingExcel} style={{ fontSize:13 }}>
-              {exportingExcel ? '⏳ Exporting…' : '📊 Export Excel'}
-            </button>
-          )}
           {schedule && (
             <button className="btn" onClick={handleExportOvertime} disabled={exportingOt} style={{ fontSize:13 }}
               title="Excel overtime request: everyone who worked a national holiday this month, one sheet per center">
               {exportingOt ? '⏳ Exporting…' : '🏖️ Overtime holidays'}
-            </button>
-          )}
-          {schedule && (
-            <button className="btn" onClick={handleSendEmail} disabled={sendingEmail} style={{ fontSize:13 }}
-              title={`Email the ${month} schedule (PDF + Excel) — recipient set by SCHEDULE_EMAIL_TO in schedule-email.yml`}>
-              {sendingEmail ? '⏳ Queuing…' : '📧 Send via Email'}
             </button>
           )}
           {schedule && (
@@ -1159,6 +1159,47 @@ function weekRowText(r) {
   if (r.overOt) return `${base} — ⚠ ${r.hours - r.regular}h overtime, above the ${r.otLimit}h/week limit`
   if (r.hours > r.regular) return `${base} — ${r.hours - r.regular}h above regular, needed for 24/7 coverage`
   return base
+}
+
+/**
+ * "⚙️ Schedule Action" dropdown in the toolbar: groups Regenerate / Delete / Print / Export / Email.
+ * Opens on click (works on phones), closes on an item click, a click outside or Escape.
+ */
+function ScheduleActionsMenu({ label, items, busy }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('touchstart', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('touchstart', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div className="ws-menu" ref={ref}>
+      <button className="btn" style={{ fontSize:13 }} aria-haspopup="menu" aria-expanded={open}
+        disabled={busy} onClick={() => setOpen((o) => !o)}>
+        {label} <span className={`ws-menu-caret ${open ? 'open' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="ws-menu-list" role="menu">
+          {items.map((it) => (
+            <button key={it.key} role="menuitem" className={`ws-menu-item ${it.danger ? 'danger' : ''}`}
+              disabled={it.disabled} title={it.title}
+              onClick={() => { setOpen(false); it.onClick() }}>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Stat-chip tooltip for the history a schedule was generated with (schedule.balances[personId]). */
