@@ -504,6 +504,12 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-ov-first { border-left: 1px solid var(--border); }
 .ws-ov-center td > span { position: sticky; left: 8px; }
 .ws-ov-center td { font-size: 12.5px; font-weight: 600; color: var(--text); padding-top: 12px; border-bottom: none; }
+/* Overview: frame around this month's column group */
+.ws-ov .ws-ov-cur { background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)); }
+.ws-ov .ws-ov-cur-l { border-left: 2px solid var(--accent); }
+.ws-ov .ws-ov-cur-r { border-right: 2px solid var(--accent); }
+.ws-ov th.ws-ov-cur-top { border-top: 2px solid var(--accent); color: var(--accent); }
+.ws-ov tbody tr:last-child td.ws-ov-cur { border-bottom: 2px solid var(--accent); }
 
 /* "Select employees" step before generating a schedule */
 .ws-pick-list { max-height: min(55vh, 460px); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }

@@ -588,14 +588,16 @@ Browser (React SPA)
   local `TEAM_NAME` is gone, and `send-schedule-email.mjs` imports `SCHEDULE_TEAM` too.
 - **"📈 Overview" (`WorkSchedule.jsx`)**: a toolbar button (shown once a month has a schedule) that
   opens `ShiftOverviewModal`: everyone on this month's schedule (`people`, i.e. `scheduleMembers`),
-  grouped by center, with two column groups, **this month** and **Total**, each split into Days /
-  Wknd / Hol. Counting is the page-local `countShifts(assignments)`: non-cleared assignments per
+  grouped by center, with three column groups — last month, **this month** (framed: `.ws-ov-cur*`,
+  accent border + tint, same look as the Employee stats) and this year (Jan → this month) — each split
+  into Days / Wknd / Hol. (It used to show this month + an all-time "Total"; replaced on request.)
+  Counting is the page-local `countShifts(assignments)`: non-cleared assignments per
   `personId`; weekend/holiday come from the *date* (`isWeekend`, `getHoliday` with the center's
   country), not the stored `isWeekend`/`isHoliday` flags, because a drag-and-drop move doesn't update
   those. A holiday on a weekend counts in both. "This month" uses the on-screen `schedule` (unsaved
-  edits included). "Total" = every saved schedule *before* this month (`schedulesStore.list()`,
-  fetched when the button is clicked) plus this month, so viewing October never counts an
-  already-generated November. The footnote names the month range. On phones the table scrolls
+  edits included). Last month and the year are cut by assignment *date* from every saved schedule
+  *before* this month (`schedulesStore.list()`, fetched when the button is clicked) plus this month,
+  so viewing October never counts an already-generated November. On phones the table scrolls
   sideways inside `.ws-ov-wrap`, with the name column and center headings `position: sticky`.
   This is display-only, but it counts the same way as the generator's `computeWorkHistory`.
 - **Employee stats (`WorkSchedule.jsx`)**: clicking a person's stat chip (under the center tabs;

@@ -1196,37 +1196,51 @@ function countShifts(assignments) {
 
 /**
  * "📈 Overview": everyone on this month's schedule, grouped by center, with worked days / weekends /
- * holidays for this month (the on-screen schedule, unsaved edits included) and in total over every
- * saved schedule up to and including this month.
+ * holidays for last month (saved schedule), this month (the on-screen schedule, unsaved edits
+ * included; framed) and this year (Jan → this month). Periods are cut by assignment date.
  */
 function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
   const loading = !schedules
-  const past = (schedules || []).filter((s) => s.month < month)
-  const months = [...past.map((s) => s.month), month].sort()
-  const thisMonth = countShifts(schedule?.assignments)
-  const total = countShifts([...past.flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])])
+  const prev = prevMonth(month)
+  const year = month.slice(0, 4)
+  const monthEnd = lastDayOf(month)
+  const all = [...(schedules || []).filter((s) => s.month < month).flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])]
+  const inRange = (from, to) => all.filter((a) => a.date >= from && a.date <= to)
+  const groups = [
+    { key: 'prev', label: monthLabel(prev), title: `${monthLabel(prev)} (last month)`, counts: countShifts(inRange(`${prev}-01`, lastDayOf(prev))) },
+    { key: 'cur', label: monthLabel(month), title: `${monthLabel(month)} (this month)`, counts: countShifts(schedule?.assignments), cur: true },
+    { key: 'year', label: year, title: `January – ${monthLabel(month)}`, counts: countShifts(inRange(`${year}-01-01`, monthEnd)) },
+  ]
   const zero = { days: 0, weekends: 0, holidays: 0 }
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
-  const cells = (c = zero) => (<>
-    <td className="ws-ov-num ws-ov-first">{c.days}</td><td className="ws-ov-num">{c.weekends}</td><td className="ws-ov-num">{c.holidays}</td>
-  </>)
+  const cls = (g, i) => `ws-ov-num ${i === 0 ? 'ws-ov-first' : ''} ${g.cur ? `ws-ov-cur ${i === 0 ? 'ws-ov-cur-l' : ''} ${i === 2 ? 'ws-ov-cur-r' : ''}` : ''}`
+  const cells = (id) => groups.map((g) => {
+    const c = g.counts[id] || zero
+    return (
+      <React.Fragment key={g.key}>
+        <td className={cls(g, 0)}>{c.days}</td><td className={cls(g, 1)}>{c.weekends}</td><td className={cls(g, 2)}>{c.holidays}</td>
+      </React.Fragment>
+    )
+  })
   return (
-    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={640}>
+    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={780}>
       {loading ? <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>⏳ Loading all schedules…</div> : (<>
         <div className="ws-ov-wrap">
-          <table className="ws-ov">
+          <table className="ws-ov ws-ov-3">
             <thead>
               <tr>
                 <th rowSpan={2} className="ws-ov-name">Employee</th>
-                <th colSpan={3} className="ws-ov-group">{monthLabel(month)}</th>
-                <th colSpan={3} className="ws-ov-group">Total</th>
+                {groups.map((g) => (
+                  <th key={g.key} colSpan={3} title={g.title}
+                    className={`ws-ov-group ${g.cur ? 'ws-ov-cur ws-ov-cur-l ws-ov-cur-r ws-ov-cur-top' : ''}`}>{g.label}</th>
+                ))}
               </tr>
               <tr>
-                {[0, 1].map((i) => (
-                  <React.Fragment key={i}>
-                    <th className="ws-ov-num ws-ov-first" title="Worked days">Days</th>
-                    <th className="ws-ov-num" title="Of those, on a Saturday or Sunday">Wknd</th>
-                    <th className="ws-ov-num" title="Of those, on a public holiday of the person's country">Hol</th>
+                {groups.map((g) => (
+                  <React.Fragment key={g.key}>
+                    <th className={cls(g, 0)} title="Worked days">Days</th>
+                    <th className={cls(g, 1)} title="Of those, on a Saturday or Sunday">Wknd</th>
+                    <th className={cls(g, 2)} title="Of those, on a public holiday of the person's country">Hol</th>
                   </React.Fragment>
                 ))}
               </tr>
@@ -1237,16 +1251,19 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
                 if (!list.length) return null
                 return (
                   <React.Fragment key={c.id}>
-                    <tr className="ws-ov-center"><td colSpan={7}>
-                      <span><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label}</span>
-                    </td></tr>
+                    <tr className="ws-ov-center">
+                      <td colSpan={4}>
+                        <span><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label}</span>
+                      </td>
+                      <td colSpan={3} className="ws-ov-cur ws-ov-cur-l ws-ov-cur-r" />
+                      <td colSpan={3} />
+                    </tr>
                     {list.map((p) => (
                       <tr key={p.id}>
                         <td className="ws-ov-name">
                           <span className="ws-ov-person"><Avatar photo={p.photo} name={p.name} size={20} /> {p.name}</span>
                         </td>
-                        {cells(thisMonth[p.id])}
-                        {cells(total[p.id])}
+                        {cells(p.id)}
                       </tr>
                     ))}
                   </React.Fragment>
@@ -1257,8 +1274,7 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
           Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
-          weekend counts in both). Total covers {months.length === 1 ? 'this month only, the first saved schedule'
-            : `${monthLabel(months[0])} – ${monthLabel(month)} (${months.length} months)`}.
+          weekend counts in both). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
         </p>
       </>)}
       <div className="modal-actions">
