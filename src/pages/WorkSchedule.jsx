@@ -1236,6 +1236,22 @@ function countShifts(assignments) {
 }
 
 /**
+ * Calendar days at a center from `from` to `to` (inclusive, 'YYYY-MM-DD'): workdays (Mon–Fri, not a
+ * public holiday of `country`), weekend days (Sat + Sun) and public holidays (any weekday; a holiday
+ * on a weekend counts in both, like countShifts). Pure string math via nextDate.
+ */
+function calendarDays(from, to, country) {
+  const out = { workdays: 0, weekends: 0, holidays: 0 }
+  for (let d = from; d <= to; d = nextDate(d)) {
+    const we = isWeekend(d), hol = !!getHoliday(d, country)
+    if (we) out.weekends++
+    if (hol) out.holidays++
+    if (!we && !hol) out.workdays++
+  }
+  return out
+}
+
+/**
  * "📈 Overview": everyone on this month's schedule, grouped by center, with worked days / weekends /
  * holidays for last month (saved schedule), this month (the on-screen schedule, unsaved edits
  * included; framed) and this year (Jan → this month). Periods are cut by assignment date.
@@ -1248,9 +1264,9 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
   const all = [...(schedules || []).filter((s) => s.month < month).flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])]
   const inRange = (from, to) => all.filter((a) => a.date >= from && a.date <= to)
   const groups = [
-    { key: 'prev', label: monthLabel(prev), title: `${monthLabel(prev)} (last month)`, counts: countShifts(inRange(`${prev}-01`, lastDayOf(prev))) },
-    { key: 'cur', label: monthLabel(month), title: `${monthLabel(month)} (this month)`, counts: countShifts(schedule?.assignments), cur: true },
-    { key: 'year', label: year, title: `January – ${monthLabel(month)}`, counts: countShifts(inRange(`${year}-01-01`, monthEnd)) },
+    { key: 'prev', label: monthLabel(prev), title: `${monthLabel(prev)} (last month)`, from: `${prev}-01`, to: lastDayOf(prev), counts: countShifts(inRange(`${prev}-01`, lastDayOf(prev))) },
+    { key: 'cur', label: monthLabel(month), title: `${monthLabel(month)} (this month)`, from: `${month}-01`, to: monthEnd, counts: countShifts(schedule?.assignments), cur: true },
+    { key: 'year', label: year, title: `January – ${monthLabel(month)}`, from: `${year}-01-01`, to: monthEnd, counts: countShifts(inRange(`${year}-01-01`, monthEnd)) },
   ]
   const zero = { days: 0, weekends: 0, holidays: 0 }
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
@@ -1293,11 +1309,20 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
                 return (
                   <React.Fragment key={c.id}>
                     <tr className="ws-ov-center">
-                      <td colSpan={4}>
+                      <td className="ws-ov-name">
                         <span><img className="ws-tab-flag" src={flagUrl(c.country)} alt={c.country} /> {c.label}</span>
                       </td>
-                      <td colSpan={3} className="ws-ov-cur ws-ov-cur-l ws-ov-cur-r" />
-                      <td colSpan={3} />
+                      {groups.map((g) => {
+                        const d = calendarDays(g.from, g.to, c.country)
+                        const where = `${c.label}, ${g.title}`
+                        return (
+                          <React.Fragment key={g.key}>
+                            <td className={`${cls(g, 0)} ws-ov-ref`} title={`Workdays (Mon–Fri, not a public holiday) — ${where}`}>{d.workdays}</td>
+                            <td className={`${cls(g, 1)} ws-ov-ref`} title={`Weekend days (Sat + Sun) — ${where}`}>{d.weekends}</td>
+                            <td className={`${cls(g, 2)} ws-ov-ref`} title={`Public holidays (any day of the week) — ${where}`}>{d.holidays}</td>
+                          </React.Fragment>
+                        )
+                      })}
                     </tr>
                     {list.map((p) => (
                       <tr key={p.id}>
@@ -1316,6 +1341,8 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
         <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
           Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
           weekend counts in both). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
+          <span style={{ color: 'var(--accent)' }}> Orange numbers on each location row</span> = that location's calendar in the
+          period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays.
         </p>
       </>)}
       <div className="modal-actions">

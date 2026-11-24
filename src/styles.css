@@ -506,6 +506,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-ov-first { border-left: 1px solid var(--border); }
 .ws-ov-center td > span { position: sticky; left: 8px; }
 .ws-ov-center td { font-size: 12.5px; font-weight: 600; color: var(--text); padding-top: 12px; border-bottom: none; }
+.ws-ov-center td.ws-ov-ref { color: var(--accent); font-weight: 700; vertical-align: bottom; cursor: help; }
 /* Overview: frame around this month's column group */
 .ws-ov .ws-ov-cur { background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)); }
 .ws-ov .ws-ov-cur-l { border-left: 2px solid var(--accent); }

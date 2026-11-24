@@ -598,6 +598,10 @@ Browser (React SPA)
   grouped by center, with three column groups — last month, **this month** (framed: `.ws-ov-cur*`,
   accent border + tint, same look as the Employee stats) and this year (Jan → this month) — each split
   into Days / Wknd / Hol. (It used to show this month + an all-time "Total"; replaced on request.)
+  Each location heading row shows that center's **calendar** for the same three periods in orange
+  (`.ws-ov-ref`, `var(--accent)`): workdays (Mon–Fri, not a public holiday), weekend days (Sat+Sun)
+  and public holidays of the center's country (any weekday; a weekend holiday counts in both), from
+  the page-local pure `calendarDays(from, to, country)` — a reference for the people's counts below.
   Counting is the page-local `countShifts(assignments)`: non-cleared assignments per
   `personId`; weekend/holiday come from the *date* (`isWeekend`, `getHoliday` with the center's
   country), not the stored `isWeekend`/`isHoliday` flags, because a drag-and-drop move doesn't update
