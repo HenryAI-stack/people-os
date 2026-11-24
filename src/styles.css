@@ -937,6 +937,10 @@ body.light .ws-chip { color: var(--accent); }
 .ws-stat-chip.is-clickable:hover, .ws-stat-chip.is-clickable:focus-visible { border-color: var(--accent); outline: none; }
 .ws-ps .ws-ov-num { width: 64px; vertical-align: top; }
 .ws-ps-sub { font-size: 10.5px; color: var(--text-faint); font-weight: 400; }
+/* Frame around this month's column */
+.ws-ps .ws-ps-cur { border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)); }
+.ws-ps th.ws-ps-cur { border-top: 2px solid var(--accent); color: var(--accent); }
+.ws-ps tbody tr:last-child td.ws-ps-cur { border-bottom: 2px solid var(--accent); }
 .ws-ps-total td { font-weight: 700; border-top: 1px solid var(--border); }
 .ws-ps-section { margin-top: 16px; }
 .ws-ps-section h4 { margin: 0 0 6px; font-size: 12.5px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }

@@ -1300,8 +1300,8 @@ function lastDayOf(month) {
 
 /**
  * Employee stats (click a stat chip under the center tabs): worked shifts, weekend and holiday
- * shifts, vacation/sick/other leave days and credited days for this month, this year (Jan → this
- * month) and all time (first saved month they worked → this month). This month uses the on-screen
+ * shifts, vacation/sick/other leave days and credited days for last month, this month (framed)
+ * and this year (Jan → this month). This month uses the on-screen
  * schedule (unsaved edits included); earlier months use saved schedules — same as the Overview.
  * Below: this month's weekend/holiday shift dates, leave, weekly hours, and the balance against
  * colleagues at the same center (computeWorkHistory, same numbers the generator plans with).
@@ -1316,20 +1316,14 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt 
     if (!schedules) return null
     const past = schedules.filter((s) => s.month < month)
     const all = [...past.flatMap((s) => s.assignments || []), ...(schedule?.assignments || [])]
-    // "All" has no start date (so it always includes the year column). For the label: the earliest
-    // shift or leave day on record for this person.
-    const firstDate = [
-      ...all.filter((a) => a.personId === person.id && !a.cleared).map((a) => a.date),
-      ...leaveList(person).map((l) => l.from),
-    ].filter((d) => d <= monthEnd).sort()[0] || `${month}-01`
+    const prev = prevMonth(month)
     const mine = (schedule?.assignments || []).filter((a) => a.personId === person.id && !a.cleared).sort((a, b) => a.date.localeCompare(b.date))
     const history = center ? computeWorkHistory(schedules, month, allPeople)[center.id]?.[person.id] : null
     return {
-      firstMonth: firstDate.slice(0, 7),
       cols: [
+        personPeriodStats(person, all, `${prev}-01`, lastDayOf(prev)),
         personPeriodStats(person, all, `${month}-01`, monthEnd),
         personPeriodStats(person, all, `${year}-01-01`, monthEnd),
-        personPeriodStats(person, all, '0000-01-01', monthEnd),
       ],
       special: mine.filter((a) => isWeekend(a.date) || getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')),
       leave: leaveList(person).filter((l) => l.from <= monthEnd && l.to >= `${month}-01`),
@@ -1373,9 +1367,9 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt 
             <thead>
               <tr>
                 <th className="ws-ov-name" />
-                <th className="ws-ov-num ws-ov-first">{monthLabel(month).split(' ')[0].slice(0, 3)}</th>
-                <th className="ws-ov-num">{year}</th>
-                <th className="ws-ov-num" title={`Since ${monthLabel(data.firstMonth)}`}>All</th>
+                <th className="ws-ov-num ws-ov-first" title={monthLabel(prevMonth(month))}>{monthLabel(prevMonth(month)).split(' ')[0].slice(0, 3)}</th>
+                <th className="ws-ov-num ws-ps-cur" title={`${monthLabel(month)} (this month)`}>{monthLabel(month).split(' ')[0].slice(0, 3)}</th>
+                <th className="ws-ov-num" title={`January – ${monthLabel(month)}`}>{year}</th>
               </tr>
             </thead>
             <tbody>
@@ -1383,7 +1377,7 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt 
                 <tr key={key} className={strong ? 'ws-ps-total' : ''}>
                   <td className="ws-ov-name">{label}</td>
                   {data.cols.map((c, i) => (
-                    <td key={i} className={`ws-ov-num ${i === 0 ? 'ws-ov-first' : ''}`}>
+                    <td key={i} className={`ws-ov-num ${i === 0 ? 'ws-ov-first' : ''} ${i === 1 ? 'ws-ps-cur' : ''}`}>
                       {c[key] || <span style={{ color: 'var(--text-faint)' }}>0</span>}
                       {sub && c[key] > 0 && <div className="ws-ps-sub">{sub(c[key])}</div>}
                     </td>
@@ -1463,9 +1457,8 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt 
 
         <p className="ws-ps-note" style={{ marginTop: 12 }}>
           Leave counts weekdays only (not weekends or holidays); credited days = shifts + leave days.
-          A holiday on a weekend counts as both. {year} = Jan – {monthLabel(month).split(' ')[0]};
-          All = everything on record up to {monthLabel(month)} (since {monthLabel(data.firstMonth)}), so it
-          equals {year} unless there's data from earlier years.
+          A holiday on a weekend counts as both. Framed column = this month (unsaved edits included);
+          {' '}{year} = Jan – {monthLabel(month).split(' ')[0]}.
         </p>
       </>)}
       <div className="modal-actions">
