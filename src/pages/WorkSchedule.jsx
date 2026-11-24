@@ -1239,7 +1239,8 @@ function balanceTitle(b) {
  * Shift counts per person from a list of assignments → { [personId]: { days, weekends, holidays } }.
  * Cleared assignments don't count. Weekend/holiday come from the date and the center's country
  * (not the stored flags, which a drag to another day doesn't update). A shift on a holiday that
- * falls on a weekend counts as both.
+ * falls on a weekend counts only as a holiday (Wknd = weekend days that aren't a holiday), like the
+ * location row's calendarDays().
  */
 function countShifts(assignments) {
   const out = {}
@@ -1247,8 +1248,8 @@ function countShifts(assignments) {
     if (a.cleared) continue
     const c = (out[a.personId] ||= { days: 0, weekends: 0, holidays: 0 })
     c.days++
-    if (isWeekend(a.date)) c.weekends++
     if (getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')) c.holidays++
+    else if (isWeekend(a.date)) c.weekends++
   }
   return out
 }
@@ -1358,8 +1359,8 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
           </table>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
-          Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
-          weekend counts in both). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
+          Days = all shifts worked; Wknd = those on a weekend day that isn't a public holiday, Hol = those on
+          a public holiday (also when it falls on a weekend). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
           <span style={{ color: 'var(--accent)' }}> Orange numbers on each location row</span> = that location's calendar in the
           period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays; a holiday on a
           weekend counts only as a holiday there, so the three add up to the days in the period.
@@ -1382,8 +1383,8 @@ function personPeriodStats(person, assignments, from, to) {
   for (const a of assignments) {
     if (a.cleared || a.personId !== person.id || a.date < from || a.date > to) continue
     c.shifts++
-    if (isWeekend(a.date)) c.weekends++
     if (getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')) c.holidays++
+    else if (isWeekend(a.date)) c.weekends++  // a holiday on a weekend counts only as a holiday
   }
   const center = CENTERS.find((x) => x.id === getCenter(person))
   for (const l of leaveList(person)) {
@@ -1561,7 +1562,7 @@ function EmployeeStatsModal({ person, month, schedule, weekRows = [], quarterOt 
 
         <p className="ws-ps-note" style={{ marginTop: 12 }}>
           Leave counts weekdays only (not weekends or holidays); credited days = shifts + leave days.
-          A holiday on a weekend counts as both. Framed column = this month (unsaved edits included);
+          A holiday on a weekend counts only as a holiday shift, not as a weekend shift. Framed column = this month (unsaved edits included);
           {' '}{year} = Jan – {monthLabel(month).split(' ')[0]}.
         </p>
       </>)}

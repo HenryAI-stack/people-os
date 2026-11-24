@@ -606,7 +606,8 @@ Browser (React SPA)
   Counting is the page-local `countShifts(assignments)`: non-cleared assignments per
   `personId`; weekend/holiday come from the *date* (`isWeekend`, `getHoliday` with the center's
   country), not the stored `isWeekend`/`isHoliday` flags, because a drag-and-drop move doesn't update
-  those. A holiday on a weekend counts in both. "This month" uses the on-screen `schedule` (unsaved
+  those. A holiday on a weekend counts **only as Hol**, not Wknd (Wknd = weekend days that aren't a
+  holiday; changed on request, same rule as the location row and `personPeriodStats`). "This month" uses the on-screen `schedule` (unsaved
   edits included). Last month and the year are cut by assignment *date* from every saved schedule
   *before* this month (`schedulesStore.list()`, fetched when the button is clicked) plus this month,
   so viewing October never counts an already-generated November. On phones the table scrolls
@@ -618,7 +619,7 @@ Browser (React SPA)
   last month, **this month** (framed: `.ws-ps-cur`, accent border + tint) and this year (Jan → this
   month). An "All" column (everything on record) was removed on request — don't add it back —
 from the page-local pure `personPeriodStats(person, assignments, from, to)`: shifts (+ hours),
-  weekend shifts, national-holiday shifts (from the date + center country, like `countShifts`),
+  weekend shifts (not on a holiday), national-holiday shifts (from the date + center country, like `countShifts`),
   vacation / sick / other leave **weekdays** (Mon–Fri non-holidays at their center, from
   `person.leave`) and credited days (shifts + leave). This month uses the on-screen schedule (unsaved
   edits included), earlier months the saved ones. Below: the month's regular time (`nominalDays`), hours
