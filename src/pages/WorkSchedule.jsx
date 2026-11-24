@@ -1290,19 +1290,20 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
   ]
   const zero = { days: 0, weekends: 0, holidays: 0 }
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
-  const cls = (g, i) => `ws-ov-num ${i === 0 ? 'ws-ov-first' : ''} ${g.cur ? `ws-ov-cur ${i === 0 ? 'ws-ov-cur-l' : ''} ${i === 2 ? 'ws-ov-cur-r' : ''}` : ''}`
+  const cls = (g, i) => `ws-ov-num ${i === 0 ? 'ws-ov-first' : ''} ${g.cur ? `ws-ov-cur ${i === 0 ? 'ws-ov-cur-l' : ''} ${i === 3 ? 'ws-ov-cur-r' : ''}` : ''}${i === 3 ? ' ws-ov-total' : ''}`
   const cells = (id) => groups.map((g) => {
     const c = g.counts[id] || zero
     return (
       <React.Fragment key={g.key}>
-        <td className={`${cls(g, 0)} ws-ov-days`} title={`${c.days} shifts in total, ${c.days - c.weekends - c.holidays} of them on workdays (Mon–Fri, not a public holiday)`}>
-          {c.days} <span className="ws-ov-wd">({c.days - c.weekends - c.holidays})</span>
-        </td><td className={cls(g, 1)}>{c.weekends}</td><td className={cls(g, 2)}>{c.holidays}</td>
+        <td className={cls(g, 0)}>{c.days - c.weekends - c.holidays}</td>
+        <td className={cls(g, 1)}>{c.weekends}</td>
+        <td className={cls(g, 2)}>{c.holidays}</td>
+        <td className={cls(g, 3)}>{c.days}</td>
       </React.Fragment>
     )
   })
   return (
-    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={780} className="ws-ov-modal">
+    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={900} className="ws-ov-modal">
       {loading ? <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>⏳ Loading all schedules…</div> : (<>
         <div className="ws-ov-wrap ws-ov-full">
           <table className="ws-ov ws-ov-3">
@@ -1310,16 +1311,17 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
               <tr>
                 <th rowSpan={2} className="ws-ov-name">Employee</th>
                 {groups.map((g) => (
-                  <th key={g.key} colSpan={3} title={g.title}
+                  <th key={g.key} colSpan={4} title={g.title}
                     className={`ws-ov-group ${g.cur ? 'ws-ov-cur ws-ov-cur-l ws-ov-cur-r ws-ov-cur-top' : ''}`}>{g.label}</th>
                 ))}
               </tr>
               <tr>
                 {groups.map((g) => (
                   <React.Fragment key={g.key}>
-                    <th className={cls(g, 0)} title="Shifts worked in total; in brackets: on workdays (Mon–Fri, not a public holiday)">Days</th>
-                    <th className={cls(g, 1)} title="Of those, on a Saturday or Sunday">Wknd</th>
-                    <th className={cls(g, 2)} title="Of those, on a public holiday of the person's country">Hol</th>
+                    <th className={cls(g, 0)} title="Shifts on workdays (Mon–Fri, not a public holiday)">Days</th>
+                    <th className={cls(g, 1)} title="Shifts on a Saturday or Sunday that isn't a public holiday">Wknd</th>
+                    <th className={cls(g, 2)} title="Shifts on a public holiday of the person's country (also on weekends)">Hol</th>
+                    <th className={cls(g, 3)} title="All shifts = Days + Wknd + Hol">Total</th>
                   </React.Fragment>
                 ))}
               </tr>
@@ -1342,6 +1344,7 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
                             <td className={`${cls(g, 0)} ws-ov-ref`} title={`Workdays (Mon–Fri, not a public holiday) — ${where}`}>{d.workdays}</td>
                             <td className={`${cls(g, 1)} ws-ov-ref`} title={`Weekend days (Sat + Sun) that aren't a public holiday — ${where}`}>{d.weekends}</td>
                             <td className={`${cls(g, 2)} ws-ov-ref`} title={`Public holidays (any day of the week, incl. weekends) — ${where}`}>{d.holidays}</td>
+                            <td className={`${cls(g, 3)} ws-ov-ref`} title={`Calendar days in the period — ${where}`}>{d.workdays + d.weekends + d.holidays}</td>
                           </React.Fragment>
                         )
                       })}

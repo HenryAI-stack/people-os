@@ -597,9 +597,10 @@ Browser (React SPA)
   opens `ShiftOverviewModal`: everyone on this month's schedule (`people`, i.e. `scheduleMembers`),
   grouped by center, with three column groups — last month, **this month** (framed: `.ws-ov-cur*`,
   accent border + tint, same look as the Employee stats) and this year (Jan → this month) — each split
-  into Days / Wknd / Hol. (It used to show this month + an all-time "Total"; replaced on request.)
-  A person's Days cell also shows, in brackets, the shifts on workdays (Mon–Fri, not a holiday) =
-  Days − Wknd − Hol (`.ws-ov-wd`), comparable with the orange workdays on the location row.
+  into **Days / Wknd / Hol / Total** (on request): Days = shifts on workdays (Mon–Fri, not a
+  holiday), Wknd = on a weekend day that isn't a holiday, Hol = on a holiday, Total = all shifts
+  (bold, `.ws-ov-total`) — disjoint, so Days + Wknd + Hol = Total. On the location row, Total = the
+  calendar days in the period. (A "Days 19 (18)" bracket variant was tried and replaced.)
   Each location heading row shows that center's **calendar** for the same three periods in orange
   (`.ws-ov-ref`, `var(--accent)`): public holidays of the center's country (any weekday), weekend days
   that aren't a holiday, and workdays (Mon–Fri, not a holiday) — disjoint, so they add up to the days in
