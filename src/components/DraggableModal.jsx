@@ -49,7 +49,7 @@ export function useDraggable() {
   }
 }
 
-export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
+export function DraggableModal({ title, onClose, children, maxWidth = 520, className = '' }) {
   const { handleProps, style } = useDraggable()
 
   return (
@@ -58,7 +58,7 @@ export function DraggableModal({ title, onClose, children, maxWidth = 520 }) {
       onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
     >
       <div
-        className="modal"
+        className={`modal ${className}`}
         style={{ maxWidth, ...style }}
       >
         <h2

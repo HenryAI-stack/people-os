@@ -615,6 +615,10 @@ Browser (React SPA)
   so viewing October never counts an already-generated November. On phones the table scrolls
   sideways inside `.ws-ov-wrap`, with the name column and center headings `position: sticky`.
   This is display-only, but it counts the same way as the generator's `computeWorkHistory`.
+  **Fits without scrolling** (on request): no explanatory footnote any more (the header/cell
+  tooltips explain the columns), no inner scroll box (`.ws-ov-wrap.ws-ov-full`: no max-height),
+  tighter rows, and the modal itself may use 96vh (`DraggableModal`'s optional `className` prop →
+  `.modal.ws-ov-modal`). Don't add the footnote back.
 - **Employee stats (`WorkSchedule.jsx`)**: clicking a person's stat chip (under the center tabs;
   `.ws-stat-chip.is-clickable`, also Enter/Space) opens `EmployeeStatsModal` after loading every saved
   schedule (`openPersonStats`, same loading pattern as the Overview). A table with three columns —

@@ -1302,9 +1302,9 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
     )
   })
   return (
-    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={780}>
+    <DraggableModal title={`Overview · ${monthLabel(month)}`} onClose={onClose} maxWidth={780} className="ws-ov-modal">
       {loading ? <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>⏳ Loading all schedules…</div> : (<>
-        <div className="ws-ov-wrap">
+        <div className="ws-ov-wrap ws-ov-full">
           <table className="ws-ov ws-ov-3">
             <thead>
               <tr>
@@ -1360,13 +1360,6 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
             </tbody>
           </table>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '12px 0 0', lineHeight: 1.5 }}>
-          Days = all shifts worked, in brackets those on workdays (Mon–Fri, not a public holiday); Wknd = those on a weekend day that isn't a public holiday, Hol = those on
-          a public holiday (also when it falls on a weekend). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
-          <span style={{ color: 'var(--accent)' }}> Orange numbers on each location row</span> = that location's calendar in the
-          period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays; a holiday on a
-          weekend counts only as a holiday there, so the three add up to the days in the period.
-        </p>
       </>)}
       <div className="modal-actions">
         <button className="btn primary" onClick={onClose}>Close</button>

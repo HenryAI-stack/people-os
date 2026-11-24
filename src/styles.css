@@ -511,6 +511,14 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 /* Location separator: thick line + extra space above every location block except the first */
 .ws-ov tbody tr.ws-ov-center:not(:first-child) td { border-top: 3px solid color-mix(in srgb, var(--text-faint) 80%, var(--bg-elevated)); }
 .ws-ov tbody tr.ws-ov-center:first-child td { padding-top: 12px; }
+/* Overview modal: whole table visible without scrolling (no inner scroll box, tighter rows) */
+.modal.ws-ov-modal { max-height: 96vh; padding: 20px 24px; }
+.modal.ws-ov-modal h2 { margin-bottom: 12px; }
+.modal.ws-ov-modal .modal-actions { margin-top: 12px; }
+.ws-ov-wrap.ws-ov-full { max-height: none; overflow-y: visible; }
+.ws-ov-full .ws-ov td { padding-top: 4px; padding-bottom: 4px; }
+.ws-ov-full .ws-ov tbody tr.ws-ov-center td { padding-top: 14px; padding-bottom: 2px; }
+.ws-ov-full .ws-ov tbody tr.ws-ov-center:first-child td { padding-top: 6px; }
 .ws-ov-center td.ws-ov-ref { color: var(--accent); font-weight: 700; vertical-align: bottom; cursor: help; }
 /* Overview: frame around this month's column group */
 .ws-ov .ws-ov-cur { background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated)); }
