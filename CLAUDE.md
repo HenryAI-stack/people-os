@@ -104,7 +104,9 @@ Browser (React SPA)
   so the grid gets the full window. Six vertical separator lines run between the weekday columns
   through the whole calendar (on request): `.ws-col-lines`, an absolutely positioned overlay grid
   with the same columns and `--ws-gap` (absolute, so it takes no grid cell), each column but Sunday
-  drawing a line in the middle of its gap; hidden in list mode. Print resets the container (`container-type: normal`) and
+  drawing a line in the middle of its gap; hidden in list mode. A line under the weekday names
+  (`.ws-day-header` border-bottom, pulled half a gap into each neighbour gap; `.is-first`/`.is-last`
+  stop at the edges — classes, not `:first-child`, because `.ws-col-lines` is the grid's first child). Print resets the container (`container-type: normal`) and
   always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
   content clear of the notch and home indicator.
@@ -658,7 +660,10 @@ from the page-local pure `personPeriodStats(person, assignments, from, to)`: shi
   assignments** (`adjacent`, loaded in `load()`), so boundary weeks are counted whole; tooltip lines are
   `weekRowText()` ("Week of 9 Nov: 32h of 32h regular (1 holiday)"). A red `.ws-gap-banner` above the
   center tabs lists every day with nobody on duty per center (`coverageGaps`, live from the on-screen
-  schedule; the center name switches tabs).
+  schedule; the center name switches tabs). Both red banners (coverage gaps, overtime) render through the page-local
+  `CollapsibleBanner`: the title row is a button that collapses the banner to one line with a short
+  summary ("5 days · Warsaw", "2 issues"); collapsed ids persist per browser in
+  `peopleos.ws.collapsedBanners`.
   Edits don't recompute the saved `fairnessSnapshot`/`balances`, but the next month's generation
   reads the saved assignments directly, so manual edits do count towards everyone's history.
   **Auto-save** runs 1.5s after an *edit* only (swap, assign, remove, move, comment, leave): `lastSaved`

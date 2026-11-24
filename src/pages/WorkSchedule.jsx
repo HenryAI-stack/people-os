@@ -602,18 +602,20 @@ export default function WorkSchedule() {
       {schedule && (
         <>
           {overtimeBreaches.length > 0 && (
-            <div className="ws-gap-banner no-print">
-              <strong>⚠ Overtime limit exceeded</strong> — the generator only does this when nobody else can cover the day; manual changes can too:
+            <CollapsibleBanner id="overtime" title="⚠ Overtime limit exceeded"
+              summary={`${overtimeBreaches.length} ${overtimeBreaches.length === 1 ? 'issue' : 'issues'}`}>
+              <div>The generator only does this when nobody else can cover the day; manual changes can too:</div>
               {overtimeBreaches.map((b, i) => (
                 <div key={i}><strong style={{ color: 'var(--text)' }}>{b.person.name}</strong> ({getCenter(b.person)}): {b.text}</div>
               ))}
               <div className="ws-gap-hint">Swap one of their weekend/holiday or extra shifts to a colleague with time left.</div>
-            </div>
+            </CollapsibleBanner>
           )}
 
           {coverageGaps.length > 0 && (
-            <div className="ws-gap-banner no-print">
-              <strong>⚠ No one on duty</strong> — 24/7 coverage needs at least 1 person every day:
+            <CollapsibleBanner id="gaps" title="⚠ No one on duty"
+              summary={(() => { const n = coverageGaps.reduce((t, g) => t + g.days.length, 0); return `${n} ${n === 1 ? 'day' : 'days'} · ${coverageGaps.map((g) => g.center.id).join(', ')}` })()}>
+              <div>24/7 coverage needs at least 1 person every day:</div>
               {coverageGaps.map((g) => (
                 <div key={g.center.id}>
                   <button type="button" className="ws-gap-center" onClick={() => setActiveCenter(g.center.id)}>
@@ -623,7 +625,7 @@ export default function WorkSchedule() {
                 </div>
               ))}
               <div className="ws-gap-hint">Click an empty day's "—" to assign someone, or regenerate.</div>
-            </div>
+            </CollapsibleBanner>
           )}
 
           {/* ── Center tabs ── */}
@@ -707,8 +709,8 @@ export default function WorkSchedule() {
                   {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
                 </div>
                 {/* Week header */}
-                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
-                  <div key={d} className="ws-day-header">{d}</div>
+                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => (
+                  <div key={d} className={`ws-day-header ${i === 0 ? 'is-first' : i === 6 ? 'is-last' : ''}`}>{d}</div>
                 ))}
 
                 {/* Empty cells before first day */}
@@ -1182,6 +1184,38 @@ function weekRowText(r) {
   if (r.overOt) return `${base} — ⚠ ${r.hours - r.regular}h overtime, above the ${r.otLimit}h/week limit`
   if (r.hours > r.regular) return `${base} — ${r.hours - r.regular}h above regular, needed for 24/7 coverage`
   return base
+}
+
+/**
+ * Red warning banner above the center tabs (coverage gaps, overtime) that can be collapsed to its
+ * title line. The title row is one button (works on phones); collapsed shows a short summary.
+ * Collapsed ids persist per browser (`peopleos.ws.collapsedBanners`, try/catch like the Dashboard).
+ */
+const BANNER_KEY = 'peopleos.ws.collapsedBanners'
+function CollapsibleBanner({ id, title, summary, children }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return !!JSON.parse(localStorage.getItem(BANNER_KEY) || '{}')[id] } catch { return false }
+  })
+  function toggle() {
+    setCollapsed((c) => {
+      try {
+        const all = JSON.parse(localStorage.getItem(BANNER_KEY) || '{}')
+        if (c) delete all[id]; else all[id] = true
+        localStorage.setItem(BANNER_KEY, JSON.stringify(all))
+      } catch { /* private mode etc. — just don't remember */ }
+      return !c
+    })
+  }
+  return (
+    <div className={`ws-gap-banner no-print ${collapsed ? 'is-collapsed' : ''}`}>
+      <button type="button" className="ws-banner-head" aria-expanded={!collapsed} onClick={toggle}>
+        <strong>{title}</strong>
+        {collapsed && summary && <span className="ws-banner-summary">{summary}</span>}
+        <span className="ws-banner-chevron" aria-hidden="true">▾</span>
+      </button>
+      {!collapsed && <div className="ws-banner-body">{children}</div>}
+    </div>
+  )
 }
 
 /**
