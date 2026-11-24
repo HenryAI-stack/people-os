@@ -1236,17 +1236,18 @@ function countShifts(assignments) {
 }
 
 /**
- * Calendar days at a center from `from` to `to` (inclusive, 'YYYY-MM-DD'): workdays (Mon–Fri, not a
- * public holiday of `country`), weekend days (Sat + Sun) and public holidays (any weekday; a holiday
- * on a weekend counts in both, like countShifts). Pure string math via nextDate.
+ * Calendar days at a center from `from` to `to` (inclusive, 'YYYY-MM-DD'), split so the three add up
+ * to the number of days: public holidays of `country` (any day of the week), weekend days that aren't
+ * a holiday, and workdays (Mon–Fri, not a holiday). A holiday on a Saturday/Sunday counts only as a
+ * holiday — counting it in both made e.g. Poland's December 21 + 8 + 3 = 32 (26 Dec is a Saturday).
+ * Pure string math via nextDate.
  */
 function calendarDays(from, to, country) {
   const out = { workdays: 0, weekends: 0, holidays: 0 }
   for (let d = from; d <= to; d = nextDate(d)) {
-    const we = isWeekend(d), hol = !!getHoliday(d, country)
-    if (we) out.weekends++
-    if (hol) out.holidays++
-    if (!we && !hol) out.workdays++
+    if (getHoliday(d, country)) out.holidays++
+    else if (isWeekend(d)) out.weekends++
+    else out.workdays++
   }
   return out
 }
@@ -1318,8 +1319,8 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
                         return (
                           <React.Fragment key={g.key}>
                             <td className={`${cls(g, 0)} ws-ov-ref`} title={`Workdays (Mon–Fri, not a public holiday) — ${where}`}>{d.workdays}</td>
-                            <td className={`${cls(g, 1)} ws-ov-ref`} title={`Weekend days (Sat + Sun) — ${where}`}>{d.weekends}</td>
-                            <td className={`${cls(g, 2)} ws-ov-ref`} title={`Public holidays (any day of the week) — ${where}`}>{d.holidays}</td>
+                            <td className={`${cls(g, 1)} ws-ov-ref`} title={`Weekend days (Sat + Sun) that aren't a public holiday — ${where}`}>{d.weekends}</td>
+                            <td className={`${cls(g, 2)} ws-ov-ref`} title={`Public holidays (any day of the week, incl. weekends) — ${where}`}>{d.holidays}</td>
                           </React.Fragment>
                         )
                       })}
@@ -1342,7 +1343,8 @@ function ShiftOverviewModal({ month, people, schedule, schedules, onClose }) {
           Days = shifts worked; Wknd and Hol are the ones on a weekend or public holiday (a holiday on a
           weekend counts in both). Framed = this month (unsaved edits included); {year} = January – {monthLabel(month)}.
           <span style={{ color: 'var(--accent)' }}> Orange numbers on each location row</span> = that location's calendar in the
-          period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays.
+          period: workdays (Mon–Fri, not a public holiday), weekend days and public holidays; a holiday on a
+          weekend counts only as a holiday there, so the three add up to the days in the period.
         </p>
       </>)}
       <div className="modal-actions">
