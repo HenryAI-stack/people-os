@@ -114,7 +114,15 @@ Browser (React SPA)
   with the same columns and `--ws-gap` (absolute, so it takes no grid cell), each column but Sunday
   drawing a line in the middle of its gap; hidden in list mode. A line under the weekday names
   (`.ws-day-header` border-bottom, pulled half a gap into each neighbour gap; `.is-first`/`.is-last`
-  stop at the edges — classes, not `:first-child`, because `.ws-col-lines` is the grid's first child). Print resets the container (`container-type: normal`) and
+  stop at the edges — classes, not `:first-child`, because `.ws-col-lines` is the grid's first child).
+  The **current week** (Mon–Sun around the viewer's local today, `todayDate()`, re-read every 60s) is
+  framed in every center's calendar like the Overview's "this month" (on request): `.ws-cur-week`, a
+  2px `--accent` border sitting in the middle of the surrounding gaps, plus an 8% accent tint on its
+  days (`.ws-cur-week-day`, a `background-image` layer so weekend/holiday colours still show). Like
+  `.ws-col-lines` it's absolutely positioned (takes no cell); its grid area comes from `curWeek.style`'s
+  `--cw-grid-row`/`--cw-grid-col` (grid) or `--cw-list-row` (list mode, one row per day). The row needs
+  an explicit `/ span 1`: an abspos grid item's missing end line means the container edge. Only the
+  week's days in the shown month are framed; screen only (`no-print`). Print resets the container (`container-type: normal`) and
   always uses the grid. Inputs are forced
   to 16px on phones (below that, iOS zooms on focus), and `env(safe-area-inset-*)` padding keeps
   content clear of the notch and home indicator.

@@ -607,6 +607,22 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .ws-day-cell.ws-holiday  { background: rgba(217,113,106,0.08); border-color: rgba(217,113,106,0.55); }
 .ws-day-cell.ws-dragging { opacity: 0.4; border: 2px dashed var(--accent); }
 .ws-day-cell.ws-day-empty { background: transparent; border-color: transparent; }
+/* Current week: same accent frame + 8% tint as the Overview's "this month" columns. The frame is an
+   absolutely positioned grid item (grid area from the --cw-* variables set in WorkSchedule.jsx), so
+   it takes no cell; it sits in the middle of the surrounding gaps, on top of the column lines. The
+   tint is a background-image layer so weekend/holiday colours still show underneath. */
+.ws-cur-week {
+  position: absolute;
+  grid-row: var(--cw-grid-row);
+  grid-column: var(--cw-grid-col);
+  inset: calc(var(--ws-gap) / -2 - 1px);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  pointer-events: none;
+}
+.ws-day-cell.ws-cur-week-day {
+  background-image: linear-gradient(color-mix(in srgb, var(--accent) 8%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+}
 
 .ws-day-num {
   font-size: 11px;
@@ -771,6 +787,7 @@ body.light .ws-chip { color: var(--accent); }
   }
   .ws-day-cell.ws-weekend { background: #fffae8; }
   .ws-day-cell.ws-holiday { background: #fff0ee; }
+  .ws-day-cell.ws-cur-week-day { background-image: none; } /* the current-week mark is screen-only */
   .ws-day-num { font-size: 10px; color: #333; }
   .ws-chip {
     font-size: 10.5px;
@@ -796,8 +813,9 @@ body.light .ws-chip { color: var(--accent); }
    follows the calendar's real width rather than the viewport's. */
 .ws-day-wd, .ws-hol-name { display: none; }
 @container wscal (max-width: 999px) {
-  .ws-calendar { grid-template-columns: 1fr; gap: 6px; max-width: 760px; }
+  .ws-calendar { grid-template-columns: 1fr; --ws-gap: 6px; max-width: 760px; }
   .ws-col-lines { display: none; }
+  .ws-cur-week { grid-row: var(--cw-list-row); grid-column: 1 / -1; } /* the week's 7 day rows */
   .ws-calendar .ws-day-header, .ws-calendar .ws-day-empty { display: none; }
   .ws-day-cell { min-height: 0; display: grid; grid-template-columns: 92px 1fr 30px; column-gap: 8px; row-gap: 0; padding: 8px; align-items: start; }
   /* date column spans every chip row (chips auto-place into column 2); spare spanned rows are 0px */

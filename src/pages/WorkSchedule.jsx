@@ -54,6 +54,11 @@ function todayMonth() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
 }
+// The viewer's local date as 'YYYY-MM-DD' (local getters, like todayMonth — not toISOString()).
+function todayDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function WorkSchedule() {
@@ -419,6 +424,32 @@ export default function WorkSchedule() {
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const days = useMemo(() => getDaysInMonth(month), [month])
+
+  // Current week (Mon–Sun around the viewer's today), framed in the calendar like the Overview's
+  // "this month". Grid mode: header = row 1, then one row per week after the leading blanks; list
+  // mode (one column, headers/blanks hidden): one row per day. Null when this month has none of it.
+  const [today, setToday] = useState(todayDate)
+  useEffect(() => {
+    const t = setInterval(() => setToday(todayDate()), 60000)  // move on at midnight if left open
+    return () => clearInterval(t)
+  }, [])
+  const curWeek = useMemo(() => {
+    const mon = weekStart(today)
+    const idx = days.flatMap((d, i) => (weekStart(d) === mon ? [i] : []))
+    if (!idx.length) return null
+    const pos = (new Date(days[0]).getUTCDay() + 6) % 7 + idx[0]  // grid position of its first day
+    const col = pos % 7 + 1
+    return {
+      dates: new Set(idx.map((i) => days[i])),
+      style: {
+        // explicit span: an absolutely positioned grid item's missing end line means "container edge"
+        '--cw-grid-row': `${2 + Math.floor(pos / 7)} / span 1`,
+        '--cw-grid-col': `${col} / ${col + idx.length}`,
+        '--cw-list-row': `${idx[0] + 1} / span ${idx.length}`,
+      },
+    }
+  }, [days, today])
+
   // Who's on this month's schedule (picked when it was generated), and who could be picked.
   const people = useMemo(() => scheduleMembers(allPeople, schedule), [allPeople, schedule])
   const candidates = useMemo(() => allPeople.filter((p) => getCenter(p)), [allPeople])
@@ -708,6 +739,9 @@ export default function WorkSchedule() {
                 <div className="ws-col-lines" aria-hidden="true">
                   {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
                 </div>
+                {/* Orange frame around the current week (also absolutely positioned: its grid area
+                    comes from the --cw-* variables, so it takes no cell either). Screen only. */}
+                {curWeek && <div className="ws-cur-week no-print" aria-hidden="true" style={curWeek.style} />}
                 {/* Week header */}
                 {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => (
                   <div key={d} className={`ws-day-header ${i === 0 ? 'is-first' : i === 6 ? 'is-last' : ''}`}>{d}</div>
@@ -727,7 +761,7 @@ export default function WorkSchedule() {
 
                   return (
                     <div key={dateStr}
-                      className={`ws-day-cell ${we?'ws-weekend':''} ${hol?'ws-holiday':''} ${drag?'ws-dragging':''}`}
+                      className={`ws-day-cell ${we?'ws-weekend':''} ${hol?'ws-holiday':''} ${drag?'ws-dragging':''} ${curWeek?.dates.has(dateStr)?'ws-cur-week-day':''}`}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => onDrop(dateStr, c.id)}>
                       <div className="ws-day-num">
