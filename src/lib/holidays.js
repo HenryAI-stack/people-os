@@ -80,27 +80,33 @@ export const HOLIDAYS = {
   // Federal rest days per LFT Art. 74, plus Día de Muertos (Nov 2) from 2026 on.
   // Nov 2 is NOT an Art. 74 day — it's a company day off granted to the Mexico
   // City center, so it's treated like a holiday for staffing/rest rules.
+  // Dec 24 (Christmas Eve) and Dec 31 (New Year's Eve) are likewise company days
+  // off for the Mexico City center, not Art. 74 days.
   MX: {
     // 2024
     '2024-01-01': 'New Year', '2024-02-05': 'Constitution Day',
     '2024-03-18': 'Benito Juárez Birthday', '2024-05-01': 'Labour Day',
     '2024-09-16': 'Independence Day', '2024-11-18': 'Revolution Day',
-    '2024-12-25': 'Christmas Day',
+    '2024-12-24': 'Christmas Eve', '2024-12-25': 'Christmas Day',
+    '2024-12-31': "New Year's Eve",
     // 2025
     '2025-01-01': 'New Year', '2025-02-03': 'Constitution Day',
     '2025-03-17': 'Benito Juárez Birthday', '2025-05-01': 'Labour Day',
     '2025-09-16': 'Independence Day', '2025-11-17': 'Revolution Day',
-    '2025-12-25': 'Christmas Day',
+    '2025-12-24': 'Christmas Eve', '2025-12-25': 'Christmas Day',
+    '2025-12-31': "New Year's Eve",
     // 2026
     '2026-01-01': 'New Year', '2026-02-02': 'Constitution Day',
     '2026-03-16': 'Benito Juárez Birthday', '2026-05-01': 'Labour Day',
     '2026-09-16': 'Independence Day', '2026-11-02': 'Día de Muertos',
-    '2026-11-16': 'Revolution Day', '2026-12-25': 'Christmas Day',
+    '2026-11-16': 'Revolution Day', '2026-12-24': 'Christmas Eve', '2026-12-25': 'Christmas Day',
+    '2026-12-31': "New Year's Eve",
     // 2027
     '2027-01-01': 'New Year', '2027-02-01': 'Constitution Day',
     '2027-03-15': 'Benito Juárez Birthday', '2027-05-01': 'Labour Day',
     '2027-09-16': 'Independence Day', '2027-11-02': 'Día de Muertos',
-    '2027-11-15': 'Revolution Day', '2027-12-25': 'Christmas Day',
+    '2027-11-15': 'Revolution Day', '2027-12-24': 'Christmas Eve', '2027-12-25': 'Christmas Day',
+    '2027-12-31': "New Year's Eve",
   },
 
   // ── UNITED STATES ─────────────────────────────────────────────────────────
