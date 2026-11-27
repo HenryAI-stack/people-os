@@ -478,7 +478,7 @@ Browser (React SPA)
   calendar (ask the user for it), never from a generic India or Karnataka list. `PL` includes 24 Dec
   (Christmas Eve, a public holiday since 2025). 2027 `IN` is still the
   old generic list, marked provisional. `MX` = LFT Art. 74 federal rest days plus Nov 2 (Día de
-  Muertos), a company day off. Key rota rules, encoded in `generateSchedule`:
+  Muertos), Dec 24 (Christmas Eve) and Dec 31 (New Year's Eve), company days off. Key rota rules, encoded in `generateSchedule`:
   weekdays need ≥2 people, weekends/holidays exactly 1; **work history (Rule 7)**: `WorkSchedule.jsx`
   passes *every* saved schedule as `generateSchedule`'s 5th param `pastSchedules`, and
   `computeWorkHistory(schedules, beforeMonth)` counts what's actually saved for months before this
