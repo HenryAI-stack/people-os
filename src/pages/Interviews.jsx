@@ -539,7 +539,7 @@ function InterviewForm({ initial, reports, items, onCancel, onSave }) {
     (form.person ? '__other__' : '')
 
   return (
-    <DraggableModal title={isNew ? 'Log new entry' : 'Edit entry'} onClose={onCancel}>
+    <DraggableModal title={isNew ? `Log new entry${form.person.trim() ? ` - ${form.person.trim()}` : ''}` : 'Edit entry'} onClose={onCancel}>
       <form onSubmit={submit}>
 
         {error && (

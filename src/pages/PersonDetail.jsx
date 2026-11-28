@@ -304,7 +304,7 @@ export default function PersonDetail() {
       )}
 
       {/* Add interview modal */}
-      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name, date:todayDate() }} title="Log interview" previousInterviews={interviews} personName={person.name} onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
+      {addingIv && <InterviewForm key="new" initial={{ ...EMPTY_INTERVIEW, person:person.name, date:todayDate() }} title={`Log interview - ${person.name}`} previousInterviews={interviews} personName={person.name} onCancel={() => setAddingIv(false)} onSave={handleSaveInterview} />}
 
       {/* Edit interview modal */}
       {editingIv && <InterviewForm key={editingIv.id} initial={editingIv} title="Edit interview" previousInterviews={interviews} personName={person.name} onCancel={() => setEditingIv(null)} onSave={handleSaveInterview} />}

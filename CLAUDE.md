@@ -409,7 +409,9 @@ Browser (React SPA)
   `<input list=…>` + `<datalist>` autocomplete (no library — plain HTML) seeded with `['Weekly']`
   merged with whatever titles have actually been used before (org-wide in `Interviews.jsx`, this
   person's own history in `PersonDetail.jsx`), deduped via `Set`. Editing an existing interview is
-  untouched — only new entries get the today-date default.
+  untouched — only new entries get the today-date default. The new-entry modal title names the
+  employee (on request): "Log interview - <name>" from the profile, and "Log new entry - <name>" on
+  the Interviews page once a person is picked or typed (plain "Log new entry" until then).
   Both forms also put the Type `<select>` in a narrow `.type-row` next to a "🤝 Face-to-face
   meeting" checkbox (`.check-label`), stored as a plain `faceToFace` boolean on the interview
   record (editable on existing interviews too; records without it read as `false`). Both
