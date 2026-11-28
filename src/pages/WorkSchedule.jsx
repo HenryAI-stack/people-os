@@ -539,8 +539,10 @@ export default function WorkSchedule() {
       s[a.personId].total++
       const w = weekStart(a.date)
       s[a.personId].weeks[w] = (s[a.personId].weeks[w] || 0) + 1
-      if (a.isWeekend) s[a.personId].weekend++
-      if (a.isHoliday) s[a.personId].holiday++
+      // From the date, not the stored isWeekend/isHoliday flags: those are stale after a
+      // drag-and-drop move or a holiday added to the table after the schedule was generated.
+      if (isWeekend(a.date)) s[a.personId].weekend++
+      if (getHoliday(a.date, CENTERS.find((x) => x.id === a.center)?.country || '')) s[a.personId].holiday++
     }
     return s
   }, [schedule])
@@ -811,7 +813,7 @@ export default function WorkSchedule() {
                             <div className="ws-chip-actions">
                               {leaveIds.has(a.personId) && <span title={`${a.personName} is on leave this day — swap or remove`}>⚠️</span>}
                               {isBirthdayOn(peopleById[a.personId]?.birthday, dateStr) && <span title={`${a.personName}'s birthday — consider swapping`}>🎂</span>}
-                              {a.dayOffGranted && <span title="Day-off credit">💤</span>}
+                              {(we || hol) && <span title="Day-off credit">💤</span>}
                               <button className="ws-comment-btn"
                                 onClick={(e) => { e.stopPropagation(); openComment(dateStr, c.id, a.personId) }}
                                 title={a.comment || 'Add comment'} aria-label={a.comment ? 'Edit comment' : 'Add comment'}>
